@@ -1,5 +1,5 @@
 import React from 'react'
-import { Card, Button, Icon } from './ui'
+import { Card, Button } from './ui'
 import styles from './DirectiveSelector.module.css'
 
 interface DirectiveSelectorProps {
@@ -37,10 +37,6 @@ const DirectiveSelector: React.FC<DirectiveSelectorProps> = ({
     } else {
       onDirectivesChange([...selectedDirectives, directive])
     }
-  }
-
-  const handleSelectAll = () => {
-    onDirectivesChange([...DIRECTIVES])
   }
 
   const handleClearAll = () => {

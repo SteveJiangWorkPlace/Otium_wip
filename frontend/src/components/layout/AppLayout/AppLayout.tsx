@@ -31,7 +31,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     }
   }, [location.pathname])
 
-  const handleMenuSelect = (menu: string) => {
+  const handleMenuSelect = useCallback((menu: string) => {
     setActiveMenu(menu)
     switch (menu) {
       case 'correction':
@@ -50,7 +50,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         navigate('/admin')
         break
     }
-  }
+  }, [navigate])
 
   // 获取用户是否为管理员
   const isAdmin = useAuthStore((state) => state.isAdmin)
@@ -100,7 +100,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [activeMenu, navigate, isAdmin]) // 依赖项：activeMenu、navigate和isAdmin
+  }, [activeMenu, navigate, isAdmin, handleMenuSelect]) // 依赖项：activeMenu、navigate、isAdmin和handleMenuSelect
 
   const handleSidebarToggle = () => {
     setIsSidebarCollapsed(!isSidebarCollapsed)

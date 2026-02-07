@@ -30,7 +30,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // 验证文件类型
-  const isValidFileType = (file: File): boolean => {
+  const isValidFileType = useCallback((file: File): boolean => {
     if (!acceptedTypes) return true
 
     const acceptedExtensions = acceptedTypes.split(',').map(ext => ext.trim().toLowerCase())
@@ -52,12 +52,12 @@ const FileUpload: React.FC<FileUploadProps> = ({
     }
 
     return false
-  }
+  }, [acceptedTypes])
 
   // 验证文件大小
-  const isValidFileSize = (file: File): boolean => {
+  const isValidFileSize = useCallback((file: File): boolean => {
     return file.size <= maxSize
-  }
+  }, [maxSize])
 
   // 处理文件选择
   const handleFileSelect = useCallback((files: FileList | null) => {
@@ -113,7 +113,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
       setUploadedFiles(updatedFiles)
       onFilesChange?.(updatedFiles)
     }
-  }, [uploadedFiles, maxFiles, maxSize, acceptedTypes, onFilesChange])
+  }, [uploadedFiles, maxFiles, maxSize, onFilesChange, isValidFileSize, isValidFileType])
 
   // 处理拖放
   const handleDragEnter = useCallback((e: React.DragEvent) => {

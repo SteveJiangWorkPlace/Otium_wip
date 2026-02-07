@@ -15,7 +15,6 @@ const TextCorrection: React.FC = () => {
     loading,
     loadingStep,
     resultText,
-    editableText,
     setInputText,
     setLoading,
     setLoadingStep,

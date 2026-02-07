@@ -17,7 +17,7 @@ import {
 
 const Admin: React.FC = () => {
   const navigate = useNavigate();
-  const { isAdmin, logout } = useAuthStore();
+  const { isAdmin } = useAuthStore();
   const [users, setUsers] = useState<UserInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);

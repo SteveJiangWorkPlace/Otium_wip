@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import Login from './pages/Login';
-import Home from './pages/Home';
 import Admin from './pages/Admin';
 import TextCorrection from './pages/TextCorrection';
 import TextTranslation from './pages/TextTranslation';

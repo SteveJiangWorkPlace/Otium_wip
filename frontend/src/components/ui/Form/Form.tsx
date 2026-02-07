@@ -1,6 +1,4 @@
 import React, { createContext, useContext } from 'react';
-import Input from '../Input/Input';
-import Textarea from '../Textarea/Textarea';
 import styles from './Form.module.css';
 
 interface FormProps {
