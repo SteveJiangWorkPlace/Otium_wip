@@ -1,0 +1,172 @@
+/* 导入全局样式 */
+@import './styles/global.css';
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* 确保Ant Design组件使用正确的字体 */
+.ant-typography,
+.ant-input,
+.ant-select,
+.ant-btn,
+.ant-descriptions,
+.ant-table {
+  font-family: var(--font-family-base) !important;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+/* 自定义滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Ant Design 主题定制 */
+.ant-btn-primary {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.ant-btn-primary:hover,
+.ant-btn-primary:focus {
+  background-color: var(--color-gray-800);
+  border-color: var(--color-gray-800);
+}
+
+/* 卡片阴影 */
+.ant-card {
+  box-shadow: var(--shadow-md);
+  border-radius: var(--radius-lg);
+}
+
+/* 文本域样式 */
+.ant-input-textarea textarea {
+  font-family: var(--font-family-base);
+  line-height: var(--line-height-relaxed);
+}
+
+/* 加载动画 */
+.ant-spin-dot-item {
+  background-color: var(--color-primary);
+}
+
+/* 进度条颜色 */
+.ant-progress-bg {
+  background-color: var(--color-primary);
+}
+
+/* 标签选中状态 */
+.ant-tag-checkable-checked {
+  background-color: var(--color-primary);
+}
+
+/* 表格样式 */
+.ant-table-thead > tr > th {
+  background-color: var(--color-gray-50);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* 模态框样式 */
+.ant-modal-header {
+  background-color: var(--color-gray-50);
+}
+
+/* 描述列表样式 */
+.ant-descriptions-bordered .ant-descriptions-item-label {
+  background-color: var(--color-gray-50);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Table样式覆盖（保留的Ant Design组件） */
+.ant-table {
+  font-family: var(--font-family-base);
+  color: var(--color-text-primary);
+  background-color: var(--color-background);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.ant-table-thead > tr > th {
+  background-color: var(--color-gray-50);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.ant-table-tbody > tr > td {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.ant-table-tbody > tr:hover > td {
+  background-color: var(--color-gray-50);
+}
+
+.ant-table-pagination.ant-pagination {
+  margin: var(--spacing-4) 0;
+}
+
+/* DatePicker样式覆盖 */
+.ant-picker {
+  font-family: var(--font-family-base);
+  background-color: var(--color-background);
+  border-color: var(--color-border);
+  color: var(--color-text-primary);
+}
+
+.ant-picker:hover,
+.ant-picker-focused {
+  border-color: var(--color-primary);
+}
+
+.ant-picker-input > input {
+  color: var(--color-text-primary);
+}
+
+.ant-picker-input > input::placeholder {
+  color: var(--color-text-secondary);
+}
+
+/* InputNumber样式覆盖 */
+.ant-input-number {
+  font-family: var(--font-family-base);
+  background-color: var(--color-background);
+  border-color: var(--color-border);
+  color: var(--color-text-primary);
+}
+
+.ant-input-number:hover,
+.ant-input-number-focused {
+  border-color: var(--color-primary);
+}
+
+.ant-input-number-input {
+  color: var(--color-text-primary);
+}
+
+.ant-input-number-input::placeholder {
+  color: var(--color-text-secondary);
+}
+
+/* 移除不再需要的Ant Design样式覆盖 */
+/* 自定义组件将使用自己的样式 */

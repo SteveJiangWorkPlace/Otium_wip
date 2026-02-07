@@ -1,0 +1,224 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react'
+import { Card, Button, Icon } from './ui'
+import { AIDetectionResponse } from '../types'
+import { apiClient } from '../api/client'
+import styles from './AIDetection.module.css'
+
+interface AIDetectionProps {
+  text: string
+  onDetectionComplete: (result: AIDetectionResponse) => void
+  disabled?: boolean
+  autoDetect?: boolean
+  result?: AIDetectionResponse | null
+}
+
+const AIDetection: React.FC<AIDetectionProps> = ({
+  text,
+  onDetectionComplete,
+  disabled = false,
+  autoDetect = false,
+  result: externalResult = null,
+}) => {
+  const [loading, setLoading] = useState(false)
+  const [internalResult, setInternalResult] = useState<AIDetectionResponse | null>(null)
+  const hasAutoDetected = useRef(false)
+
+  // 使用外部传入的结果或内部结果
+  const result = externalResult !== undefined ? externalResult : internalResult
+
+  const handleDetect = useCallback(async () => {
+    if (!text.trim()) {
+      alert('请先输入文本')
+      return
+    }
+
+    setLoading(true)
+    try {
+      const response = await apiClient.detectAI({ text })
+
+      const result: AIDetectionResponse = {
+        is_ai_generated: response.ai_score ? response.ai_score > 0.5 : false,
+        confidence: response.ai_score ? Math.abs(response.ai_score - 0.5) * 2 : 0.5,
+        details: '检测完成',
+        ai_score: response.ai_score || 0,
+        full_text: response.full_text || text,
+        detailed_scores: response.detailed_scores || [],
+      }
+
+      setInternalResult(result)
+      onDetectionComplete(result)
+      alert('AI检测完成！')
+    } catch (error) {
+      console.error('AI检测失败:', error)
+      let errorMessage = 'AI检测失败，请稍后重试'
+
+      if (error instanceof Error) {
+        errorMessage = error.message
+      } else if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as any
+        const responseData = axiosError.response?.data
+
+        if (responseData) {
+          // 尝试从统一错误格式提取消息
+          if (typeof responseData.message === 'string' && responseData.message) {
+            errorMessage = responseData.message
+          } else if (typeof responseData.detail === 'string') {
+            errorMessage = responseData.detail
+          } else if (typeof responseData.detail === 'object' && responseData.detail?.message) {
+            errorMessage = responseData.detail.message
+          } else if (responseData.error) {
+            errorMessage = responseData.error
+          }
+        }
+      }
+
+      alert(errorMessage)
+    } finally {
+      setLoading(false)
+    }
+  }, [text, onDetectionComplete])
+
+  // 当文本变化时重置状态
+  useEffect(() => {
+    hasAutoDetected.current = false
+  }, [text])
+
+  // 当autoDetect从false变为true时触发检测
+  const prevAutoDetect = useRef(autoDetect)
+  useEffect(() => {
+    if (autoDetect && !prevAutoDetect.current && text.trim() && !loading) {
+      handleDetect()
+    }
+    prevAutoDetect.current = autoDetect
+  }, [autoDetect, text, loading, handleDetect])
+
+  const getHighlightedText = () => {
+    if (!result?.full_text) return { __html: '' }
+
+    let text = result.full_text
+
+    if (result.detailed_scores && Array.isArray(result.detailed_scores)) {
+      const highAISentences = result.detailed_scores
+        .filter((s) => s.generated_prob * 100 >= 15)
+        .sort((a, b) => b.generated_prob - a.generated_prob)
+        .map((s) => s.sentence)
+
+      highAISentences.forEach((sentence) => {
+        const escaped = sentence.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        text = text.replace(
+          new RegExp(escaped, 'g'),
+          `<mark style="background-color: var(--color-warning); font-weight: bold;">${sentence}</mark>`
+        )
+      })
+    }
+
+    return { __html: text }
+  }
+
+  const handleCopyText = () => {
+    if (!result?.full_text) return
+
+    navigator.clipboard.writeText(result.full_text).then(
+      () => {
+        alert('已复制AI检测分析文本到剪贴板！')
+      },
+      () => {
+        alert('复制失败，请手动复制')
+      }
+    )
+  }
+
+  // 如果没有检测结果，不显示任何内容
+  if (!result) {
+    return null
+  }
+
+  const aiScore = ((result.ai_score ?? 0) * 100).toFixed(1)
+  const scoreNum = parseFloat(aiScore)
+  const isHigh = scoreNum >= 20
+
+  return (
+    <Card variant="elevated" padding="medium" className={styles.container}>
+      <div className={styles.scoreSection}>
+            <div className={styles.scoreHeader}>
+              <span className={styles.scoreLabel}>AI生成概率</span>
+              <span className={`${styles.scoreValue} ${isHigh ? styles.highScore : ''}`}>
+                {aiScore}%
+              </span>
+            </div>
+
+            <div className={styles.progressBar}>
+              <div
+                className={`${styles.progressFill} ${isHigh ? styles.highProgress : ''}`}
+                style={{ width: `${Math.min(scoreNum, 100)}%` }}
+              />
+            </div>
+
+            <div className={styles.scoreDescription}>
+              {isHigh ? (
+                <div className={styles.warningMessage}>
+                  <Icon name="warning" size="sm" variant="warning" />
+                  <span>检测到较高的AI生成概率，建议进行人工修改</span>
+                </div>
+              ) : (
+                <div className={styles.successMessage}>
+                  <Icon name="check" size="sm" variant="success" />
+                  <span>AI生成概率较低，文本质量良好</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className={styles.textSection}>
+            <div className={styles.textHeader}>
+              <h4 className={styles.textTitle}>检测结果分析</h4>
+              <Button
+                variant="ghost"
+                size="small"
+                onClick={handleCopyText}
+              >
+                复制文本
+              </Button>
+            </div>
+
+            <div
+              className={styles.highlightedText}
+              dangerouslySetInnerHTML={getHighlightedText()}
+            />
+
+            {result.detailed_scores && result.detailed_scores.length > 0 && (
+              <div className={styles.detailedScores}>
+                <h5 className={styles.scoresTitle}>详细句子分析</h5>
+                <div className={styles.scoresList}>
+                  {result.detailed_scores
+                    .sort((a, b) => b.generated_prob - a.generated_prob)
+                    .slice(0, 5)
+                    .map((score, index) => (
+                    <div key={index} className={styles.scoreItem}>
+                      <div className={styles.sentenceScore}>
+                        <span className={styles.sentenceText}>
+                          {score.sentence.length > 50
+                            ? score.sentence.substring(0, 50) + '...'
+                            : score.sentence}
+                        </span>
+                        <span className={styles.sentenceProbability}>
+                          {(score.generated_prob * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className={styles.sentenceProgress}>
+                        <div
+                          className={styles.sentenceProgressFill}
+                          style={{ width: `${Math.min(score.generated_prob * 100, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+    </Card>
+  )
+}
+
+export default AIDetection

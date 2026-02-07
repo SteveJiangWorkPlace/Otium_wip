@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)",
+      "Bash(python -m py_compile:*)",
+      "Bash(xargs cat:*)",
+      "Bash(npm start)",
+      "Bash(npm install:*)",
+      "Bash(timeout:*)",
+      "Bash(pip install:*)",
+      "Bash(PORT=3001 timeout 15 npm start:*)",
+      "Bash(dir:*)",
+      "Bash(copy:*)",
+      "Bash(python:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(echo:*)",
+      "Bash(pip show:*)",
+      "Bash(pip index versions:*)",
+      "Bash(tasklist:*)",
+      "Bash(taskkill:*)",
+      "Bash(cmd /c \"taskkill /F /IM python.exe\")",
+      "Bash(curl:*)",
+      "Bash(uvicorn:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(npm run:*)",
+      "Bash(find:*)"
+    ]
+  }
+}

@@ -1,0 +1,54 @@
+.appLayout {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background-color: var(--color-background);
+}
+
+.content {
+  flex: 1;
+  padding: 0;
+  overflow: auto;
+  background-color: var(--color-background);
+  transition: var(--transition-normal);
+}
+
+.content.withSidebar,
+.content.withCollapsedSidebar {
+  margin-left: 0;
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .appLayout {
+    flex-direction: column;
+  }
+
+  .content.withSidebar,
+  .content.withCollapsedSidebar {
+    margin-left: 0;
+    margin-top: 0;
+    width: 100%;
+    padding: var(--spacing-4);
+  }
+}
+
+/* 打印样式 */
+@media print {
+  .appLayout {
+    display: block;
+    height: auto;
+    width: auto;
+  }
+
+  .content.withSidebar,
+  .content.withCollapsedSidebar {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .content {
+    padding: 0;
+  }
+}

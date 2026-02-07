@@ -1,0 +1,63 @@
+.icon {
+  display: inline-block;
+  vertical-align: middle;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Sizes */
+.size-xs {
+  width: 12px;
+  height: 12px;
+}
+
+.size-sm {
+  width: 16px;
+  height: 16px;
+}
+
+.size-md {
+  width: 20px;
+  height: 20px;
+}
+
+.size-lg {
+  width: 24px;
+  height: 24px;
+}
+
+.size-xl {
+  width: 32px;
+  height: 32px;
+}
+
+/* Variants */
+.variant-default {
+  color: currentColor;
+}
+
+.variant-primary {
+  color: var(--color-primary);
+}
+
+.variant-secondary {
+  color: var(--color-secondary);
+}
+
+.variant-success {
+  color: var(--color-success);
+}
+
+.variant-warning {
+  color: var(--color-warning);
+}
+
+.variant-error {
+  color: var(--color-error);
+}
+
+.variant-info {
+  color: var(--color-info);
+}

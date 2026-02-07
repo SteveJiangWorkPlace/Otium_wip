@@ -1,0 +1,97 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.wrapper.fullWidth {
+  width: 100%;
+}
+
+.label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-tight);
+}
+
+.textarea {
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  color: var(--color-text-primary);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition: var(--transition-normal);
+  outline: none;
+  min-height: calc(1.5em * 4 + var(--spacing-2) * 2); /* 4 rows minimum */
+}
+
+.textarea:focus {
+  border-color: var(--color-primary);
+}
+
+.textarea::placeholder {
+  color: var(--color-text-disabled);
+}
+
+.textarea:disabled {
+  background-color: var(--color-gray-100);
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
+/* 隐藏默认的resize手柄斜杠线 */
+.textarea::-webkit-resizer {
+  background-color: transparent;
+  border: none;
+}
+
+.textarea::-moz-resizer {
+  background-color: transparent;
+  border: none;
+}
+
+/* Resize options */
+.resize-none {
+  resize: none;
+}
+
+.resize-vertical {
+  resize: vertical;
+}
+
+.resize-horizontal {
+  resize: horizontal;
+}
+
+.resize-both {
+  resize: both;
+}
+
+/* Error state */
+.textarea.error {
+  border-color: var(--color-error);
+}
+
+.textarea.error:focus {
+  border-color: var(--color-error);
+}
+
+/* Helper and error text */
+.helperText,
+.errorText {
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-tight);
+}
+
+.helperText {
+  color: var(--color-text-secondary);
+}
+
+.errorText {
+  color: var(--color-error);
+}
