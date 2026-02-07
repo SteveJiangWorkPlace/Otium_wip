@@ -107,7 +107,7 @@ const AIDetection: React.FC<AIDetectionProps> = ({
         const escaped = sentence.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
         text = text.replace(
           new RegExp(escaped, 'g'),
-          `<mark style="background-color: var(--color-black); color: var(--color-white); font-weight: bold; padding: 2px 4px; border-radius: 4px;">${sentence}</mark>`
+          `<mark style="background-color: var(--color-black); color: var(--color-white); padding: 2px 4px; border-radius: 4px;">${sentence}</mark>`
         )
       })
     }
@@ -166,6 +166,9 @@ const AIDetection: React.FC<AIDetectionProps> = ({
                   <span>AI生成概率较低，文本质量良好</span>
                 </div>
               )}
+            </div>
+            <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)', marginTop: 'var(--spacing-2)', lineHeight: 'var(--line-height-relaxed)' }}>
+              温馨提示：如果多次修改后AI率仍然较高，请确保提供的初始文本为非AI生成内容。本检测结果基于ZeroGPT模型，仅供参考。如用于学术用途，建议将最终版本提交Turnitin进行权威检测。
             </div>
           </div>
 

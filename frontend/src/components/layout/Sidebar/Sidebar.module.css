@@ -8,11 +8,14 @@
   transition: var(--transition-normal);
   overflow: hidden;
   z-index: var(--z-index-sticky);
+  position: relative;
 }
 
 .sidebar.collapsed {
-  width: 64px;
-  min-width: 64px;
+  width: 0;
+  min-width: 0;
+  border-right: none;
+  overflow: hidden;
 }
 
 .header {
@@ -59,28 +62,37 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 0;
+  width: 20px;
+  height: 40px;
   border: none;
-  background-color: transparent;
-  color: var(--color-text-primary);
-  font-size: var(--font-size-lg);
+  background-color: var(--color-gray-800);
+  color: var(--color-white);
+  font-size: var(--font-size-sm);
   font-weight: var(--font-weight-bold);
   cursor: pointer;
-  transition: var(--transition-fast);
+  transition: all var(--transition-fast);
   margin: 0;
   padding: 0;
+  position: absolute;
+  right: -10px; /* 一半宽度，使其内嵌在边框上 */
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  box-shadow: 1px 0 3px rgba(0, 0, 0, 0.1);
+  z-index: calc(var(--z-index-sticky) + 1);
+}
+
+.sidebar:hover .toggleButton {
+  opacity: 1;
 }
 
 .toggleButton:hover {
-  color: var(--color-gray-700);
-  background-color: transparent;
+  background-color: var(--color-gray-700);
 }
 
 .toggleButton:active {
-  color: var(--color-gray-900);
-  background-color: transparent;
+  background-color: var(--color-gray-600);
 }
 
 .nav {
@@ -125,6 +137,11 @@
 
 .menuButton.active .menuIcon {
   color: white;
+}
+
+.menuButton:focus,
+.menuButton:focus-visible {
+  outline: none;
 }
 
 .menuIcon {
@@ -315,6 +332,27 @@
 
   .footer {
     padding: var(--spacing-3);
+  }
+
+  /* 移动端调整toggle按钮 */
+  .toggleButton {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 1; /* 移动端始终显示 */
+    background-color: var(--color-gray-800);
+    border-radius: var(--radius-sm);
+    width: 32px;
+    height: 32px;
+  }
+
+  .sidebar.collapsed .toggleButton {
+    position: absolute;
+    right: 10px;
+    left: auto;
+    top: 50%;
+    transform: translateY(-50%);
   }
 }
 
@@ -527,4 +565,27 @@
   background-color: var(--color-background);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
+}
+
+/* 侧边栏隐藏时的toggle按钮样式 */
+.sidebar.collapsed .toggleButton {
+  position: fixed;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 40px;
+  background-color: var(--color-gray-800);
+  color: var(--color-white);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  z-index: calc(var(--z-index-sticky) + 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1; /* 折叠时始终显示 */
+  right: auto; /* 重置正常状态下的right值 */
+}
+
+.sidebar.collapsed .toggleButton:hover {
+  background-color: var(--color-gray-700);
 }

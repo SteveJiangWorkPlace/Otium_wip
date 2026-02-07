@@ -83,15 +83,17 @@ const Sidebar: React.FC<SidebarProps> = ({
             </div>
           </div>
         )}
-        <button
-          className={styles.toggleButton}
-          onClick={onToggle}
-          aria-label={isCollapsed ? '展开侧边栏' : '折叠侧边栏'}
-          title={isCollapsed ? '展开侧边栏' : '折叠侧边栏'}
-        >
-          {isCollapsed ? '>' : '<'}
-        </button>
       </div>
+
+      {/* 侧边栏隐藏/显示按钮 */}
+      <button
+        className={styles.toggleButton}
+        onClick={onToggle}
+        aria-label={isCollapsed ? '展开侧边栏' : '折叠侧边栏'}
+        title={isCollapsed ? '展开侧边栏' : '折叠侧边栏'}
+      >
+        {isCollapsed ? '>' : '<'}
+      </button>
 
       <nav className={styles.nav}>
         <ul className={styles.menuList}>

@@ -129,7 +129,6 @@
 .highlightedText mark {
   background-color: var(--color-warning);
   color: var(--color-text-primary);
-  font-weight: var(--font-weight-bold);
   padding: 2px 4px;
   border-radius: var(--radius-sm);
 }

@@ -883,15 +883,6 @@ Input: "The study shows significant results.【use more academic vocabulary】 T
 Correct Output: "The study **demonstrates substantial findings**. The data supports this conclusion."
 Wrong Output: "The study **demonstrates substantial findings**. The data **corroborates this assertion**." ← WRONG! The instruction should NOT affect the second sentence.
 
-Example 2:
-Input: "First sentence. Second sentence.【make it concise】 Third sentence."
-Correct Output: "First sentence. **Concise version**. Third sentence."
-Wrong Output: "**Short**. **Brief**. **Concise**." ← WRONG! Only the second sentence should be modified.
-
-Example 3:
-Input: "The research methodology was comprehensive.【add more detail】 The results were analyzed carefully."
-Correct Output: "The research methodology was comprehensive, **including both quantitative and qualitative approaches**. The results were analyzed carefully."
-Wrong Output: "The research methodology was comprehensive, **including both quantitative and qualitative approaches**. The results were analyzed carefully**, using statistical software and peer review**." ← WRONG! The instruction only applies to the first sentence.
 
 **PROCESSING STEPS:**
 1. Read the text sentence by sentence from beginning to end
@@ -1645,10 +1636,11 @@ async def refine_text(http_request: Request, request: RefineTextRequest, user: U
         "model_used": result.get("model_used", "unknown"),
         "annotations_processed": len(annotations) if annotations else 0
     }
-    
+
+
     # 缓存结果
     gemini_cache.set(cache_key, response_data)
-    
+
     return response_data
 
 @app.post("/api/text/detect-ai")

@@ -98,7 +98,7 @@ const TextModification: React.FC = () => {
     // 使用**标记高亮修改部分，参考智能纠错格式
     const highlightedText = text.replace(
       /\*\*(.*?)\*\*/g,
-      '<mark style="background-color: var(--color-black); color: var(--color-white); font-weight: bold; padding: 2px 4px; border-radius: 4px;">$1</mark>'
+      '<mark style="background-color: var(--color-black); color: var(--color-white); padding: 2px 4px; border-radius: 4px;">$1</mark>'
     )
     return { __html: highlightedText }
   }
