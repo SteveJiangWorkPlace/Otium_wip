@@ -107,7 +107,7 @@ const AIDetection: React.FC<AIDetectionProps> = ({
         const escaped = sentence.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
         text = text.replace(
           new RegExp(escaped, 'g'),
-          `<mark style="background-color: var(--color-warning); font-weight: bold;">${sentence}</mark>`
+          `<mark style="background-color: var(--color-black); color: var(--color-white); font-weight: bold; padding: 2px 4px; border-radius: 4px;">${sentence}</mark>`
         )
       })
     }

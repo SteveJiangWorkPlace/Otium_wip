@@ -90,11 +90,11 @@ const Login: React.FC = () => {
             className={styles.logoImage}
           />
           <h1 className={styles.loginTitle}>Otium</h1>
+          <p className={styles.loginSubtitle}>拖延症儿童的论文DDL救星</p>
         </div>
 
         <form onSubmit={handleSubmit} className={styles.loginForm}>
           <Input
-            label="用户名"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             error={usernameError}
@@ -105,7 +105,6 @@ const Login: React.FC = () => {
           />
 
           <Input
-            label="密码"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}

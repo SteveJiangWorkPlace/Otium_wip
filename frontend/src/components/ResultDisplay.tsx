@@ -49,7 +49,7 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({
   const renderHighlightedText = (text: string) => {
     const highlightedText = text.replace(
       /\*\*(.*?)\*\*/g,
-      '<mark style="background-color: var(--color-warning); font-weight: bold;">$1</mark>'
+      '<mark style="background-color: var(--color-black); color: var(--color-white); font-weight: bold; padding: 2px 4px; border-radius: 4px;">$1</mark>'
     )
     return { __html: highlightedText }
   }
