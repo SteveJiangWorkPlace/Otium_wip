@@ -98,7 +98,6 @@ const Login: React.FC = () => {
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             error={usernameError}
-            startIcon={<Icon name="cvWrite" size="sm" variant="default" />}
             placeholder="请输入用户名"
             fullWidth
             disabled={loading}
@@ -109,7 +108,6 @@ const Login: React.FC = () => {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             error={passwordError}
-            startIcon={<Icon name="save" size="sm" variant="default" />}
             placeholder="请输入密码"
             fullWidth
             disabled={loading}

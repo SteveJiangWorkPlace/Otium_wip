@@ -8,7 +8,7 @@ import styles from './TextTranslation.module.css'
 
 const TextTranslation: React.FC = () => {
   const navigate = useNavigate()
-  const { userInfo } = useAuthStore()
+  const { userInfo, updateUserInfo } = useAuthStore()
 
   const {
     inputText,
@@ -58,6 +58,25 @@ const TextTranslation: React.FC = () => {
         setTranslatedText(response.text)
         setEditableText(response.text)
         alert(`${englishType === 'us' ? '美式' : '英式'}翻译完成！`)
+
+        // 翻译成功后，获取最新的用户信息以更新剩余次数
+        try {
+          const updatedUserInfo = await apiClient.getCurrentUser()
+          updateUserInfo(updatedUserInfo)
+          console.log('用户信息已更新，剩余次数:', updatedUserInfo.remaining_translations)
+        } catch (error) {
+          console.warn('获取更新后的用户信息失败:', error)
+          // 如果从响应中获取到了 remaining_translations，则更新本地用户信息
+          if (response.remaining_translations !== undefined && userInfo) {
+            const updatedUserInfo = {
+              ...userInfo,
+              remaining_translations: response.remaining_translations,
+              used_translations: userInfo.max_translations - response.remaining_translations
+            }
+            updateUserInfo(updatedUserInfo)
+            console.log('使用响应中的剩余次数更新用户信息:', response.remaining_translations)
+          }
+        }
       }
     } catch (error) {
       let errorMessage = '翻译失败，请稍后重试'
