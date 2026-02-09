@@ -72,14 +72,6 @@
   margin-bottom: var(--spacing-4);
 }
 
-.charCount {
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  font-size: var(--font-size-xs);
-  color: var(--color-text-secondary);
-  padding: var(--spacing-1);
-}
 
 .inputFooter {
   margin-top: var(--spacing-4);

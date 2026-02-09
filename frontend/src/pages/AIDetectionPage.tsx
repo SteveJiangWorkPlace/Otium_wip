@@ -120,9 +120,8 @@ const AIDetectionPage: React.FC = () => {
                     rows={16}
                     resize="vertical"
                     fullWidth
-                    maxLength={2000}
+                    maxLength={5000}
                   />
-                  {/* 字符计数显示已移除 */}
                 </div>
 
                 <div className={styles.inputFooter}>

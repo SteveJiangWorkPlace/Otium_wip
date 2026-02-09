@@ -184,12 +184,11 @@ const TextCorrection: React.FC = () => {
                     rows={16}
                     resize="vertical"
                     fullWidth
-                    maxLength={5000}
+                    maxLength={1000}
                   />
-                  {/* 字符计数已隐藏 */}
-                  {/* <div className={styles.charCount}>
-                    {inputText.length} / 5000
-                  </div> */}
+                  <div className={styles.charCount}>
+                    {inputText.length} / 1000
+                  </div>
                 </div>
 
                 <div className={styles.inputFooter}>
