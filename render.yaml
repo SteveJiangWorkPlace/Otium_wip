@@ -52,7 +52,7 @@ services:
 
       # ==================== CORS 配置 ====================
       - key: CORS_ORIGINS
-        value: https://your-otium-app.netlify.app,http://localhost:3000
+        value: https://otiumtrans.netlify.app,http://localhost:3000
 
       # ==================== 安全配置 ====================
       - key: ENABLE_HTTPS_REDIRECT

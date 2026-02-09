@@ -79,7 +79,7 @@ logging.info(f"ADMIN_PASSWORD 长度: {len(os.environ.get('ADMIN_PASSWORD', 'adm
 # CORS配置
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 允许所有源，仅在开发环境使用
+    allow_origins=settings.CORS_ORIGINS,  # 从配置读取允许的来源
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
