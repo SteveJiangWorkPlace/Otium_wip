@@ -25,7 +25,7 @@ services:
       - key: RENDER
         value: true
       - fromService:
-          type: postgres
+          type: postgresql
           name: otium-database
           property: connectionString
 
@@ -64,7 +64,7 @@ services:
         value: true
 
   # PostgreSQL Database
-  - type: postgres
+  - type: postgresql
     name: otium-database
     region: oregon
     databaseName: otium
