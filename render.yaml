@@ -10,6 +10,7 @@ services:
   - type: web
     name: otium-backend
     env: python
+    pythonVersion: "3.11.0"
     region: oregon  # or: frankfurt, singapore, ohio, etc.
     buildCommand: pip install -r backend/requirements.txt
     startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 4 --worker-class uvicorn.workers.UvicornWorker --timeout 120 main:app
@@ -25,7 +26,7 @@ services:
       - key: RENDER
         value: true
       - fromService:
-          type: postgresql
+          type: postgres
           name: otium-database
           property: connectionString
 
@@ -64,18 +65,12 @@ services:
         value: true
 
   # PostgreSQL Database
-  - type: postgresql
+  - type: postgres
     name: otium-database
     region: oregon
+    postgresMajorVersion: "16"
     databaseName: otium
     user: otium_admin
-    plan: free  # or: starter, professional, etc.
-    ipAllowList: []  # Empty array means no IP restrictions
-
-    # Database initialization script
-    initSQLCommands:
-      - CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-      - CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 # ============================================
 # Environment Groups (Shared Variables)

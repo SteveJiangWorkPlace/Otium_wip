@@ -25,7 +25,9 @@
       "Bash(npm run build:*)",
       "Bash(npm run type-check:*)",
       "Bash(npm run:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "WebSearch",
+      "WebFetch(domain:render.com)"
     ]
   }
 }
