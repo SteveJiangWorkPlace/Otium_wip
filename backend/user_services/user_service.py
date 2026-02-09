@@ -201,7 +201,7 @@ class UserService:
             ).count()
 
             logging.info(f"获取用户信息: {username}")
-            logging.info(f"今日使用: 翻译 {daily_translation_used}/{settings.DAILY_TRANSLATION_LIMIT} 次, AI检测 {daily_ai_detection_used}/{settings.DAILY_AI_DETECTION_LIMIT} 次")
+            logging.info(f"今日使用: 翻译 {daily_translation_used}/{user.daily_translation_limit} 次, AI检测 {daily_ai_detection_used}/{user.daily_ai_detection_limit} 次")
 
             return {
                 "username": username,
