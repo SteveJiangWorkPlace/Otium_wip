@@ -13,6 +13,7 @@ from datetime import datetime, date
 from typing import Dict, List, Any, Optional, Tuple
 
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from config import settings, is_expired
 from models.database import (
@@ -24,11 +25,15 @@ from models.database import (
 class UserService:
     """用户服务类 - 使用数据库存储用户数据"""
 
+    DAILY_LIMIT = 3  # 每个用户每天的翻译使用次数限制
+
     def __init__(self):
         """初始化用户服务"""
         self._lock = threading.RLock()  # 线程锁，防止并发访问
         self._ensure_admin_user()
         logging.info("UserService初始化完成，使用数据库存储")
+        logging.info(f"每日翻译限制: {settings.DAILY_TRANSLATION_LIMIT} 次")
+        logging.info(f"每日AI检测限制: {settings.DAILY_AI_DETECTION_LIMIT} 次")
 
     def _ensure_admin_user(self):
         """确保管理员用户存在"""
@@ -68,39 +73,20 @@ class UserService:
 
             logging.info(f"密码验证通过！")
 
-            # 检查账户有效期
-            expiry_date = user.expiry_date
-            logging.info(f"检查账户有效期: {expiry_date}")
+            # 检查账户有效性（仅检查是否被禁用）
+            if not user.is_active:
+                logging.error(f"用户已被禁用: {username}")
+                return False, "用户已被禁用"
 
-            if is_expired(expiry_date.strftime("%Y-%m-%d")):
-                logging.error(f"账户已过期: {expiry_date}")
-                return False, f"账户已于 {expiry_date} 过期"
-
-            logging.info("账户有效期检查通过")
-
-            # 检查使用次数
-            usage = user.usage
-            if not usage:
-                # 创建使用记录
-                usage = UserUsage(user_id=user.id)
-                db.add(usage)
-                db.commit()
-
-            used_translations = usage.translations_count
-            max_translations = user.max_translations
-            logging.info(f"用户使用量检查: 已使用 {used_translations}/{max_translations} 次翻译")
-
-            # 管理员用户跳过使用次数限制
-            if not user.is_admin and used_translations >= max_translations:
-                return False, f"已达到最大翻译次数限制 ({max_translations})"
+            logging.info("用户验证通过")
 
             return True, "验证通过"
 
         finally:
             db.close()
 
-    def record_translation(self, username: str, operation_type: str = "translation", text_length: Optional[int] = None, metadata: Optional[Dict] = None) -> int:
-        """记录一次翻译使用"""
+    def record_usage(self, username: str, operation_type: str = "translation", text_length: Optional[int] = None, metadata: Optional[Dict] = None) -> int:
+        """记录一次使用（翻译、AI检测等）"""
         # 添加类型检查和转换
         if hasattr(username, 'username'):
             username = username.username
@@ -116,6 +102,31 @@ class UserService:
                 if not user:
                     logging.error(f"用户 {username} 不存在，无法记录翻译使用")
                     raise ValueError(f"用户 {username} 不存在")
+
+                # 检查每日限制
+                today = datetime.utcnow().date()
+
+                # 根据操作类型确定每日限制（使用用户特定的限制值）
+                if operation_type in ["translate_us", "translate_uk"]:
+                    daily_limit = user.daily_translation_limit
+                    limit_type = "翻译"
+                elif operation_type == "ai_detection":
+                    daily_limit = user.daily_ai_detection_limit
+                    limit_type = "AI检测"
+                else:
+                    daily_limit = 10  # 默认限制
+                    limit_type = "操作"
+
+                # 查询今日该操作类型的记录数
+                daily_count = db.query(TranslationRecord).filter(
+                    TranslationRecord.user_id == user.id,
+                    func.date(TranslationRecord.created_at) == today,
+                    TranslationRecord.operation_type == operation_type
+                ).count()
+
+                if daily_count >= daily_limit:
+                    logging.warning(f"用户 {username} 今日{limit_type}次数已达上限 ({daily_limit} 次)")
+                    raise ValueError(f"今日{limit_type}次数已达上限 ({daily_limit} 次)，请明天再试")
 
                 # 获取或创建使用记录
                 usage = user.usage
@@ -144,19 +155,17 @@ class UserService:
                 db.commit()
 
                 new_count = usage.translations_count
-                logging.info(f"记录翻译使用: 用户 {username}, 之前次数: {previous_count}, 现在次数: {new_count}")
-                logging.info(f"翻译使用记录保存成功: 用户 {username}, 总使用次数: {new_count}")
+                logging.info(f"记录使用({operation_type}): 用户 {username}, 之前总次数: {previous_count}, 现在总次数: {new_count}")
+                logging.info(f"使用记录保存成功: 用户 {username}, 总使用次数: {new_count}")
 
-                max_translations = user.max_translations
-                remaining = max_translations - new_count
-                logging.info(f"用户 {username} 剩余翻译次数: {remaining}/{max_translations}")
-
-                return remaining
+                # 不再计算和返回剩余次数，现在只使用每日限制
+                # 返回0表示成功，前端不需要处理剩余次数
+                return 0
 
             except Exception as e:
                 db.rollback()
-                logging.error(f"保存翻译使用记录失败，数据可能丢失！用户: {username}, 错误: {str(e)}")
-                raise RuntimeError(f"无法保存翻译使用记录: {str(e)}")
+                logging.error(f"保存使用记录失败，数据可能丢失！用户: {username}, 操作类型: {operation_type}, 错误: {str(e)}")
+                raise RuntimeError(f"无法保存使用记录: {str(e)}")
             finally:
                 db.close()
 
@@ -175,23 +184,31 @@ class UserService:
             if not user:
                 return None
 
-            usage = user.usage
-            if not usage:
-                used_translations = 0
-            else:
-                used_translations = usage.translations_count
+            # 不再需要总使用次数统计，只保留每日限制
 
-            max_translations = user.max_translations
-            remaining = max_translations - used_translations
+            # 获取今日使用统计
+            today = datetime.utcnow().date()
+            daily_translation_used = db.query(TranslationRecord).filter(
+                TranslationRecord.user_id == user.id,
+                func.date(TranslationRecord.created_at) == today,
+                TranslationRecord.operation_type.in_(["translate_us", "translate_uk"])
+            ).count()
 
-            logging.info(f"获取用户信息: {username}, 已使用 {used_translations}/{max_translations} 次翻译, 剩余 {remaining} 次")
+            daily_ai_detection_used = db.query(TranslationRecord).filter(
+                TranslationRecord.user_id == user.id,
+                func.date(TranslationRecord.created_at) == today,
+                TranslationRecord.operation_type == "ai_detection"
+            ).count()
+
+            logging.info(f"获取用户信息: {username}")
+            logging.info(f"今日使用: 翻译 {daily_translation_used}/{settings.DAILY_TRANSLATION_LIMIT} 次, AI检测 {daily_ai_detection_used}/{settings.DAILY_AI_DETECTION_LIMIT} 次")
 
             return {
                 "username": username,
-                "expiry_date": user.expiry_date.strftime("%Y-%m-%d"),
-                "max_translations": max_translations,
-                "used_translations": used_translations,
-                "remaining_translations": remaining,
+                "daily_translation_limit": user.daily_translation_limit,
+                "daily_ai_detection_limit": user.daily_ai_detection_limit,
+                "daily_translation_used": daily_translation_used,
+                "daily_ai_detection_used": daily_ai_detection_used,
                 "is_admin": user.is_admin,
                 "is_active": user.is_active,
                 "created_at": user.created_at.isoformat() if user.created_at else None,
@@ -201,8 +218,8 @@ class UserService:
         finally:
             db.close()
 
-    def update_user(self, username: str, expiry_date: Optional[str] = None, max_translations: Optional[int] = None, password: Optional[str] = None) -> Tuple[bool, str]:
-        """更新用户信息"""
+    def update_user(self, username: str, password: Optional[str] = None, daily_translation_limit: Optional[int] = None, daily_ai_detection_limit: Optional[int] = None) -> Tuple[bool, str]:
+        """更新用户信息（密码和每日限制）"""
         db = self._get_db_session()
         try:
             user = db.query(User).filter(User.username == username).first()
@@ -210,29 +227,26 @@ class UserService:
             if not user:
                 return False, "用户不存在"
 
-            if expiry_date:
-                try:
-                    user.expiry_date = datetime.strptime(expiry_date, "%Y-%m-%d").date()
-                except ValueError:
-                    return False, "日期格式错误，请使用YYYY-MM-DD格式"
-
-            if max_translations is not None:
-                user.max_translations = max_translations
-
             if password:
                 user.password_hash = hash_password(password)
 
+            if daily_translation_limit is not None:
+                user.daily_translation_limit = daily_translation_limit
+
+            if daily_ai_detection_limit is not None:
+                user.daily_ai_detection_limit = daily_ai_detection_limit
+
             db.commit()
-            return True, "更新成功"
+            return True, "用户信息更新成功"
 
         except Exception as e:
             db.rollback()
-            logging.error(f"更新用户失败: {str(e)}")
+            logging.error(f"更新用户密码失败: {str(e)}")
             return False, f"更新失败: {str(e)}"
         finally:
             db.close()
 
-    def add_user(self, username: str, password: str, expiry_date: str, max_translations: int) -> Tuple[bool, str]:
+    def add_user(self, username: str, password: str, daily_translation_limit: int = 10, daily_ai_detection_limit: int = 10) -> Tuple[bool, str]:
         """添加新用户"""
         db = self._get_db_session()
         try:
@@ -241,18 +255,17 @@ class UserService:
             if existing_user:
                 return False, "用户已存在"
 
-            # 验证日期格式
-            try:
-                expiry_date_obj = datetime.strptime(expiry_date, "%Y-%m-%d").date()
-            except ValueError:
-                return False, "日期格式错误，请使用YYYY-MM-DD格式"
+            # 设置默认值：过期时间设为2099-12-31，最大翻译次数设为0（不再使用）
+            expiry_date_obj = date(2099, 12, 31)
 
             # 创建新用户
             new_user = User(
                 username=username,
                 password_hash=hash_password(password),
                 expiry_date=expiry_date_obj,
-                max_translations=max_translations,
+                max_translations=0,  # 不再使用总次数限制
+                daily_translation_limit=daily_translation_limit,
+                daily_ai_detection_limit=daily_ai_detection_limit,
                 is_admin=False,
                 is_active=True
             )

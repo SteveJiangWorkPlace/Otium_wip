@@ -104,10 +104,14 @@ export interface LoginResponse {
 // 用户信息
 export interface UserInfo {
   username: string;
-  expiry_date: string;
-  remaining_translations: number;
-  max_translations: number;
-  used_translations: number;
+  daily_translation_limit: number;
+  daily_ai_detection_limit: number;
+  daily_translation_used: number;
+  daily_ai_detection_used: number;
+  is_admin: boolean;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 // ==================== 管理员相关 ====================

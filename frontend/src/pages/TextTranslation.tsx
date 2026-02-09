@@ -82,19 +82,10 @@ const TextTranslation: React.FC = () => {
         try {
           const updatedUserInfo = await apiClient.getCurrentUser()
           updateUserInfo(updatedUserInfo)
-          console.log('用户信息已更新，剩余次数:', updatedUserInfo.remaining_translations)
+          console.log('用户信息已更新')
         } catch (error) {
           console.warn('获取更新后的用户信息失败:', error)
-          // 如果从响应中获取到了 remaining_translations，则更新本地用户信息
-          if (response.remaining_translations !== undefined && userInfo) {
-            const updatedUserInfo = {
-              ...userInfo,
-              remaining_translations: response.remaining_translations,
-              used_translations: userInfo.max_translations - response.remaining_translations
-            }
-            updateUserInfo(updatedUserInfo)
-            console.log('使用响应中的剩余次数更新用户信息:', response.remaining_translations)
-          }
+          // 不再需要处理剩余次数，现在只使用每日限制
         }
       }
     } catch (error) {

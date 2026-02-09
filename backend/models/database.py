@@ -107,6 +107,8 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)  # SHA256哈希
     expiry_date = Column(Date, nullable=False)
     max_translations = Column(Integer, default=1000)
+    daily_translation_limit = Column(Integer, default=10)  # 每日翻译限制
+    daily_ai_detection_limit = Column(Integer, default=10)  # 每日AI检测限制
     is_admin = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=func.now())
@@ -122,6 +124,8 @@ class User(Base):
             "username": self.username,
             "expiry_date": self.expiry_date.strftime("%Y-%m-%d") if self.expiry_date else None,
             "max_translations": self.max_translations,
+            "daily_translation_limit": self.daily_translation_limit,
+            "daily_ai_detection_limit": self.daily_ai_detection_limit,
             "is_admin": self.is_admin,
             "is_active": self.is_active,
             "created_at": self.created_at.isoformat() if self.created_at else None,
@@ -205,6 +209,8 @@ def create_admin_user(db: Session) -> User:
         admin_user.password_hash = hash_password(settings.ADMIN_PASSWORD)
         admin_user.expiry_date = datetime.strptime("2099-12-31", "%Y-%m-%d").date()
         admin_user.max_translations = 99999
+        admin_user.daily_translation_limit = 999
+        admin_user.daily_ai_detection_limit = 999
         admin_user.is_admin = True
         admin_user.is_active = True
         logging.info(f"更新管理员用户: {settings.ADMIN_USERNAME}")
@@ -215,6 +221,8 @@ def create_admin_user(db: Session) -> User:
             password_hash=hash_password(settings.ADMIN_PASSWORD),
             expiry_date=datetime.strptime("2099-12-31", "%Y-%m-%d").date(),
             max_translations=99999,
+            daily_translation_limit=999,
+            daily_ai_detection_limit=999,
             is_admin=True,
             is_active=True
         )

@@ -70,6 +70,8 @@ class Settings:
     # 速率限制配置
     RATE_LIMIT_PER_MINUTE: int = int(os.environ.get("RATE_LIMIT_PER_MINUTE", "5"))
     DAILY_TEXT_LIMIT: int = int(os.environ.get("DAILY_TEXT_LIMIT", "1000"))
+    DAILY_TRANSLATION_LIMIT: int = int(os.environ.get("DAILY_TRANSLATION_LIMIT", "10"))
+    DAILY_AI_DETECTION_LIMIT: int = int(os.environ.get("DAILY_AI_DETECTION_LIMIT", "10"))
 
     # 日志配置
     LOG_LEVEL: str = os.environ.get("LOG_LEVEL", "INFO").upper()

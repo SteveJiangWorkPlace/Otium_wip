@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Table, DatePicker, InputNumber } from 'antd';
+import { Table } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import { apiClient } from '../api/client';
 import { UserInfo } from '../types';
-import dayjs from 'dayjs';
 import {
   Button,
   Card,
@@ -26,8 +25,8 @@ const Admin: React.FC = () => {
   const [formData, setFormData] = useState({
     username: '',
     password: '',
-    expiry_date: null as dayjs.Dayjs | null,
-    max_translations: 1,
+    daily_translation_limit: 10,
+    daily_ai_detection_limit: 10,
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
@@ -56,8 +55,8 @@ const Admin: React.FC = () => {
     setFormData({
       username: user.username,
       password: '',
-      expiry_date: dayjs(user.expiry_date),
-      max_translations: user.max_translations,
+      daily_translation_limit: user.daily_translation_limit,
+      daily_ai_detection_limit: user.daily_ai_detection_limit,
     });
     setFormErrors({});
     setModalVisible(true);
@@ -68,8 +67,8 @@ const Admin: React.FC = () => {
     setFormData({
       username: '',
       password: '',
-      expiry_date: null,
-      max_translations: 1,
+      daily_translation_limit: 10,
+      daily_ai_detection_limit: 10,
     });
     setFormErrors({});
     setModalVisible(true);
@@ -86,12 +85,13 @@ const Admin: React.FC = () => {
       errors.password = '请输入密码';
     }
 
-    if (!formData.expiry_date) {
-      errors.expiry_date = '请选择过期日期';
+    // 验证每日限制字段
+    if (formData.daily_translation_limit <= 0) {
+      errors.daily_translation_limit = '每日翻译限制必须大于0';
     }
 
-    if (!formData.max_translations || formData.max_translations < 1) {
-      errors.max_translations = '请输入有效的最大翻译次数';
+    if (formData.daily_ai_detection_limit <= 0) {
+      errors.daily_ai_detection_limit = '每日AI检测限制必须大于0';
     }
 
     setFormErrors(errors);
@@ -107,8 +107,8 @@ const Admin: React.FC = () => {
       const data = {
         username: formData.username,
         password: formData.password || undefined,
-        expiry_date: formData.expiry_date ? formData.expiry_date.format('YYYY-MM-DD') : '',
-        max_translations: formData.max_translations,
+        daily_translation_limit: formData.daily_translation_limit,
+        daily_ai_detection_limit: formData.daily_ai_detection_limit,
       };
 
       if (editingUser) {
@@ -148,28 +148,39 @@ const Admin: React.FC = () => {
       key: 'username',
     },
     {
-      title: '过期日期',
-      dataIndex: 'expiry_date',
-      key: 'expiry_date',
-    },
-    {
-      title: '已用次数',
-      dataIndex: 'used_translations',
-      key: 'used_translations',
-    },
-    {
-      title: '总次数',
-      dataIndex: 'max_translations',
-      key: 'max_translations',
-    },
-    {
-      title: '剩余次数',
-      dataIndex: 'remaining_translations',
-      key: 'remaining_translations',
-      render: (value: number) => (
-        <span style={{ color: value <= 5 ? '#ff4d4f' : 'inherit' }}>
-          {value}
+      title: '状态',
+      dataIndex: 'is_active',
+      key: 'is_active',
+      render: (value: boolean) => (
+        <span style={{ color: value ? '#52c41a' : '#ff4d4f' }}>
+          {value ? '激活' : '禁用'}
         </span>
+      ),
+    },
+    {
+      title: '今日翻译',
+      key: 'daily_translation',
+      render: (_: any, record: UserInfo) => (
+        <span>
+          {record.daily_translation_used}/{record.daily_translation_limit}
+        </span>
+      ),
+    },
+    {
+      title: '今日AI检测',
+      key: 'daily_ai_detection',
+      render: (_: any, record: UserInfo) => (
+        <span>
+          {record.daily_ai_detection_used}/{record.daily_ai_detection_limit}
+        </span>
+      ),
+    },
+    {
+      title: '管理员',
+      dataIndex: 'is_admin',
+      key: 'is_admin',
+      render: (value: boolean) => (
+        <span>{value ? '是' : '否'}</span>
       ),
     },
     {
@@ -258,29 +269,35 @@ const Admin: React.FC = () => {
           </FormItem>
 
           <FormItem
-            label="过期日期"
+            label="每日翻译限制"
             required
-            error={formErrors.expiry_date}
+            error={formErrors.daily_translation_limit}
           >
-            <DatePicker
-              style={{ width: '100%' }}
-              value={formData.expiry_date}
-              onChange={(date) => handleFormChange('expiry_date', date)}
+            <Input
+              type="number"
+              name="daily_translation_limit"
+              value={formData.daily_translation_limit}
+              onChange={(e) => handleFormChange('daily_translation_limit', parseInt(e.target.value) || 0)}
+              placeholder="请输入每日翻译限制"
+              min="1"
             />
           </FormItem>
 
           <FormItem
-            label="最大翻译次数"
+            label="每日AI检测限制"
             required
-            error={formErrors.max_translations}
+            error={formErrors.daily_ai_detection_limit}
           >
-            <InputNumber
-              min={1}
-              style={{ width: '100%' }}
-              value={formData.max_translations}
-              onChange={(value) => handleFormChange('max_translations', value)}
+            <Input
+              type="number"
+              name="daily_ai_detection_limit"
+              value={formData.daily_ai_detection_limit}
+              onChange={(e) => handleFormChange('daily_ai_detection_limit', parseInt(e.target.value) || 0)}
+              placeholder="请输入每日AI检测限制"
+              min="1"
             />
           </FormItem>
+
         </Form>
       </Modal>
     </div>

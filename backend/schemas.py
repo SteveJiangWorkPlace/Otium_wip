@@ -44,8 +44,8 @@ class AdminLoginRequest(BaseModel):
 class UpdateUserRequest(BaseModel):
     """更新用户请求模型"""
     username: str
-    expiry_date: Optional[str] = None
-    max_translations: Optional[int] = None
+    daily_translation_limit: Optional[int] = None
+    daily_ai_detection_limit: Optional[int] = None
     password: Optional[str] = None
 
 
@@ -53,8 +53,8 @@ class AddUserRequest(BaseModel):
     """添加用户请求模型"""
     username: str
     password: str
-    expiry_date: str
-    max_translations: int
+    daily_translation_limit: int = 10
+    daily_ai_detection_limit: int = 10
 
 
 # ==========================================
@@ -64,10 +64,14 @@ class AddUserRequest(BaseModel):
 class UserInfo(BaseModel):
     """用户信息模型"""
     username: str
-    expiry_date: str
-    max_translations: int
-    used_translations: int
-    remaining_translations: int
+    daily_translation_limit: int
+    daily_ai_detection_limit: int
+    daily_translation_used: int
+    daily_ai_detection_used: int
+    is_admin: bool
+    is_active: bool
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
 
 
 class ErrorResponse(BaseModel):

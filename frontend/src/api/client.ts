@@ -281,7 +281,7 @@ export const apiClient = {
         if (data.user_info || data.user || data.username) {
           const userInfo = data.user_info || data.user || data;
           // 确保返回的数据有必要的字段
-          if (userInfo.username && userInfo.expiry_date !== undefined) {
+          if (userInfo.username && userInfo.daily_translation_limit !== undefined) {
             return userInfo;
           }
         }

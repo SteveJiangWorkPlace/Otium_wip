@@ -132,13 +132,15 @@ const Sidebar: React.FC<SidebarProps> = ({
             <div className={styles.username}>{userInfo.username}</div>
             <div className={styles.userStats}>
               <div className={styles.userStatItem}>
-                <span className={styles.userStatLabel}>剩余次数：</span>
-                <span className={styles.userStatValue}>{userInfo.remaining_translations}</span>
+                <span className={styles.userStatLabel}>今日翻译：</span>
+                <span className={styles.userStatValue}>
+                  {userInfo.daily_translation_used}/{userInfo.daily_translation_limit}
+                </span>
               </div>
               <div className={styles.userStatItem}>
-                <span className={styles.userStatLabel}>过期时间：</span>
+                <span className={styles.userStatLabel}>今日AI检测：</span>
                 <span className={styles.userStatValue}>
-                  {new Date(userInfo.expiry_date).toLocaleDateString('zh-CN')}
+                  {userInfo.daily_ai_detection_used}/{userInfo.daily_ai_detection_limit}
                 </span>
               </div>
             </div>

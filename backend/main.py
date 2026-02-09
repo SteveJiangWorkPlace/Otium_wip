@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Set, Any
 from jose import JWTError, jwt
 import google.genai
+from sqlalchemy import text
 # 导入类型用于类型提示
 from google.genai import types
 import google.genai.errors
@@ -431,7 +432,7 @@ async def check_text(http_request: Request, request: CheckTextRequest, user: Use
     # 如果是翻译操作，记录翻译次数
     if request.operation in ["translate_us", "translate_uk"]:
         try:
-            remaining = user_service.record_translation(username, operation_type=request.operation, text_length=len(request.text))
+            remaining = user_service.record_usage(username, operation_type=request.operation, text_length=len(request.text))
             response_data["remaining_translations"] = remaining
         except ValueError as e:
             # 用户不存在或其他验证错误
@@ -676,7 +677,13 @@ async def detect_ai(http_request: Request, request: AIDetectionRequest, user: Us
     
     # 缓存结果
     gptzero_cache.set(cache_key, result)
-    
+
+    # 记录AI检测使用
+    try:
+        user_service.record_usage(username, operation_type="ai_detection", text_length=len(request.text))
+    except Exception as e:
+        logging.warning(f"记录AI检测使用失败，但不影响返回结果: {str(e)}")
+
     return result
 
 
@@ -803,7 +810,7 @@ async def health_check():
         try:
             # 尝试快速数据库连接
             db = get_session_local()()
-            db.execute("SELECT 1")
+            db.execute(text("SELECT 1"))
             db.close()
             health_status["checks"]["database"] = "ok"
         except Exception as e:
@@ -888,9 +895,9 @@ async def update_user(request: UpdateUserRequest, credentials: HTTPAuthorization
     
     success, message = user_service.update_user(
         request.username,
-        request.expiry_date,
-        request.max_translations,
-        request.password
+        request.password,
+        request.daily_translation_limit,
+        request.daily_ai_detection_limit
     )
 
     if not success:
@@ -923,8 +930,8 @@ async def add_user(request: AddUserRequest, credentials: HTTPAuthorizationCreden
     success, message = user_service.add_user(
         request.username,
         request.password,
-        request.expiry_date,
-        request.max_translations
+        request.daily_translation_limit,
+        request.daily_ai_detection_limit
     )
 
     if not success:
