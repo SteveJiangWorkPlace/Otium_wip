@@ -1,0 +1,10 @@
+[python]
+version = "3.11.9"
+
+[tools]
+node = "18"
+# 如果还有其他工具需要指定版本，可以在这里添加
+
+# 也可以添加全局配置
+[settings]
+jobs = 4
