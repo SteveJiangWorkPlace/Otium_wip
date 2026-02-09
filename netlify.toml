@@ -2,14 +2,14 @@
 # This file configures the React frontend deployment on Netlify
 
 [build]
-  # Build command - run from frontend directory
-  command = "cd frontend && npm ci && npm run build"
+  # Build command - runs in frontend directory (base is set to frontend)
+  command = "npm run build"
 
   # Publish directory (where the built files are)
-  publish = "frontend/build"
+  publish = "build"
 
-  # Base directory (root of the repository)
-  base = "."
+  # Base directory - Netlify will install dependencies here
+  base = "frontend"
 
 [build.environment]
   # Node.js version
