@@ -1,7 +1,5 @@
-[python]
-version = "3.11.9"
-
 [tools]
+python = "3.11"
 node = "18"
 # 如果还有其他工具需要指定版本，可以在这里添加
 
