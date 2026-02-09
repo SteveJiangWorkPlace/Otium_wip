@@ -27,7 +27,10 @@
       "Bash(npm run:*)",
       "Bash(find:*)",
       "WebSearch",
-      "WebFetch(domain:render.com)"
+      "WebFetch(domain:render.com)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ]
   }
 }
