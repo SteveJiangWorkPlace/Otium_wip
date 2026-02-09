@@ -13,7 +13,7 @@ services:
     pythonVersion: "3.11.0"
     region: oregon  # or: frankfurt, singapore, ohio, etc.
     buildCommand: pip install -r backend/requirements.txt
-    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 4 --worker-class uvicorn.workers.UvicornWorker --timeout 120 main:app
+    startCommand: cd backend && gunicorn --bind 0.0.0.0:$PORT --workers 4 --worker-class uvicorn.workers.UvicornWorker --timeout 120 main:app
     healthCheckPath: /api/health
     envVars:
       # ==================== 应用配置 ====================
@@ -95,6 +95,14 @@ envVarGroups:
 # Pre-deploy script to run database migrations
 preDeployScript: |
   #!/bin/bash
+  echo "=== Pre-deploy script ==="
+  echo "Current directory: $(pwd)"
+  echo "Directory structure:"
+  ls -la
+  echo "Backend directory:"
+  ls -la backend/
+  echo "Python path:"
+  python -c "import sys; print('\\n'.join(sys.path))"
   echo "Running database migrations..."
   cd backend
   python -c "
