@@ -14,6 +14,8 @@ import type {
   ApiResponse,
   ApiError,
   UserInfo,
+  AIChatRequest,
+  AIChatResponse,
 } from '../types';
 
 console.log('API客户端模块加载 - 环境变量REACT_APP_API_BASE_URL:', process.env.REACT_APP_API_BASE_URL);
@@ -219,6 +221,12 @@ export const apiClient = {
 
   detectAI: async (data: AIDetectionRequest): Promise<AIDetectionResponse> => {
     const response = await axiosInstance.post<AIDetectionResponse>('/text/detect-ai', data);
+    return response.data;
+  },
+
+  // ==================== AI聊天 ====================
+  chat: async (data: AIChatRequest): Promise<AIChatResponse> => {
+    const response = await axiosInstance.post<AIChatResponse>('/chat', data);
     return response.data;
   },
 

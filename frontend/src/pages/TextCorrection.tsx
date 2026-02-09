@@ -1,9 +1,14 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/useAuthStore'
 import { useCorrectionStore } from '../store/useCorrectionStore'
+import { useAIChatStore } from '../store/useAIChatStore'
 import { apiClient } from '../api/client'
-import { Card, Textarea, Button } from '../components'
+import { cleanTextFromMarkdown } from '../utils/textCleaner'
+import Card from '../components/ui/Card/Card'
+import Textarea from '../components/ui/Textarea/Textarea'
+import Button from '../components/ui/Button/Button'
+import AIChatPanel from '../components/AIChatPanel/AIChatPanel'
 import styles from './TextCorrection.module.css'
 
 const TextCorrection: React.FC = () => {
@@ -22,6 +27,21 @@ const TextCorrection: React.FC = () => {
     setEditableText,
     clear
   } = useCorrectionStore()
+
+  // AI聊天状态
+  const {
+    conversations,
+    toggleExpanded,
+    setCurrentPage,
+  } = useAIChatStore()
+
+  const containerRef = useRef<HTMLDivElement>(null)
+  const pageKey = 'global'
+
+  // 初始化当前页面
+  useEffect(() => {
+    setCurrentPage(pageKey)
+  }, [setCurrentPage])
 
   // 加载步骤对应的提示消息
   const loadingStepMessages = {
@@ -100,103 +120,156 @@ const TextCorrection: React.FC = () => {
 
   const handleCopyResult = () => {
     if (resultText) {
-      navigator.clipboard.writeText(resultText)
+      // 清理markdown符号后复制
+      const cleanedText = cleanTextFromMarkdown(resultText)
+      navigator.clipboard.writeText(cleanedText)
       alert('已复制到剪贴板')
     }
   }
 
+
   const renderHighlightedText = (text: string) => {
-    const highlightedText = text.replace(
+    // 处理**text**格式的粗体标记（如果后端未清理）
+    let highlightedText = text.replace(
       /\*\*(.*?)\*\*/g,
       '<mark style="background-color: var(--color-black); color: var(--color-white); padding: 2px 4px; border-radius: 4px;">$1</mark>'
     )
+    // 处理<b>text</b>格式的HTML粗体标签（后端已清理markdown）
+    highlightedText = highlightedText.replace(
+      /<b>(.*?)<\/b>/g,
+      '<mark style="background-color: var(--color-black); color: var(--color-white); padding: 2px 4px; border-radius: 4px;">$1</mark>'
+    )
+    // 保持<i>text</i>斜体标签不变
     return { __html: highlightedText }
   }
 
+  const conversation = conversations[pageKey] || {
+    isExpanded: false,
+    messages: [],
+    inputText: '',
+    loading: false,
+    sessionId: null,
+    splitPosition: 70,
+  }
+
+  const workspaceWidth = conversation.isExpanded ? 72.5 : 100
+
   return (
-    <div className={styles.correctionContainer}>
-      <div className={styles.content}>
-        {/* 输入区域 */}
-        <Card variant="elevated" padding="medium" className={styles.inputCard}>
-          <div className={styles.inputHeader}>
-            <h2 className={styles.cardTitle}>输入中文文本</h2>
+    <div className={styles.correctionContainer} ref={containerRef}>
+      <div className={styles.pageContainer}>
+        {/* 工作区 */}
+        <div
+          className={styles.workspaceContainer}
+          style={{ width: `${workspaceWidth}%` }}
+        >
+          <div className={styles.workspaceHeader}>
+            {/* 标题已移除，AI按钮已移到输入区域 */}
           </div>
 
-          <div className={styles.textareaWrapper}>
-            <Textarea
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              placeholder="请输入中文文本..."
-              rows={16}
-              resize="vertical"
-              fullWidth
-              maxLength={2000}
-            />
-            <div className={styles.charCount}>
-              {inputText.length} / 2000
+          <div className={styles.workspaceContent}>
+            <div className={styles.content}>
+              {/* 输入区域 */}
+              <Card variant="ghost" padding="medium" className={styles.inputCard}>
+                <div className={styles.inputHeader}>
+                  <h2 className={styles.cardTitle}>输入中文文本</h2>
+                  <div
+                    className={styles.aiToggleButton}
+                    onClick={() => toggleExpanded(pageKey)}
+                    title={conversation.isExpanded ? '隐藏AI助手' : '显示AI助手'}
+                  >
+                    <img
+                      src="/google-gemini.svg"
+                      alt="AI助手"
+                      className={styles.aiToggleIcon}
+                    />
+                  </div>
+                </div>
+
+                <div className={styles.textareaWrapper}>
+                  <Textarea
+                    value={inputText}
+                    onChange={(e) => setInputText(e.target.value)}
+                    placeholder="请输入中文文本..."
+                    rows={16}
+                    resize="vertical"
+                    fullWidth
+                    maxLength={2000}
+                  />
+                  <div className={styles.charCount}>
+                    {inputText.length} / 2000
+                  </div>
+                </div>
+
+                <div className={styles.inputFooter}>
+                  <div className={styles.buttonRow}>
+                    <div className={styles.leftButtonGroup}>
+                      <Button
+                        variant="primary"
+                        size="small"
+                        onClick={handleErrorCheck}
+                        loading={loading && loadingStep === 'error_checking'}
+                        disabled={loading}
+                      >
+                        智能纠错
+                      </Button>
+                    </div>
+                    <div className={styles.rightButtonGroup}>
+                      <Button
+                        variant="ghost"
+                        size="small"
+                        onClick={handleClear}
+                        disabled={loading}
+                      >
+                        清空全文
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="small"
+                        onClick={handleCopyInput}
+                        disabled={loading || !inputText.trim()}
+                      >
+                        复制全文
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {loading && loadingStep && (
+                  <div className={styles.loadingMessage}>
+                    <div className={styles.loadingSpinner} />
+                    <span>{loadingStepMessages[loadingStep]}</span>
+                  </div>
+                )}
+              </Card>
+
+              {/* 结果显示 */}
+              {resultText && (
+                <Card variant="ghost" padding="medium" className={styles.resultCard}>
+                  <div className={styles.resultHeader}>
+                    <h3 className={styles.resultTitle}>纠错结果</h3>
+                    <Button
+                      variant="ghost"
+                      size="small"
+                      onClick={handleCopyResult}
+                    >
+                      复制结果
+                    </Button>
+                  </div>
+                  <div
+                    className={styles.resultText}
+                    dangerouslySetInnerHTML={renderHighlightedText(resultText)}
+                  />
+                </Card>
+              )}
             </div>
           </div>
+        </div>
 
-          <div className={styles.inputFooter}>
-            <div className={styles.buttonRow}>
-              <div className={styles.leftButtonGroup}>
-                <Button
-                  variant="primary"
-                  size="small"
-                  onClick={handleErrorCheck}
-                  loading={loading && loadingStep === 'error_checking'}
-                  disabled={loading}
-                >
-                  智能纠错
-                </Button>
-              </div>
-              <div className={styles.rightButtonGroup}>
-                <Button
-                  variant="ghost"
-                  size="small"
-                  onClick={handleClear}
-                  disabled={loading}
-                >
-                  清空全文
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="small"
-                  onClick={handleCopyInput}
-                  disabled={loading || !inputText.trim()}
-                >
-                  复制全文
-                </Button>
-              </div>
-            </div>
+        {/* AI面板 */}
+        {conversation.isExpanded && (
+          <div className={styles.aiPanelContainer} style={{ width: '27.5%' }}>
+            <AIChatPanel pageKey={pageKey} />
           </div>
-
-          {loading && loadingStep && (
-            <div className={styles.loadingMessage}>
-              <div className={styles.loadingSpinner} />
-              <span>{loadingStepMessages[loadingStep]}</span>
-            </div>
-          )}
-        </Card>
-
-        {/* 结果显示 */}
-        {resultText && (
-          <Card variant="elevated" padding="medium" className={styles.resultCard}>
-            <div className={styles.resultHeader}>
-              <h3 className={styles.resultTitle}>纠错结果</h3>
-              <Button
-                variant="ghost"
-                size="small"
-                onClick={handleCopyResult}
-              >
-                复制结果
-              </Button>
-            </div>
-            <div
-              className={styles.resultText}
-              dangerouslySetInnerHTML={renderHighlightedText(resultText)}
-            />
-          </Card>
         )}
       </div>
     </div>

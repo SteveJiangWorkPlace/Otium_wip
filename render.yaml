@@ -1,0 +1,126 @@
+# Render Blueprint for Otium Application
+# This file defines the infrastructure for the Otium backend and database
+
+# ============================================
+# Services Configuration
+# ============================================
+
+services:
+  # Otium Backend API Service
+  - type: web
+    name: otium-backend
+    env: python
+    region: oregon  # or: frankfurt, singapore, ohio, etc.
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 4 --worker-class uvicorn.workers.UvicornWorker --timeout 120 main:app
+    healthCheckPath: /api/health
+    envVars:
+      # ==================== 应用配置 ====================
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: false
+
+      # ==================== Render 自动配置 ====================
+      - key: RENDER
+        value: true
+      - fromService:
+          type: postgres
+          name: otium-database
+          property: connectionString
+
+      # ==================== JWT 认证配置 ====================
+      - key: SECRET_KEY
+        generateValue: true
+
+      # ==================== API 密钥配置 ====================
+      - key: GEMINI_API_KEY
+        sync: false  # Must be set manually in Render dashboard
+      - key: GPTZERO_API_KEY
+        sync: false  # Must be set manually in Render dashboard
+
+      # ==================== 数据库配置 ====================
+      - key: DATABASE_TYPE
+        value: postgresql
+
+      # ==================== 管理员配置 ====================
+      - key: ADMIN_USERNAME
+        value: admin
+      - key: ADMIN_PASSWORD
+        generateValue: true
+
+      # ==================== CORS 配置 ====================
+      - key: CORS_ORIGINS
+        value: https://your-otium-app.netlify.app,http://localhost:3000
+
+      # ==================== 安全配置 ====================
+      - key: ENABLE_HTTPS_REDIRECT
+        value: true
+
+      # ==================== 日志配置 ====================
+      - key: LOG_LEVEL
+        value: INFO
+      - key: LOG_TO_CONSOLE
+        value: true
+
+  # PostgreSQL Database
+  - type: postgres
+    name: otium-database
+    region: oregon
+    databaseName: otium
+    user: otium_admin
+    plan: free  # or: starter, professional, etc.
+    ipAllowList: []  # Empty array means no IP restrictions
+
+    # Database initialization script
+    initSQLCommands:
+      - CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+      - CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+# ============================================
+# Environment Groups (Shared Variables)
+# ============================================
+
+envVarGroups:
+  - name: production
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: false
+      - key: LOG_LEVEL
+        value: INFO
+      - key: DATABASE_TYPE
+        value: postgresql
+
+# ============================================
+# Deploy Hooks
+# ============================================
+
+# Pre-deploy script to run database migrations
+preDeployScript: |
+  #!/bin/bash
+  echo "Running database migrations..."
+  cd backend
+  python -c "
+  import sys
+  sys.path.insert(0, '.')
+  from models.database import init_database
+  init_database()
+  print('Database initialized successfully')
+  "
+
+# ============================================
+# Notes:
+# ============================================
+# 1. After deploying, you need to manually set:
+#    - GEMINI_API_KEY: Your Google Gemini API key
+#    - GPTZERO_API_KEY: Your GPTZero API key
+#    - SECRET_KEY: If you want a specific value (otherwise auto-generated)
+#    - ADMIN_PASSWORD: If you want a specific password (otherwise auto-generated)
+#
+# 2. Update CORS_ORIGINS with your actual Netlify frontend URL
+#
+# 3. For production, consider upgrading the database plan
+#
+# 4. Monitor logs in Render Dashboard -> otium-backend -> Logs

@@ -22,20 +22,20 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  padding: var(--spacing-2) var(--spacing-4) var(--spacing-4) var(--spacing-4);
+  padding: var(--spacing-2) var(--spacing-4) var(--spacing-2) var(--spacing-4);
   min-height: auto;
 }
 
 .logo {
   display: flex;
   align-items: center;
-  gap: var(--spacing-2);
+  gap: var(--spacing-1);
   margin-top: 0;
 }
 
 .logoImage {
-  width: 24px;
-  height: 24px;
+  width: 16px;
+  height: 16px;
 }
 
 .logoTexts {
@@ -96,7 +96,7 @@
 
 .nav {
   flex: 1;
-  padding: var(--spacing-8) 0 var(--spacing-4) 0;
+  padding: var(--spacing-2) 0 var(--spacing-4) 0;
   overflow-y: auto;
 }
 
@@ -154,7 +154,7 @@
 
 .menuLabel {
   font-size: var(--font-size-base);
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-normal);
   line-height: var(--line-height-normal);
 }
 

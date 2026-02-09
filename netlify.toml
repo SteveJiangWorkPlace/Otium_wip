@@ -1,0 +1,77 @@
+# Netlify Configuration for Otium Frontend
+# This file configures the React frontend deployment on Netlify
+
+[build]
+  # Build command
+  command = "npm run build"
+
+  # Publish directory (where the built files are)
+  publish = "frontend/build"
+
+  # Base directory (root of the repository)
+  base = "."
+
+[build.environment]
+  # Node.js version
+  NODE_VERSION = "18"
+
+  # React environment variables
+  REACT_APP_API_BASE_URL = "https://your-otium-backend.onrender.com"
+  # Note: Update this with your actual Render backend URL after deployment
+
+# Redirects configuration
+# Handle client-side routing for React Router
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Security headers
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # Content Security Policy
+    Content-Security-Policy = '''
+      default-src 'self';
+      script-src 'self' 'unsafe-inline' 'unsafe-eval';
+      style-src 'self' 'unsafe-inline';
+      img-src 'self' data: https:;
+      font-src 'self';
+      connect-src 'self' https://your-otium-backend.onrender.com;
+    '''
+
+    # Other security headers
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+
+# Environment variables that need to be set in Netlify dashboard
+# These are just examples - actual values should be set in Netlify UI
+[context.production.environment]
+  REACT_APP_API_BASE_URL = "https://your-otium-backend.onrender.com"
+  # Add any other production-specific environment variables here
+
+[context.deploy-preview.environment]
+  REACT_APP_API_BASE_URL = "http://localhost:8000"
+  # Use local backend for preview deployments
+
+[context.branch-deploy.environment]
+  REACT_APP_API_BASE_URL = "http://localhost:8000"
+  # Use local backend for branch deployments
+
+# ============================================
+# Netlify Deployment Instructions:
+# ============================================
+# 1. Connect your GitHub repository to Netlify
+# 2. Set the following build settings:
+#    - Base directory: . (root)
+#    - Build command: npm run build
+#    - Publish directory: frontend/build
+# 3. Set environment variables in Netlify Dashboard:
+#    - REACT_APP_API_BASE_URL: Your Render backend URL
+# 4. Deploy!
+#
+# Note: After deploying the backend on Render, update the
+# REACT_APP_API_BASE_URL with your actual backend URL.

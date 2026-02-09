@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Card, Button, Icon } from './ui'
 import { AIDetectionResponse } from '../types'
 import { apiClient } from '../api/client'
+import { cleanTextFromMarkdown } from '../utils/textCleaner'
 import styles from './AIDetection.module.css'
 
 interface AIDetectionProps {
@@ -118,7 +119,9 @@ const AIDetection: React.FC<AIDetectionProps> = ({
   const handleCopyText = () => {
     if (!result?.full_text) return
 
-    navigator.clipboard.writeText(result.full_text).then(
+    // 清理markdown符号后复制
+    const cleanedText = cleanTextFromMarkdown(result.full_text)
+    navigator.clipboard.writeText(cleanedText).then(
       () => {
         alert('已复制AI检测分析文本到剪贴板！')
       },
@@ -138,10 +141,10 @@ const AIDetection: React.FC<AIDetectionProps> = ({
   const isHigh = scoreNum >= 20
 
   return (
-    <Card variant="elevated" padding="medium" className={styles.container}>
+    <Card variant="ghost" padding="medium" className={styles.container}>
       <div className={styles.scoreSection}>
             <div className={styles.scoreHeader}>
-              <span className={styles.scoreLabel}>AI生成概率</span>
+              <span className={styles.scoreLabel}>全文AI生成概率</span>
               <span className={`${styles.scoreValue} ${isHigh ? styles.highScore : ''}`}>
                 {aiScore}%
               </span>
@@ -168,7 +171,9 @@ const AIDetection: React.FC<AIDetectionProps> = ({
               )}
             </div>
             <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)', marginTop: 'var(--spacing-2)', lineHeight: 'var(--line-height-relaxed)' }}>
-              温馨提示：如果多次修改后AI率仍然较高，请确保提供的初始文本为非AI生成内容。本检测结果基于ZeroGPT模型，仅供参考。如用于学术用途，建议将最终版本提交Turnitin进行权威检测。
+              温馨提示：
+              <br />1. 本检测结果基于ZeroGPT模型，仅供参考，如用于学术用途，建议将最终版本提交Turnitin进行权威检测。
+              <br />2. 如果多次修改后AI率仍然较高，请确保提供的初始文本为非AI生成内容。
             </div>
           </div>
 
@@ -184,6 +189,9 @@ const AIDetection: React.FC<AIDetectionProps> = ({
               </Button>
             </div>
 
+            <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-2)', lineHeight: 'var(--line-height-tight)' }}>
+              提示：AI特征≥15%的单个句子已被高亮标出
+            </div>
             <div
               className={styles.highlightedText}
               dangerouslySetInnerHTML={getHighlightedText()}

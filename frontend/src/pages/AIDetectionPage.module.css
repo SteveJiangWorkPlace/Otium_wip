@@ -4,6 +4,7 @@
   margin: 0;
   width: 100%;
   height: 100%;
+  background-color: var(--color-gray-50);
 }
 
 .content {
@@ -18,11 +19,14 @@
 }
 
 .inputHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: var(--spacing-4);
 }
 
 .cardTitle {
-  font-size: var(--font-size-xl);
+  font-size: var(--font-size-base);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
   margin: 0;
@@ -66,6 +70,8 @@
 .infoCard {
   width: 100%;
   background-color: var(--color-gray-50);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
 }
 
 .infoContent {
@@ -75,7 +81,7 @@
 }
 
 .infoTitle {
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-base);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
   margin: 0;
@@ -114,5 +120,96 @@
   .rightButtonGroup {
     justify-content: center;
     width: 100%;
+  }
+}
+
+/* 新添加的AI面板布局样式 */
+.pageContainer {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+.workspaceContainer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  transition: width 0.3s ease;
+  overflow: hidden;
+}
+
+.workspaceHeader {
+  display: none;
+}
+
+.workspaceTitle {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.aiToggleButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.aiToggleButton:hover {
+  opacity: 0.7;
+}
+
+.aiToggleIcon {
+  width: 28px;
+  height: 28px;
+}
+
+.aiToggleText {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+.workspaceContent {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-4);
+}
+
+.aiPanelContainer {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-gray-50);
+  border-left: 1px solid transparent;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .pageContainer {
+    flex-direction: column;
+  }
+
+  .workspaceContainer {
+    width: 100% !important;
+  }
+
+  .aiPanelContainer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    z-index: 1000;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+  }
+
+  .aiPanelContainer.expanded {
+    transform: translateX(0);
   }
 }

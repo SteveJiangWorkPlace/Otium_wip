@@ -49,7 +49,7 @@ const DirectiveSelector: React.FC<DirectiveSelectorProps> = ({
   }
 
   return (
-    <Card variant="elevated" padding="medium" className={styles.container}>
+    <Card variant="ghost" padding="medium" className={styles.container}>
       <div className={styles.header}>
         <h3 className={styles.title}>文本修改指令选择</h3>
         <div className={styles.selectedCount}>

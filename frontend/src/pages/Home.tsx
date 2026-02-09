@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/useAuthStore'
 import { apiClient } from '../api/client'
-import { Card, Textarea, Button, Icon, Input } from '../components'
+import { cleanTextFromMarkdown } from '../utils/textCleaner'
+import { Card, Textarea, Button } from '../components'
 import DirectiveSelector from '../components/DirectiveSelector'
 import AIDetection from '../components/AIDetection'
 import ResultDisplay from '../components/ResultDisplay'
@@ -132,7 +133,9 @@ const Home: React.FC = () => {
 
   const handleCopyResult = () => {
     if (resultText) {
-      navigator.clipboard.writeText(resultText)
+      // 清理markdown符号后复制
+      const cleanedText = cleanTextFromMarkdown(resultText)
+      navigator.clipboard.writeText(cleanedText)
       alert('已复制到剪贴板')
     }
   }

@@ -1,0 +1,251 @@
+"""
+异常处理和错误响应模块
+
+包含自定义异常类和统一的异常处理装饰器。
+"""
+
+import logging
+from functools import wraps
+from fastapi import HTTPException, status
+from typing import Dict, Any, Optional
+
+from schemas import ErrorResponse
+
+
+# ==========================================
+# 自定义异常类
+# ==========================================
+
+class APIError(Exception):
+    """API错误基类"""
+    pass
+
+
+class GeminiAPIError(APIError):
+    """Gemini API错误"""
+    def __init__(self, message: str, error_type: str = "unknown"):
+        self.message = message
+        self.error_type = error_type
+        super().__init__(self.message)
+
+
+class GPTZeroAPIError(APIError):
+    """GPTZero API错误"""
+    pass
+
+
+class RateLimitError(APIError):
+    """速率限制错误"""
+    pass
+
+
+class ValidationError(APIError):
+    """文本验证错误"""
+    pass
+
+
+class AuthenticationError(APIError):
+    """认证错误"""
+    pass
+
+
+class AuthorizationError(APIError):
+    """授权错误"""
+    pass
+
+
+class ResourceNotFoundError(APIError):
+    """资源未找到错误"""
+    pass
+
+
+class DatabaseError(APIError):
+    """数据库错误"""
+    pass
+
+
+# ==========================================
+# 统一异常处理装饰器
+# ==========================================
+
+def api_error_handler(func):
+    """统一异常处理装饰器
+
+    处理不同类型的异常并返回统一的错误响应格式：
+    - ValueError: 400 Bad Request
+    - RateLimitError: 429 Too Many Requests
+    - APIError 子类: 根据错误类型映射状态码
+    - 其他异常: 500 Internal Server Error
+    """
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        try:
+            return await func(*args, **kwargs)
+        except ValueError as e:
+            # 参数验证错误
+            logging.error(f"参数验证错误: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ErrorResponse(
+                    error_code="VALIDATION_ERROR",
+                    message=str(e) or "参数验证失败",
+                    details={"exception_type": "ValueError"}
+                ).dict()
+            )
+        except RateLimitError as e:
+            # 速率限制错误
+            logging.error(f"速率限制错误: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=ErrorResponse(
+                    error_code="RATE_LIMIT_EXCEEDED",
+                    message=str(e) or "请求过于频繁，请稍后再试",
+                    details={"exception_type": "RateLimitError"}
+                ).dict()
+            )
+        except GeminiAPIError as e:
+            # Gemini API 错误
+            logging.error(f"Gemini API 错误: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=ErrorResponse(
+                    error_code="GEMINI_API_ERROR",
+                    message=str(e) or "Gemini API 处理失败",
+                    details={"exception_type": "GeminiAPIError", "error_type": e.error_type}
+                ).dict()
+            )
+        except GPTZeroAPIError as e:
+            # GPTZero API 错误
+            logging.error(f"GPTZero API 错误: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=ErrorResponse(
+                    error_code="GPTZERO_API_ERROR",
+                    message=str(e) or "GPTZero API 处理失败",
+                    details={"exception_type": "GPTZeroAPIError"}
+                ).dict()
+            )
+        except ValidationError as e:
+            # 文本验证错误
+            logging.error(f"文本验证错误: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ErrorResponse(
+                    error_code="TEXT_VALIDATION_ERROR",
+                    message=str(e) or "文本验证失败",
+                    details={"exception_type": "ValidationError"}
+                ).dict()
+            )
+        except AuthenticationError as e:
+            # 认证错误
+            logging.error(f"认证错误: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=ErrorResponse(
+                    error_code="AUTHENTICATION_ERROR",
+                    message=str(e) or "认证失败",
+                    details={"exception_type": "AuthenticationError"}
+                ).dict()
+            )
+        except AuthorizationError as e:
+            # 授权错误
+            logging.error(f"授权错误: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=ErrorResponse(
+                    error_code="AUTHORIZATION_ERROR",
+                    message=str(e) or "权限不足",
+                    details={"exception_type": "AuthorizationError"}
+                ).dict()
+            )
+        except ResourceNotFoundError as e:
+            # 资源未找到错误
+            logging.error(f"资源未找到错误: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=ErrorResponse(
+                    error_code="RESOURCE_NOT_FOUND",
+                    message=str(e) or "请求的资源不存在",
+                    details={"exception_type": "ResourceNotFoundError"}
+                ).dict()
+            )
+        except HTTPException:
+            # 重新抛出已有的 HTTPException
+            raise
+        except Exception as e:
+            # 其他未知错误
+            logging.error(f"API处理异常: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=ErrorResponse(
+                    error_code="INTERNAL_SERVER_ERROR",
+                    message="服务器内部错误",
+                    details={"exception_type": e.__class__.__name__}
+                ).dict()
+            )
+    return wrapper
+
+
+# ==========================================
+# 错误响应工具函数
+# ==========================================
+
+def create_error_response(
+    error_code: str,
+    message: str,
+    status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR,
+    details: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """创建统一的错误响应"""
+    return ErrorResponse(
+        error_code=error_code,
+        message=message,
+        details=details or {}
+    ).dict()
+
+
+def handle_exception(
+    exception: Exception,
+    default_message: str = "服务器内部错误"
+) -> HTTPException:
+    """处理异常并返回HTTPException"""
+    error_code = "INTERNAL_SERVER_ERROR"
+    status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+
+    if isinstance(exception, ValueError):
+        error_code = "VALIDATION_ERROR"
+        status_code = status.HTTP_400_BAD_REQUEST
+    elif isinstance(exception, RateLimitError):
+        error_code = "RATE_LIMIT_EXCEEDED"
+        status_code = status.HTTP_429_TOO_MANY_REQUESTS
+    elif isinstance(exception, GeminiAPIError):
+        error_code = "GEMINI_API_ERROR"
+        status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+    elif isinstance(exception, GPTZeroAPIError):
+        error_code = "GPTZERO_API_ERROR"
+        status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+    elif isinstance(exception, ValidationError):
+        error_code = "TEXT_VALIDATION_ERROR"
+        status_code = status.HTTP_400_BAD_REQUEST
+    elif isinstance(exception, AuthenticationError):
+        error_code = "AUTHENTICATION_ERROR"
+        status_code = status.HTTP_401_UNAUTHORIZED
+    elif isinstance(exception, AuthorizationError):
+        error_code = "AUTHORIZATION_ERROR"
+        status_code = status.HTTP_403_FORBIDDEN
+    elif isinstance(exception, ResourceNotFoundError):
+        error_code = "RESOURCE_NOT_FOUND"
+        status_code = status.HTTP_404_NOT_FOUND
+
+    message = str(exception) if str(exception) else default_message
+
+    logging.error(f"{error_code}: {message}", exc_info=True)
+
+    return HTTPException(
+        status_code=status_code,
+        detail=create_error_response(
+            error_code=error_code,
+            message=message,
+            details={"exception_type": exception.__class__.__name__}
+        )
+    )

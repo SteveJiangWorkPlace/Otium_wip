@@ -21,6 +21,12 @@
   box-shadow: none;
 }
 
+.variant-ghost {
+  background-color: transparent;
+  border: none;
+  box-shadow: none;
+}
+
 /* Padding */
 .padding-none {
   padding: 0;

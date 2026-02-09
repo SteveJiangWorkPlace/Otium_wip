@@ -1,0 +1,85 @@
+# ==========================================
+# Otium_wip 后端启动脚本 (PowerShell)
+# 自动安装依赖并启动热重载开发服务器
+# ==========================================
+
+# 设置工作目录到脚本所在目录
+Set-Location $PSScriptRoot
+
+Write-Host ""
+Write-Host "==========================================" -ForegroundColor Cyan
+Write-Host "  Otium_wip 后端启动脚本" -ForegroundColor Cyan
+Write-Host "==========================================" -ForegroundColor Cyan
+Write-Host ""
+
+# 检查是否在虚拟环境中
+$inVenv = python -c "import sys; print('VIRTUAL_ENV' in sys.__dict__)" 2>$null
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "[INFO] 已在Python虚拟环境中" -ForegroundColor Green
+} else {
+    Write-Host "[INFO] 未检测到虚拟环境，使用系统Python" -ForegroundColor Yellow
+
+    # 检查是否有venv目录并尝试激活
+    $venvPaths = @("..\venv", ".venv")
+    $activated = $false
+
+    foreach ($venvPath in $venvPaths) {
+        $activateScript = Join-Path $venvPath "Scripts\Activate.ps1"
+        if (Test-Path $activateScript) {
+            Write-Host "[INFO] 发现虚拟环境，正在激活..." -ForegroundColor Green
+            & $activateScript
+            $activated = $true
+            break
+        }
+    }
+
+    if (-not $activated) {
+        Write-Host "[INFO] 未找到虚拟环境，继续使用系统Python" -ForegroundColor Yellow
+    }
+}
+
+# 检查Python版本
+Write-Host ""
+Write-Host "[INFO] 检查Python版本..." -ForegroundColor Cyan
+python --version
+
+# 安装/更新依赖
+Write-Host ""
+Write-Host "[INFO] 正在安装/更新Python依赖..." -ForegroundColor Cyan
+pip install --upgrade pip
+if (Test-Path "requirements.txt") {
+    pip install -r requirements.txt
+} else {
+    Write-Host "[ERROR] 未找到 requirements.txt 文件" -ForegroundColor Red
+    Read-Host "按Enter键退出"
+    exit 1
+}
+
+# 检查环境变量配置文件
+Write-Host ""
+if (Test-Path ".env") {
+    Write-Host "[INFO] 找到 .env 文件，已加载环境变量" -ForegroundColor Green
+} else {
+    Write-Host "[WARNING] 未找到 .env 文件，请复制 .env.example 为 .env 并配置" -ForegroundColor Yellow
+    if (Test-Path ".env.example") {
+        Write-Host "[INFO] 找到 .env.example 模板文件" -ForegroundColor Cyan
+    }
+}
+
+# 启动FastAPI开发服务器（热重载）
+Write-Host ""
+Write-Host "==========================================" -ForegroundColor Cyan
+Write-Host "[INFO] 启动FastAPI开发服务器（热重载模式）" -ForegroundColor Green
+Write-Host "[INFO] 服务器将在 http://localhost:8000 运行" -ForegroundColor Cyan
+Write-Host "[INFO] API文档: http://localhost:8000/docs" -ForegroundColor Cyan
+Write-Host "[INFO] 按 Ctrl+C 停止服务器" -ForegroundColor Cyan
+Write-Host "==========================================" -ForegroundColor Cyan
+Write-Host ""
+
+# 使用uvicorn启动，启用热重载
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+# 如果服务器停止
+Write-Host ""
+Write-Host "[INFO] 服务器已停止" -ForegroundColor Yellow
+Read-Host "按Enter键退出"

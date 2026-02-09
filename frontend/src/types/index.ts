@@ -30,6 +30,27 @@ export interface AIDetectionRequest {
   text: string;
 }
 
+// AI聊天消息（API格式）
+export interface AIChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+// AI聊天请求
+export interface AIChatRequest {
+  messages: AIChatMessage[];
+  session_id?: string;
+}
+
+// AI聊天响应
+export interface AIChatResponse {
+  success: boolean;
+  text: string;
+  session_id?: string;
+  model_used: string;
+  error?: string;
+}
+
 // 用户登录请求
 export interface LoginRequest {
   username: string;
