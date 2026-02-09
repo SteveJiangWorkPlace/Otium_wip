@@ -60,7 +60,7 @@
 .messagesContainer {
   flex: 1;
   overflow-y: auto;
-  padding: var(--spacing-2) var(--spacing-4);
+  padding: var(--spacing-8) var(--spacing-4);
   position: relative;
 }
 
@@ -73,8 +73,8 @@
 .message {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-md);
-  max-width: 85%;
+  gap: var(--spacing-lg);
+  max-width: 95%;
   animation: fadeIn 0.3s ease;
 }
 
@@ -110,7 +110,7 @@
   justify-content: flex-start;
   align-items: center;
   width: 100%;
-  margin-bottom: var(--spacing-sm);
+  margin-bottom: 0;
 }
 
 .messageRole {

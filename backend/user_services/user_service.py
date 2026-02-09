@@ -120,11 +120,11 @@ class UserService:
                 # 获取或创建使用记录
                 usage = user.usage
                 if not usage:
-                    usage = UserUsage(user_id=user.id)
+                    usage = UserUsage(user_id=user.id, translations_count=0)
                     db.add(usage)
 
-                previous_count = usage.translations_count
-                usage.translations_count += 1
+                previous_count = usage.translations_count or 0
+                usage.translations_count = (usage.translations_count or 0) + 1
                 usage.last_translation_at = datetime.now()
 
                 # 创建详细记录

@@ -122,9 +122,7 @@ const AIDetectionPage: React.FC = () => {
                     fullWidth
                     maxLength={2000}
                   />
-                  <div className={styles.charCount}>
-                    {inputText.length} / 2000
-                  </div>
+                  {/* 字符计数显示已移除 */}
                 </div>
 
                 <div className={styles.inputFooter}>

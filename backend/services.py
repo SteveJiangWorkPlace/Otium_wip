@@ -25,8 +25,8 @@ from utils import TextValidator
 # ==========================================
 
 def generate_gemini_content_with_fallback(prompt: str, api_key: Optional[str] = None,
-                                         primary_model: str = "gemini-2.5-pro",
-                                         fallback_model: str = "gemini-3-pro-preview") -> Dict[str, Any]:
+                                         primary_model: str = "gemini-3-pro-preview",  # 改为3-pro-preview作为主要模型
+                                         fallback_model: str = "gemini-2.5-pro") -> Dict[str, Any]:
     """带容错的 Gemini 内容生成
 
     Args:
@@ -71,9 +71,13 @@ def generate_gemini_content_with_fallback(prompt: str, api_key: Optional[str] = 
                 if not current_api_key:
                     raise GeminiAPIError("未提供 Gemini API Key，请在侧边栏输入", "missing_key")
 
+                key_prefix = current_api_key[:8] if len(current_api_key) > 8 else current_api_key[:len(current_api_key)]
+                logging.info(f"_try_model: 开始尝试模型 {model_name}, 尝试 {attempt+1}/{max_retries}, API密钥前缀: {key_prefix}...")
+
                 # 调试日志：记录API密钥信息（不记录完整密钥）
                 key_prefix = current_api_key[:8] if len(current_api_key) > 8 else current_api_key[:len(current_api_key)]
                 logging.info(f"使用请求头中的Gemini API密钥，前缀: {key_prefix}...")
+                logging.info(f"尝试使用模型: {model_name}")
 
                 # 创建客户端
                 client = google.genai.Client(api_key=current_api_key)
@@ -84,11 +88,13 @@ def generate_gemini_content_with_fallback(prompt: str, api_key: Optional[str] = 
                 }
 
                 # 生成内容
+                logging.info(f"调用Gemini API: 模型={model_name}, prompt长度={len(prompt)}")
                 response = client.models.generate_content(
                     model=model_name,
                     contents=prompt,
                     config=config
                 )
+                logging.info(f"Gemini API调用成功: 模型={model_name}")
 
                 # 提取响应文本
                 # 注意：response 结构可能不同，需要检查
@@ -109,6 +115,8 @@ def generate_gemini_content_with_fallback(prompt: str, api_key: Optional[str] = 
                 # 获取原始错误消息
                 error_raw = str(e)
                 error_msg = error_raw.lower()
+                logging.error(f"Gemini API异常原始错误: {error_raw}")
+                logging.error(f"异常类型: {type(e).__name__}")
 
                 # 尝试解析JSON或Python字典格式的错误信息
                 error_json = None
@@ -173,6 +181,11 @@ def generate_gemini_content_with_fallback(prompt: str, api_key: Optional[str] = 
                 # API密钥无效
                 elif "invalid" in error_msg or "api_key" in error_msg or "permission" in error_msg or "unauthorized" in error_msg:
                     logging.error(f"模型 {model_name} - API Key 无效: {str(e)}")
+                    # 记录完整的错误类型和详细信息用于调试
+                    logging.error(f"完整错误类型: {type(e)}")
+                    logging.error(f"完整错误详细信息: {repr(e)}")
+                    if error_json:
+                        logging.error(f"解析后的错误JSON: {error_json}")
                     raise GeminiAPIError("API Key 无效或已过期，请检查配置", "invalid_key")
 
                 # 区域限制错误
@@ -212,10 +225,11 @@ def generate_gemini_content_with_fallback(prompt: str, api_key: Optional[str] = 
         return _try_model(primary_model)
 
     except GeminiAPIError as e:
-        if e.error_type in ["blocked", "invalid_key", "region_restricted"]:
-            return {"success": False, "error": e.message, "error_type": e.error_type}
+        logging.warning(f"主要模型 {primary_model} 失败，错误类型: {e.error_type}, 尝试备用模型 {fallback_model}")
 
-        logging.warning(f"主要模型 {primary_model} 失败，尝试备用模型 {fallback_model}")
+        # 即使密钥无效也尝试备用模型，因为可能只是某个模型的问题
+        # if e.error_type in ["blocked", "invalid_key", "region_restricted"]:
+        #     return {"success": False, "error": e.message, "error_type": e.error_type}
 
         try:
             return _try_model(fallback_model)

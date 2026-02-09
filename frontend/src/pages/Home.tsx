@@ -186,10 +186,10 @@ const Home: React.FC = () => {
               rows={8}
               resize="vertical"
               fullWidth
-              maxLength={2000}
+              maxLength={1000}
             />
             <div className={styles.charCount}>
-              {inputText.length} / 2000
+              {inputText.length} / 1000
             </div>
           </div>
 
