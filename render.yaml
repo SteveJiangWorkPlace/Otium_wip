@@ -103,15 +103,10 @@ preDeployScript: |
   ls -la backend/
   echo "Python path:"
   python -c "import sys; print('\\n'.join(sys.path))"
-  echo "Running database migrations..."
+  echo "Running database initialization..."
   cd backend
-  python -c "
-  import sys
-  sys.path.insert(0, '.')
-  from models.database import init_database
-  init_database()
-  print('Database initialized successfully')
-  "
+  python models/database.py
+  echo "Database initialized successfully"
 
 # ============================================
 # Notes:
