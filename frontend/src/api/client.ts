@@ -1,4 +1,5 @@
 import axios, { AxiosError } from 'axios';
+import { useAuthStore } from '../store/useAuthStore';
 import type {
   CheckTextRequest,
   CheckTextResponse,
@@ -177,10 +178,16 @@ axiosInstance.interceptors.response.use(
 
     // 401 错误统一跳转登录
     if (status === 401) {
-      // 清除所有可能的 token
-      localStorage.removeItem('token');
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('admin_token');
+      // 调用logout函数清除所有认证状态和store状态
+      try {
+        useAuthStore.getState().logout();
+      } catch (error) {
+        console.error('调用logout时出错:', error);
+        // 保底：清除token
+        localStorage.removeItem('token');
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('admin_token');
+      }
       window.location.href = '/login';
       error.message = '未授权，请重新登录';
       return Promise.reject(error);

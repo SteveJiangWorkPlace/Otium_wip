@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { apiClient } from '../api/client'
 import { useAuthStore } from '../store/useAuthStore'
 import { Card, Input, Button, Icon } from '../components'
+import { resetAllStores } from '../utils/resetStores'
 import styles from './Login.module.css'
 
 const Login: React.FC = () => {
@@ -54,6 +55,8 @@ const Login: React.FC = () => {
         const token = response.token || response.access_token
 
         setAuth(token, userInfo)
+        // 登录成功后重置所有store状态，确保干净的工作区
+        resetAllStores()
 
         // 尝试跳转
         navigate('/')
