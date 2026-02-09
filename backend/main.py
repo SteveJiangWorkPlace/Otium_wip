@@ -27,6 +27,10 @@ from dotenv import load_dotenv
 import os
 import hashlib
 import uuid
+import warnings
+
+# 过滤Pydantic的ArbitraryTypeWarning警告
+warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
 
 # 导入自定义模块
 from services import (
