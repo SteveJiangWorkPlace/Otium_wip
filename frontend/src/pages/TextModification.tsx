@@ -223,10 +223,10 @@ const TextModification: React.FC = () => {
                     borderRadius: 'var(--border-radius-md)',
                     borderLeft: '4px solid var(--color-primary)'
                   }}>
-                    在该工具用于修改或写作个人陈述时，建议的文本修改顺序：<br/>
-                    1. → <strong>去AI词汇</strong>：替换AI写作常用短语和词汇<br/>
-                    2. → <strong>去AI三板斧</strong>：修改AI写作常用的语法和符号习惯<br/>
-                    3. → <strong>反优化处理</strong>：将过于学术生硬的表达口语化
+                    在该工具用于修改或写作<strong>个人陈述</strong>时，建议的文本修改顺序：<br/>
+                    1. <strong>去AI词汇</strong>：替换AI写作常用短语和词汇<br/>
+                    2. <strong>去AI三板斧</strong>：修改AI写作常用的语法和符号习惯<br/>
+                    3. <strong>反优化处理</strong>：将过于学术生硬的表达口语化
                   </div>
                 </div>
               )}
