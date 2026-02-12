@@ -71,7 +71,7 @@ const TextCorrection: React.FC = () => {
       if (response.success) {
         setResultText(response.text)
         setEditableText(response.text)
-        alert('智能纠错完成！')
+        // 成功时不显示提醒
 
         // 处理成功后，获取最新的用户信息以更新剩余次数（如果API扣除了次数）
         try {

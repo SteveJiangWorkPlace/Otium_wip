@@ -48,7 +48,7 @@ const AIDetection: React.FC<AIDetectionProps> = ({
 
       setInternalResult(result)
       onDetectionComplete(result)
-      alert('AI检测完成！')
+      // 成功时不显示提醒
     } catch (error) {
       console.error('AI检测失败:', error)
       let errorMessage = 'AI检测失败，请稍后重试'

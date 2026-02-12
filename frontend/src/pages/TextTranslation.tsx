@@ -76,7 +76,7 @@ const TextTranslation: React.FC = () => {
       if (response.success) {
         setTranslatedText(response.text)
         setEditableText(response.text)
-        alert(`${englishType === 'us' ? '美式' : '英式'}翻译完成！`)
+        // 成功时不显示提醒
 
         // 翻译成功后，获取最新的用户信息以更新剩余次数
         try {

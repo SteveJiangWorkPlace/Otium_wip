@@ -113,10 +113,10 @@ const Admin: React.FC = () => {
 
       if (editingUser) {
         await apiClient.updateUser(data);
-        alert('更新成功');
+        // 成功时不显示提醒
       } else {
         await apiClient.addUser(data);
-        alert('添加成功');
+        // 成功时不显示提醒
       }
 
       setModalVisible(false);

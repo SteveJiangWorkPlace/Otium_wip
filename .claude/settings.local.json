@@ -32,7 +32,10 @@
       "Bash(git commit:*)",
       "Bash(git push:*)",
       "Bash(pkill:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(export PORT=3001:*)",
+      "Bash(export:*)"
     ]
   }
 }

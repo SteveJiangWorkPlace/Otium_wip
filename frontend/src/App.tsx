@@ -109,7 +109,7 @@ const AdminLogin: React.FC = () => {
       const response = await apiClient.adminLogin({ password });
       if (response.success) {
         setAdminAuth(response.token);
-        alert('登录成功！');
+        // 成功时不显示提醒
         navigate('/admin');
       } else {
         setError('密码错误');

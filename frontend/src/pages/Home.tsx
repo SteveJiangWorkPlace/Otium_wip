@@ -60,7 +60,7 @@ const Home: React.FC = () => {
         setEditableText('')
         setRefinedText('')
         setAiDetectionResult(null)
-        alert('智能纠错完成！')
+        // 成功时不显示提醒
       }
     } catch (error) {
       let errorMessage = '处理失败，请稍后重试'
@@ -98,7 +98,7 @@ const Home: React.FC = () => {
         setEditableText(response.text)
         setRefinedText('')
         setAiDetectionResult(null)
-        alert(`${type === 'us' ? '美式' : '英式'}翻译完成！`)
+        // 成功时不显示提醒
       }
     } catch (error) {
       let errorMessage = '翻译失败，请稍后重试'

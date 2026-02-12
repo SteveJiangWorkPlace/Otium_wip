@@ -243,7 +243,7 @@ async def login(data: LoginRequest):
             "access_token": access_token,
             "token_type": "bearer",
             "user": user_info,
-            "message": "登录成功"
+            "message": ""
         }
 
     # 如果不是管理员，检查是否是允许的普通用户
@@ -279,7 +279,7 @@ async def login(data: LoginRequest):
             "access_token": access_token,
             "token_type": "bearer",
             "user": user_info,
-            "message": "登录成功"
+            "message": ""
         }
     else:
         logging.error(f"登录失败: {message}")

@@ -85,15 +85,20 @@ const Login: React.FC = () => {
 
   return (
     <div className={styles.loginContainer}>
-      <Card variant="elevated" padding="large" className={styles.loginCard}>
+      <Card variant="center" padding="large" className={styles.loginCard}>
         <div className={styles.loginHeader}>
-          <img
-            src="/logopic.svg"
-            alt="Otium"
-            className={styles.logoImage}
-          />
-          <h1 className={styles.loginTitle}>Otium</h1>
-          <p className={styles.loginSubtitle}>拖延症儿童的论文DDL救星</p>
+          <div className={styles.headerLeft}>
+            <img
+              src="/logopic.svg"
+              alt="Otium"
+              className={styles.logoImage}
+            />
+          </div>
+          <div className={styles.headerDivider}></div>
+          <div className={styles.headerRight}>
+            <h1 className={styles.loginTitle}>Otium</h1>
+            <p className={styles.loginSubtitle}>拯救拖延症儿童的论文DDL</p>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className={styles.loginForm}>

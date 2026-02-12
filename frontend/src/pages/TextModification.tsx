@@ -76,7 +76,7 @@ const TextModification: React.FC = () => {
 
       if (response.success) {
         setModifiedText(response.text)
-        toast.success('文本修改完成！')
+        // 成功时不显示提醒
       }
     } catch (error) {
       let errorMessage = '文本修改失败，请稍后重试'

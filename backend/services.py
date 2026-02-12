@@ -298,7 +298,7 @@ def check_gptzero(text: str, api_key: str) -> Dict[str, Any]:
                 return {
                     "ai_score": doc.get("completely_generated_prob", 0),
                     "success": True,
-                    "message": "检测成功",
+                    "message": "",
                     "detailed_scores": doc.get("sentences", []),
                     "full_text": text
                 }

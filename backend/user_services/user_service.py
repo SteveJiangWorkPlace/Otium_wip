@@ -237,7 +237,7 @@ class UserService:
                 user.daily_ai_detection_limit = daily_ai_detection_limit
 
             db.commit()
-            return True, "用户信息更新成功"
+            return True, ""
 
         except Exception as e:
             db.rollback()
@@ -277,7 +277,7 @@ class UserService:
             db.add(usage)
 
             db.commit()
-            return True, "添加成功"
+            return True, ""
 
         except Exception as e:
             db.rollback()
