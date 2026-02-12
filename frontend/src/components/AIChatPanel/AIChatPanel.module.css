@@ -43,11 +43,16 @@
 }
 
 .header {
+  width: 100%;
+  height: 18px;
+  background-color: transparent;
+  border: 1px solid transparent;
+  border-radius: 12px;
   display: flex;
-  justify-content: flex-end;
   align-items: center;
-  padding: var(--spacing-2) var(--spacing-lg);
-  background-color: var(--color-gray-50);
+  justify-content: center;
+  margin-bottom: var(--spacing-md);
+  box-sizing: border-box;
   flex-shrink: 0;
 }
 
@@ -60,7 +65,7 @@
 .messagesContainer {
   flex: 1;
   overflow-y: auto;
-  padding: var(--spacing-8) var(--spacing-4);
+  padding: var(--spacing-4) var(--spacing-4);
   position: relative;
 }
 

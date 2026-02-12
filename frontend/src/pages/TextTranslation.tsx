@@ -133,7 +133,7 @@ const TextTranslation: React.FC = () => {
     splitPosition: 70,
   }
 
-  const workspaceWidth = conversation.isExpanded ? 72.5 : 100
+  const workspaceWidth = conversation.isExpanded ? 70 : 100
 
   const handleEditText = (text: string) => {
     setEditableText(text)
@@ -315,7 +315,7 @@ const TextTranslation: React.FC = () => {
 
         {/* AI面板 */}
         {conversation.isExpanded && (
-          <div className={styles.aiPanelContainer} style={{ width: '27.5%' }}>
+          <div className={styles.aiPanelContainer} style={{ width: '30%' }}>
             <AIChatPanel pageKey={pageKey} />
           </div>
         )}
