@@ -15,6 +15,7 @@ const DIRECTIVES = [
   '丰富句式',
   '灵活表达',
   '去AI词汇',
+  '反优化处理',
 ]
 
 const DIRECTIVE_INFO = {
@@ -24,6 +25,7 @@ const DIRECTIVE_INFO = {
   '丰富句式': '混合使用不同长度的句子',
   '灵活表达': '灵活使用标点和更自然的句子开头',
   '去AI词汇': '识别并替换AI高频词汇和短语',
+  '反优化处理': '替换为更加人性化的表达',
 }
 
 const DirectiveSelector: React.FC<DirectiveSelectorProps> = ({
