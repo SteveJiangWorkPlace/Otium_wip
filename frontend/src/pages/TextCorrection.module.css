@@ -191,6 +191,39 @@
   }
 }
 
+/* 三个点跳动动画 */
+.loadingDots {
+  display: inline-flex;
+  align-items: center;
+  height: 1em;
+}
+
+.loadingDots span {
+  animation: dotPulse 1.5s infinite ease-in-out;
+  opacity: 0;
+}
+
+.loadingDots span:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.loadingDots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.loadingDots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes dotPulse {
+  0%, 60%, 100% {
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+
 .resultCard {
   width: 100%;
   box-shadow: none;
@@ -264,5 +297,41 @@
     flex-direction: column;
     align-items: flex-start;
     gap: var(--spacing-2);
+  }
+}
+
+/* 复制通知样式 */
+.copyNotification {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: var(--spacing-3) var(--spacing-6);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  z-index: 1000;
+  animation: fadeInOut 2s ease forwards;
+  pointer-events: none;
+}
+
+@keyframes fadeInOut {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.9);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  85% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.9);
   }
 }

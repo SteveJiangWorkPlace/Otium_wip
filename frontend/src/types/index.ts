@@ -51,6 +51,45 @@ export interface AIChatResponse {
   error?: string;
 }
 
+// 流式翻译请求
+export interface StreamTranslationRequest {
+  text: string;
+  operation: 'translate_us' | 'translate_uk';
+  version?: 'professional' | 'basic';
+}
+
+// 流式翻译数据块
+export interface StreamTranslationChunk {
+  type: 'chunk' | 'sentence' | 'complete' | 'error';
+  text?: string;
+  full_text?: string;
+  index?: number;  // 句子索引
+  total?: number;  // 总句子数
+  chunk_index?: number;  // 块索引
+  error?: string;
+  error_type?: string;
+  total_sentences?: number;
+}
+
+// 流式文本修改请求
+export interface StreamRefineTextRequest {
+  text: string;
+  directives: string[];
+}
+
+// 流式文本修改数据块
+export interface StreamRefineTextChunk {
+  type: 'chunk' | 'sentence' | 'complete' | 'error';
+  text?: string;
+  full_text?: string;
+  index?: number;  // 句子索引
+  total?: number;  // 总句子数
+  chunk_index?: number;  // 块索引
+  error?: string;
+  error_type?: string;
+  total_sentences?: number;
+}
+
 // 用户登录请求
 export interface LoginRequest {
   username: string;

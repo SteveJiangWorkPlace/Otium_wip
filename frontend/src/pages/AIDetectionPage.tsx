@@ -1,11 +1,13 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/useAuthStore'
 import { useDetectionStore } from '../store/useDetectionStore'
+import { useGlobalProgressStore } from '../store/useGlobalProgressStore'
 import { useAIChatStore } from '../store/useAIChatStore'
 import Card from '../components/ui/Card/Card'
 import Textarea from '../components/ui/Textarea/Textarea'
 import Button from '../components/ui/Button/Button'
+import GlobalProgressBar from '../components/GlobalProgressBar/GlobalProgressBar'
 import AIDetection from '../components/AIDetection'
 import AIChatPanel from '../components/AIChatPanel/AIChatPanel'
 import { AIDetectionResponse } from '../types'
@@ -24,6 +26,12 @@ const AIDetectionPage: React.FC = () => {
     setShouldDetect,
     clear
   } = useDetectionStore()
+
+  const { showProgress, hideProgress, updateProgress } = useGlobalProgressStore()
+
+  // 成功通知状态
+  const [successNotification, setSuccessNotification] = useState<string | null>(null)
+  const notificationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // AI聊天状态
   const {
@@ -55,6 +63,29 @@ const AIDetectionPage: React.FC = () => {
     }
   }, [inputText, detectionResult, setShouldDetect, setDetectionResult])
 
+  // 清理通知定时器
+  useEffect(() => {
+    return () => {
+      if (notificationTimerRef.current) {
+        clearTimeout(notificationTimerRef.current)
+      }
+    }
+  }, [])
+
+  // 显示成功通知
+  const showNotification = (message: string) => {
+    // 清除之前的定时器
+    if (notificationTimerRef.current) {
+      clearTimeout(notificationTimerRef.current)
+    }
+    // 设置通知
+    setSuccessNotification(message)
+    // 2秒后自动清除通知
+    notificationTimerRef.current = setTimeout(() => {
+      setSuccessNotification(null)
+    }, 2000)
+  }
+
   const handleClear = () => {
     clear()
   }
@@ -62,12 +93,19 @@ const AIDetectionPage: React.FC = () => {
   const handleCopyInput = () => {
     if (inputText) {
       navigator.clipboard.writeText(inputText)
-      alert('已复制输入文本到剪贴板')
+      showNotification('已复制输入文本到剪贴板')
     }
   }
 
   const handleDetectionComplete = (result: AIDetectionResponse) => {
     setDetectionResult(result)
+    // 更新进度消息
+    updateProgress('AI检测完成')
+    // 2秒后隐藏进度
+    setTimeout(() => {
+      hideProgress()
+    }, 2000)
+    // 不再显示页面中间的通知，只在全局状态栏显示
   }
 
   const conversation = conversations[pageKey] || {
@@ -83,12 +121,21 @@ const AIDetectionPage: React.FC = () => {
 
   return (
     <div className={styles.detectionContainer} ref={containerRef}>
+      {/* 成功通知 */}
+      {successNotification && (
+        <div className={styles.copyNotification}>
+          {successNotification}
+        </div>
+      )}
       <div className={styles.pageContainer}>
         {/* 工作区 */}
         <div
           className={styles.workspaceContainer}
           style={{ width: `${workspaceWidth}%` }}
         >
+          {/* 全局进度条 */}
+          <GlobalProgressBar />
+
           <div className={styles.workspaceHeader}>
             {/* 标题已移除，AI按钮已移到输入区域 */}
           </div>
@@ -135,6 +182,8 @@ const AIDetectionPage: React.FC = () => {
                             alert('请先输入文本')
                             return
                           }
+                          // 显示全局进度
+                          showProgress('AI检测运行中，请稍后', 'ai-detection')
                           setShouldDetect(true)
                         }}
                         disabled={!inputText.trim()}

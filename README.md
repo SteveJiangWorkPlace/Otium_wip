@@ -350,6 +350,63 @@ Otium_wip/
 
 详细进展和计划请参考 [IMPROVEMENT_PLAN.md](./IMPROVEMENT_PLAN.md)。
 
+## 🚀 项目功能增强计划进度（2026-02-13更新）
+
+### 背景
+根据用户需求，项目正在进行功能增强，主要包括用户注册系统和翻译性能优化。
+
+### 阶段一：翻译性能优化 ✅（已完成）
+
+✅ **后端流式翻译支持**
+- 在 `backend/services.py` 中添加 `generate_gemini_content_stream()` 函数，支持流式 Gemini API 调用
+- 实现句子分割功能 `split_into_sentences()`，按中英文标点分割文本
+- 支持块级流式传输（`type: "chunk"`）和句子级流式传输（`type: "sentence"`）
+- 完整的错误处理和类型转换
+
+✅ **流式翻译 API**
+- 新增 `POST /api/text/translate-stream` 端点，支持 Server-Sent Events (SSE)
+- 使用 FastAPI 的 `StreamingResponse` 实现流式响应
+- 保留原有的用户认证、速率限制和文本验证机制
+- 支持美式（`translate_us`）和英式（`translate_uk`）翻译
+
+✅ **前端流式接收和逐句显示**
+- 扩展 `frontend/src/store/useTranslationStore.ts` 状态管理，添加流式翻译状态
+- 在 `frontend/src/api/client.ts` 中添加 `translateStream()` 函数，支持 SSE 流式处理
+- 在 `frontend/src/pages/TextTranslation.tsx` 中实现流式翻译界面：
+  - 新增翻译模式选择（流式翻译/传统翻译）
+  - 实时显示翻译进度和部分结果
+  - 逐句显示翻译结果，支持进度跟踪
+  - 添加取消翻译功能
+
+✅ **翻译状态管理扩展**
+- 扩展 Zustand store 以支持流式状态：
+  - `streaming`: 是否正在进行流式翻译
+  - `partialText`: 已接收的部分文本
+  - `sentences`: 已完成的句子列表
+  - `currentSentenceIndex`: 当前正在翻译的句子索引
+  - `cancelStream`: 取消流式翻译的函数
+
+### 阶段二：用户注册系统 🚧（待开始）
+
+📋 **待实现功能**
+1. 数据库模型扩展（添加邮箱、验证码等字段）
+2. 邮件服务集成（SMTP配置和验证码发送）
+3. 注册和密码重置API端点
+4. 前端注册页面和验证码验证
+5. 管理员界面扩展（显示邮箱信息）
+
+### 阶段三：转发奖励系统 📋（规划中）
+
+📋 **待实现功能**
+1. 数据库扩展（邀请码和邀请关系表）
+2. 邀请奖励服务
+3. 邀请奖励API端点
+4. 前端邀请功能组件
+5. 防作弊机制实现
+
+### 测试要求
+根据计划，每个阶段完成后需要等待用户测试确认后再继续下一阶段。
+
 ## 🤝 贡献指南
 
 请参考 [CONTRIBUTING.md](./CONTRIBUTING.md) 了解如何为项目做出贡献。
@@ -379,5 +436,5 @@ Otium_wip/
 ---
 
 **项目状态**：开发中
-**最新更新**：2026-02-08
+**最新更新**：2026-02-13
 **版本**：1.0.0-alpha

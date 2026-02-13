@@ -35,7 +35,23 @@
       "Bash(ls:*)",
       "Bash(powershell -Command:*)",
       "Bash(export PORT=3001:*)",
-      "Bash(export:*)"
+      "Bash(export:*)",
+      "Bash(start_backend.bat:*)",
+      "Bash(ping:*)",
+      "Bash(source:*)",
+      "Bash(PORT=3001 npm start:*)",
+      "Bash(PORT=3002 npm start:*)",
+      "Bash(powershell:*)",
+      "Bash(PORT=3010 npm start:*)",
+      "Bash(\"venv\\\\Scripts\\\\python.exe\" -m uvicorn:*)",
+      "Bash(\"venv\\\\Scripts\\\\python.exe\" -c:*)",
+      "Bash(set:*)",
+      "Bash(cmd /C \"for %i in \\(48804 62340 25912 47140 1604 51464 50496\\) do taskkill /F /PID %i\")",
+      "Bash(cmd /C \"for %i in \\(48804 62340 25912 47140 1604 51464 50496\\) do taskkill /F /T /PID %i\")",
+      "Bash(cmd /C:*)",
+      "Bash(wmic process where \"ProcessId=48804\" get Name:*)",
+      "Bash(start_frontend.bat)",
+      "Bash(cmd /c:*)"
     ]
   }
 }

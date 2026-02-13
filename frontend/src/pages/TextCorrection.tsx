@@ -1,13 +1,15 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/useAuthStore'
 import { useCorrectionStore } from '../store/useCorrectionStore'
+import { useGlobalProgressStore } from '../store/useGlobalProgressStore'
 import { useAIChatStore } from '../store/useAIChatStore'
 import { apiClient } from '../api/client'
 import { cleanTextFromMarkdown } from '../utils/textCleaner'
 import Card from '../components/ui/Card/Card'
 import Textarea from '../components/ui/Textarea/Textarea'
 import Button from '../components/ui/Button/Button'
+import GlobalProgressBar from '../components/GlobalProgressBar/GlobalProgressBar'
 import AIChatPanel from '../components/AIChatPanel/AIChatPanel'
 import styles from './TextCorrection.module.css'
 
@@ -28,6 +30,8 @@ const TextCorrection: React.FC = () => {
     clear
   } = useCorrectionStore()
 
+  const { showProgress, hideProgress, updateProgress } = useGlobalProgressStore()
+
   // AI聊天状态
   const {
     conversations,
@@ -38,10 +42,23 @@ const TextCorrection: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null)
   const pageKey = 'global'
 
+  // 成功通知状态
+  const [successNotification, setSuccessNotification] = useState<string | null>(null)
+  const notificationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   // 初始化当前页面
   useEffect(() => {
     setCurrentPage(pageKey)
   }, [setCurrentPage])
+
+  // 清理通知定时器
+  useEffect(() => {
+    return () => {
+      if (notificationTimerRef.current) {
+        clearTimeout(notificationTimerRef.current)
+      }
+    }
+  }, [])
 
   // 加载步骤对应的提示消息
   const loadingStepMessages = {
@@ -54,11 +71,28 @@ const TextCorrection: React.FC = () => {
     }
   }, [userInfo, navigate])
 
+  // 显示成功通知
+  const showNotification = (message: string) => {
+    // 清除之前的定时器
+    if (notificationTimerRef.current) {
+      clearTimeout(notificationTimerRef.current)
+    }
+    // 设置通知
+    setSuccessNotification(message)
+    // 2秒后自动清除通知
+    notificationTimerRef.current = setTimeout(() => {
+      setSuccessNotification(null)
+    }, 2000)
+  }
+
   const handleErrorCheck = async () => {
     if (!inputText.trim()) {
       alert('请先输入文本')
       return
     }
+
+    // 显示全局进度
+    showProgress('智能纠错运行中，请稍后', 'correction')
 
     setLoading(true)
     setLoadingStep('error_checking')
@@ -71,7 +105,12 @@ const TextCorrection: React.FC = () => {
       if (response.success) {
         setResultText(response.text)
         setEditableText(response.text)
-        // 成功时不显示提醒
+        // 更新进度消息
+        updateProgress('智能纠错完成')
+        // 2秒后隐藏进度（全局状态栏会显示完成状态）
+        setTimeout(() => {
+          hideProgress()
+        }, 2000)
 
         // 处理成功后，获取最新的用户信息以更新剩余次数（如果API扣除了次数）
         try {
@@ -91,6 +130,11 @@ const TextCorrection: React.FC = () => {
         const axiosError = error as any
         errorMessage = axiosError.response?.data?.detail || errorMessage
       }
+      updateProgress(`智能纠错失败: ${errorMessage}`)
+      // 2秒后隐藏进度
+      setTimeout(() => {
+        hideProgress()
+      }, 2000)
       alert(errorMessage)
     } finally {
       setLoading(false)
@@ -104,17 +148,27 @@ const TextCorrection: React.FC = () => {
 
   const handleCopyInput = () => {
     if (inputText) {
-      navigator.clipboard.writeText(inputText)
-      alert('已复制输入文本到剪贴板')
+      try {
+        navigator.clipboard.writeText(inputText)
+        showNotification('已复制输入文本到剪贴板')
+      } catch (error) {
+        console.error('复制失败:', error)
+        showNotification('复制失败，请手动复制')
+      }
     }
   }
 
   const handleCopyResult = () => {
     if (resultText) {
-      // 清理markdown符号后复制
-      const cleanedText = cleanTextFromMarkdown(resultText)
-      navigator.clipboard.writeText(cleanedText)
-      alert('已复制到剪贴板')
+      try {
+        // 清理markdown符号后复制
+        const cleanedText = cleanTextFromMarkdown(resultText)
+        navigator.clipboard.writeText(cleanedText)
+        showNotification('已复制到剪贴板')
+      } catch (error) {
+        console.error('复制失败:', error)
+        showNotification('复制失败，请手动复制')
+      }
     }
   }
 
@@ -147,12 +201,21 @@ const TextCorrection: React.FC = () => {
 
   return (
     <div className={styles.correctionContainer} ref={containerRef}>
+      {/* 成功通知 */}
+      {successNotification && (
+        <div className={styles.copyNotification}>
+          {successNotification}
+        </div>
+      )}
       <div className={styles.pageContainer}>
         {/* 工作区 */}
         <div
           className={styles.workspaceContainer}
           style={{ width: `${workspaceWidth}%` }}
         >
+          {/* 全局进度条 */}
+          <GlobalProgressBar />
+
           <div className={styles.workspaceHeader}>
             {/* 标题已移除，AI按钮已移到输入区域 */}
           </div>
@@ -225,12 +288,6 @@ const TextCorrection: React.FC = () => {
                   </div>
                 </div>
 
-                {loading && loadingStep && (
-                  <div className={styles.loadingMessage}>
-                    <div className={styles.loadingSpinner} />
-                    <span>{loadingStepMessages[loadingStep]}</span>
-                  </div>
-                )}
               </Card>
 
               {/* 结果显示 */}

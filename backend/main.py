@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Depends, status, Request
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.security import OAuth2PasswordBearer
@@ -39,6 +40,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 # 导入自定义模块
 from services import (
     generate_gemini_content_with_fallback,
+    generate_gemini_content_stream,
+    split_into_sentences,
     check_gptzero,
     generate_safe_hash_for_cache,
     extract_annotations_with_context,
@@ -52,7 +55,8 @@ from models.database import init_database, get_session_local
 from schemas import (
     LoginRequest, CheckTextRequest, RefineTextRequest, AIDetectionRequest,
     UserInfo, AdminLoginRequest, UpdateUserRequest, AddUserRequest, ErrorResponse,
-    AIChatRequest, AIChatResponse
+    AIChatRequest, AIChatResponse, StreamTranslationRequest, StreamTranslationChunk,
+    StreamRefineTextRequest, StreamRefineTextChunk
 )
 from config import settings, is_expired
 from prompts import (
@@ -101,7 +105,7 @@ security = HTTPBearer()
 
 
 # 定义 OAuth2 方案，指定获取 Token 的地址（虽然我们现在是手动验证，但定义是必须的）
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/login")
 
 # JWT 配置
 # 优先从JWT_SECRET_KEY环境变量读取，其次从SECRET_KEY读取，最后使用默认值（向后兼容）
@@ -208,7 +212,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 # ==========================================
 
 @app.post("/api/login")
-@api_error_handler
+# @api_error_handler
 async def login(data: LoginRequest):
     logging.info(f"登录尝试: 用户名 = {data.username}")
 
@@ -403,11 +407,11 @@ async def check_text(http_request: Request, request: CheckTextRequest, user: Use
         )
 
 
-    # 调用 Gemini API，使用与AI聊天相同的模型优先级
+    # 调用 Gemini API，文本相关功能使用 gemini-2.5-flash 作为主模型
     result = generate_gemini_content_with_fallback(
         prompt,
         api_key=gemini_api_key,
-        primary_model="gemini-3-pro-preview",
+        primary_model="gemini-2.5-flash",
         fallback_model="gemini-2.5-pro"
     )
 
@@ -472,6 +476,263 @@ async def check_text(http_request: Request, request: CheckTextRequest, user: Use
     gemini_cache.set(cache_key, response_data)
     
     return response_data
+
+
+@app.post("/api/text/translate-stream")
+@api_error_handler
+async def translate_stream(
+    http_request: Request,
+    request: StreamTranslationRequest,
+    user: UserObject = Depends(get_current_user)
+):
+    """流式翻译端点
+
+    使用 Server-Sent Events (SSE) 返回流式翻译结果
+    """
+    # 提取用户名
+    username = user.username if hasattr(user, 'username') else str(user)
+
+    # 速率限制检查
+    allowed, wait_time = rate_limiter.is_allowed(username)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=ErrorResponse(
+                error_code="RATE_LIMIT_EXCEEDED",
+                message=f"请求过于频繁，请等待 {wait_time} 秒",
+                details={"wait_time": wait_time, "username": username}
+            ).dict()
+        )
+
+    # 文本验证
+    is_valid, message = TextValidator.validate_for_gemini(request.text)
+    if not is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(
+                error_code="TEXT_VALIDATION_ERROR",
+                message=message,
+                details={"text_length": len(request.text)}
+            ).dict()
+        )
+
+    # 检查操作类型
+    if request.operation not in ["translate_us", "translate_uk"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(
+                error_code="UNSUPPORTED_OPERATION",
+                message="流式翻译仅支持 translate_us 和 translate_uk 操作",
+                details={"operation": request.operation}
+            ).dict()
+        )
+
+    # 生成缓存键（流式翻译不适用缓存，但保留逻辑用于统计）
+    cache_key = generate_safe_hash_for_cache(request.text, f"{request.operation}_{request.version}")
+
+    # 根据操作类型构建prompt
+    style = "US" if request.operation == "translate_us" else "UK"
+    prompt = build_academic_translate_prompt(request.text, style, request.version)
+
+    # 获取API密钥（优先从环境变量获取，其次从请求头获取）
+    gemini_api_key = None
+    source = "环境变量"
+
+    # 从环境变量获取Gemini API密钥
+    gemini_api_key = os.environ.get("GEMINI_API_KEY")
+    logging.info(f"translate_stream函数: 从环境变量获取GEMINI_API_KEY: {gemini_api_key is not None}")
+    if not gemini_api_key:
+        # 从请求头获取
+        gemini_api_key = http_request.headers.get("X-Gemini-Api-Key")
+        source = "请求头"
+        logging.info(f"translate_stream函数: 从请求头获取X-Gemini-Api-Key: {gemini_api_key is not None}")
+
+    # 检查API密钥是否存在
+    if not gemini_api_key:
+        logging.warning("Gemini API密钥未提供：环境变量和请求头中都未找到")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(
+                error_code="GEMINI_API_KEY_MISSING",
+                message="需要提供Gemini API密钥（可通过环境变量GEMINI_API_KEY或侧边栏输入设置）",
+                details={"service": "Gemini"}
+            ).dict()
+        )
+
+    async def stream_generator():
+        """流式生成器，产生SSE格式的数据"""
+        try:
+            # 调用流式翻译服务，使用 gemini-2.5-flash 作为主模型
+            stream = generate_gemini_content_stream(
+                prompt=prompt,
+                api_key=gemini_api_key,
+                primary_model="gemini-2.5-flash",
+                fallback_model="gemini-2.5-pro"
+            )
+
+            # 处理流式响应
+            async for chunk in stream:
+                # 将字典转换为JSON字符串
+                chunk_data = StreamTranslationChunk(**chunk)
+                json_str = chunk_data.json()
+
+                # SSE格式：data: {json}\n\n
+                yield f"data: {json_str}\n\n"
+
+        except Exception as e:
+            logging.error(f"流式翻译异常: {str(e)}", exc_info=True)
+            error_chunk = StreamTranslationChunk(
+                type="error",
+                error=f"流式翻译异常: {str(e)}",
+                error_type="stream_error"
+            )
+            yield f"data: {error_chunk.json()}\n\n"
+
+    # 记录使用情况（异步，不阻塞流式响应）
+    try:
+        remaining = user_service.record_usage(username, operation_type=request.operation, text_length=len(request.text))
+        logging.info(f"用户 {username} 流式翻译使用记录，剩余次数: {remaining}")
+    except Exception as e:
+        logging.error(f"记录流式翻译使用失败: {str(e)}")
+        # 不中断流式响应，仅记录错误
+
+    # 返回流式响应
+    return StreamingResponse(
+        stream_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"  # 禁用Nginx缓冲
+        }
+    )
+
+
+@app.post("/api/text/refine-stream")
+@api_error_handler
+async def refine_stream(
+    http_request: Request,
+    request: StreamRefineTextRequest,
+    user: UserObject = Depends(get_current_user)
+):
+    """流式文本修改端点
+
+    使用 Server-Sent Events (SSE) 返回流式修改结果
+    """
+    # 提取用户名
+    username = user.username if hasattr(user, 'username') else str(user)
+
+    # 速率限制检查
+    allowed, wait_time = rate_limiter.is_allowed(username)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=ErrorResponse(
+                error_code="RATE_LIMIT_EXCEEDED",
+                message=f"请求过于频繁，请等待 {wait_time} 秒",
+                details={"wait_time": wait_time, "username": username}
+            ).dict()
+        )
+
+    # 文本验证
+    is_valid, message = TextValidator.validate_for_gemini(request.text)
+    if not is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(
+                error_code="TEXT_VALIDATION_ERROR",
+                message=message,
+                details={"text_length": len(request.text)}
+            ).dict()
+        )
+
+    # 构建隐藏指令
+    hidden_prompts = []
+    for directive in request.directives:
+        if directive in SHORTCUT_ANNOTATIONS:
+            hidden_prompts.append(f"- {SHORTCUT_ANNOTATIONS[directive]}")
+
+    hidden_instructions = "\n".join(hidden_prompts)
+
+    # 提取批注信息
+    annotations = extract_annotations_with_context(request.text)
+    if annotations:
+        logging.info(f"检测到 {len(annotations)} 个局部批注")
+        # 记录更详细的批注信息，便于调试
+        for i, anno in enumerate(annotations):
+            logging.info(f"批注 {i+1}: 句子='{anno['sentence']}', 内容='{anno['content']}'")
+
+    # 构建prompt
+    prompt = build_english_refine_prompt(request.text, hidden_instructions, annotations)
+
+    # 记录完整的prompt用于调试
+    logging.info(f"流式文本修改 - 完整的提示词: {prompt}")
+
+    # 获取API密钥（优先从环境变量获取，其次从请求头获取）
+    gemini_api_key = None
+    source = "环境变量"
+
+    # 从环境变量获取Gemini API密钥
+    gemini_api_key = os.environ.get("GEMINI_API_KEY")
+    logging.info(f"refine_stream函数: 从环境变量获取GEMINI_API_KEY: {gemini_api_key is not None}")
+    if not gemini_api_key:
+        # 从请求头获取
+        gemini_api_key = http_request.headers.get("X-Gemini-Api-Key")
+        source = "请求头"
+        logging.info(f"refine_stream函数: 从请求头获取X-Gemini-Api-Key: {gemini_api_key is not None}")
+
+    # 检查API密钥是否存在
+    if not gemini_api_key:
+        logging.warning("Gemini API密钥未提供：环境变量和请求头中都未找到")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(
+                error_code="GEMINI_API_KEY_MISSING",
+                message="需要提供Gemini API密钥（可通过环境变量GEMINI_API_KEY或侧边栏输入设置）",
+                details={"service": "Gemini"}
+            ).dict()
+        )
+
+    async def stream_generator():
+        """流式生成器，产生SSE格式的数据"""
+        try:
+            # 调用流式翻译服务（与翻译共用同一个流式函数），使用 gemini-2.5-flash 作为主模型
+            stream = generate_gemini_content_stream(
+                prompt=prompt,
+                api_key=gemini_api_key,
+                primary_model="gemini-2.5-flash",
+                fallback_model="gemini-2.5-pro"
+            )
+
+            # 处理流式响应
+            async for chunk in stream:
+                # 将字典转换为JSON字符串
+                chunk_data = StreamRefineTextChunk(**chunk)
+                json_str = chunk_data.json()
+
+                # SSE格式：data: {json}\n\n
+                yield f"data: {json_str}\n\n"
+
+        except Exception as e:
+            logging.error(f"流式文本修改异常: {str(e)}", exc_info=True)
+            error_chunk = StreamRefineTextChunk(
+                type="error",
+                error=f"流式文本修改异常: {str(e)}",
+                error_type="stream_error"
+            )
+            yield f"data: {error_chunk.json()}\n\n"
+
+    # 返回流式响应
+    return StreamingResponse(
+        stream_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"  # 禁用Nginx缓冲
+        }
+    )
+
 
 @app.post("/api/text/refine")
 @api_error_handler
@@ -558,11 +819,11 @@ async def refine_text(http_request: Request, request: RefineTextRequest, user: U
         )
 
 
-    # 调用 Gemini API，使用与AI聊天相同的模型优先级
+    # 调用 Gemini API，文本相关功能使用 gemini-2.5-flash 作为主模型
     result = generate_gemini_content_with_fallback(
         prompt,
         api_key=gemini_api_key,
-        primary_model="gemini-3-pro-preview",
+        primary_model="gemini-2.5-flash",
         fallback_model="gemini-2.5-pro"
     )
 
@@ -945,6 +1206,22 @@ async def add_user(request: AddUserRequest, credentials: HTTPAuthorizationCreden
         )
     
     return {"success": True, "message": message}
+
+@app.get("/api/test")
+async def test_endpoint():
+    return {"message": "Test endpoint works", "status": "ok"}
+
+
+# 添加启动事件来打印所有路由
+@app.on_event("startup")
+async def print_routes():
+    """打印所有注册的路由"""
+    logger.info("=== 注册的API路由 ===")
+    for route in app.routes:
+        if hasattr(route, "methods"):
+            logger.info(f"{route.path} - {route.methods}")
+    logger.info("===================")
+
 
 if __name__ == "__main__":
     import uvicorn

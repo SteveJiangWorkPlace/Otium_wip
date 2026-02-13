@@ -17,11 +17,15 @@ import type {
   UserInfo,
   AIChatRequest,
   AIChatResponse,
+  StreamTranslationRequest,
+  StreamTranslationChunk,
+  StreamRefineTextRequest,
+  StreamRefineTextChunk,
 } from '../types';
 
 console.log('API客户端模块加载 - 环境变量REACT_APP_API_BASE_URL:', process.env.REACT_APP_API_BASE_URL);
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8001';
 console.log('API客户端 - 使用的基础URL:', API_BASE_URL);
 
 const axiosInstance = axios.create({
@@ -219,6 +223,164 @@ export const apiClient = {
   checkText: async (data: CheckTextRequest): Promise<CheckTextResponse> => {
     const response = await axiosInstance.post<CheckTextResponse>('/text/check', data);
     return response.data;
+  },
+
+  translateStream: async function* (data: StreamTranslationRequest, options?: {
+    onProgress?: (chunk: StreamTranslationChunk) => void;
+    signal?: AbortSignal;
+  }) {
+    const { onProgress, signal } = options || {};
+
+    // 获取认证token和API密钥
+    const token = localStorage.getItem('token') ||
+                  localStorage.getItem('auth_token') ||
+                  localStorage.getItem('admin_token');
+
+    const apiKeysStr = localStorage.getItem('otium_api_keys');
+    const apiKeys = apiKeysStr ? JSON.parse(apiKeysStr) : {};
+    const geminiApiKey = apiKeys.geminiApiKey;
+
+    // 构建请求头
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    if (geminiApiKey && geminiApiKey.trim()) {
+      headers['X-Gemini-Api-Key'] = geminiApiKey;
+    }
+
+    // 使用 fetch API 进行流式请求
+    const response = await fetch(`${API_BASE_URL}/api/text/translate-stream`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(data),
+      signal,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`流式翻译请求失败: ${response.status} ${errorText}`);
+    }
+
+    if (!response.body) {
+      throw new Error('响应体不可读');
+    }
+
+    // 创建读取器
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const jsonStr = line.substring(6).trim();
+            if (jsonStr) {
+              try {
+                const chunkData: StreamTranslationChunk = JSON.parse(jsonStr);
+                if (onProgress) {
+                  onProgress(chunkData);
+                }
+                yield chunkData;
+              } catch (e) {
+                console.error('解析SSE数据失败:', e, '原始数据:', jsonStr);
+              }
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  },
+
+  refineStream: async function* (data: StreamRefineTextRequest, options?: {
+    onProgress?: (chunk: StreamRefineTextChunk) => void;
+    signal?: AbortSignal;
+  }) {
+    const { onProgress, signal } = options || {};
+
+    // 获取认证token和API密钥
+    const token = localStorage.getItem('token') ||
+                  localStorage.getItem('auth_token') ||
+                  localStorage.getItem('admin_token');
+
+    const apiKeysStr = localStorage.getItem('otium_api_keys');
+    const apiKeys = apiKeysStr ? JSON.parse(apiKeysStr) : {};
+    const geminiApiKey = apiKeys.geminiApiKey;
+
+    // 构建请求头
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    if (geminiApiKey && geminiApiKey.trim()) {
+      headers['X-Gemini-Api-Key'] = geminiApiKey;
+    }
+
+    // 使用 fetch API 进行流式请求
+    const response = await fetch(`${API_BASE_URL}/api/text/refine-stream`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(data),
+      signal,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`流式文本修改请求失败: ${response.status} ${errorText}`);
+    }
+
+    if (!response.body) {
+      throw new Error('响应体不可读');
+    }
+
+    // 创建读取器
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const jsonStr = line.substring(6).trim();
+            if (jsonStr) {
+              try {
+                const chunkData: StreamRefineTextChunk = JSON.parse(jsonStr);
+                if (onProgress) {
+                  onProgress(chunkData);
+                }
+                yield chunkData;
+              } catch (e) {
+                console.error('解析SSE数据失败:', e, '原始数据:', jsonStr);
+              }
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
   },
 
   refineText: async (data: RefineTextRequest): Promise<RefineTextResponse> => {

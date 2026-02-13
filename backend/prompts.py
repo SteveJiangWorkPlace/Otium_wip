@@ -15,20 +15,19 @@ from typing import List, Dict, Any, Optional
 def build_error_check_prompt(chinese_text: str) -> str:
     """构建用于智能纠错的提示词"""
     return f"""
-    你是中文文本校对专家。请检查并直接修改以下文本中的三类错误：错别字、漏字和重复字。
+校对中文文本，检查并直接修改以下文本中的三类错误：错别字、漏字和重复字。
+直接修改这三类错误，不要只是标记它们。
+不要修改表达方式、语法结构或其他内容。不修改专业术语，不修改写作风格，不修改标点符号（除非明显错误）。
 
-    直接修改这三类错误，不要只是标记它们。同时，不要修改表达方式、语法结构或其他内容。
-    不修改专业术语，不修改写作风格，不修改标点符号（除非明显错误）。
+输入文本:
+{chinese_text}
 
-    输入文本:
-    {chinese_text}
-
-    输出格式:
-    - 返回修改后的完整文本
-    - 对于每处修改，用**双星号**将修改后的内容包围起来，例如"这是一个**正确**的例子"
-    - 不要添加任何解释或评论，只返回修改后的文本
-    - 如无错误，直接返回原文
-    """
+输出格式:
+- 返回修改后的完整文本
+- 对于每处修改，用**双星号**将修改后的内容包围起来，例如"这是一个**正确**的例子"
+- 不要添加任何解释或评论，只返回修改后的文本
+- 如无错误，直接返回原文
+"""
 
 
 def build_academic_translate_prompt(chinese_text: str, style: str = "US", version: str = "professional") -> str:
@@ -38,7 +37,7 @@ def build_academic_translate_prompt(chinese_text: str, style: str = "US", versio
     if version == "basic":
         sentence_structure_guideline = """**Sentence Structure (Basic Rule)**: Strictly avoid using the "comma + verb-ing" structure (e.g., ", revealing trends"). Instead, use relative clauses (e.g., ", which revealed..."), coordination (e.g., "and revealed..."), or start new sentences where appropriate for better flow."""
     else:
-        sentence_structure_guideline = """**Sentence Structure Variety (Balanced Rule)**: AI models often overuse the "comma + verb-ing" structure (e.g., ", revealing trends"). Do not strictly ban it, as it is valid in academic English, but **use it sparingly** to avoid a repetitive "AI tone." Instead, prioritize variety by using relative clauses (e.g., ", which revealed..."), coordination (e.g., "and revealed..."), or starting new sentences where appropriate for better flow."""
+        sentence_structure_guideline = """**Sentence Structure Variety (Balanced Rule)**: AI models often overuse the "comma + verb-ing" structure (e.g., ", revealing trends"). Do not strictly ban it, but **use it sparingly** to avoid a repetitive "AI tone." Instead, prioritize variety by using relative clauses (e.g., ", which revealed..."), coordination (e.g., "and revealed..."), or starting new sentences where appropriate for better flow."""
 
     return f"""
     You are an expert academic translator specializing in translating Chinese academic papers into English.
@@ -201,6 +200,6 @@ SHORTCUT_ANNOTATIONS = {
     "丰富句式": "识别句子长度过于一致的段落，调整为混合使用短句(5-10词)、中等句(15-20词)和长句(25-30词)",
     "灵活表达": "在适当位置添加破折号、分号，或将某些句子改为以'And'、'But'、'However'开头，以增加文本的自然流动性",
     "同义替换": "识别并替换过于学术化或AI风格的词汇，使用更简洁自然的同义词。例如，将'utilize'改为'use'，将'conceptualize'改为'think about'",
-    "去AI词汇": "通过以下规则润色英文文本：\n严格避免使用副词\n严格避免将动词ing形式作名词用法\n将 \"This [动词]...\" 的独立句，改为由 \"which\" 连接的非限定性定语从句\n使用分号（;）连接两个语法各自独立、但后者是前者思想的直接延续或解释的句子，以增强逻辑流动性\n同时严格避免使用以下表达方式和词汇短语：\n1.    用master或其衍生词代表掌握某项技能的意思\n2.    主句 + , + -ing形式的伴随状语句式\n3.    my goal is to\n4.    hone\n5.    permit\n6.    deep comprehension\n7.    look forward to\n8.    address\n9.    command\n10.    drawn to\n11.    delve into\n12.    demonstrate（不要高频出现）\n13.    draw\n14.    drawn to\n15.    privilege\n16.    testament\n17.    commitment\n18.    tenure\n19.    thereby\n20.    thereby + doing\n21.    cultivate\n22.    Building on this\n23.    Building on this foundation\n24.    intend to",
+    "去AI词汇": "通过以下规则润色英文文本：\n严格避免使用副词+形容词以及副词+动词的组合\n严格避免将动词ing形式作名词用法\n将 \"This [动词]...\" 的独立句，改为由 \"which\" 连接的非限定性定语从句\n使用分号（;）连接两个语法各自独立、但后者是前者思想的直接延续或解释的句子，以增强逻辑流动性\n同时严格避免使用以下表达方式和词汇短语：\n1.    用master或其衍生词代表掌握某项技能的意思\n2.    主句 + , + -ing形式的伴随状语句式\n3.    my goal is to\n4.    hone\n5.    permit\n6.    deep comprehension\n7.    look forward to\n8.    address\n9.    command\n10.    drawn to\n11.    delve into\n12.    demonstrate（不要高频出现）\n13.    draw\n14.    drawn to\n15.    privilege\n16.    testament\n17.    commitment\n18.    tenure\n19.    thereby\n20.    thereby + doing\n21.    cultivate\n22.    Building on this\n23.    Building on this foundation\n24.    intend to",
     "反优化处理": "Revise the English text to make it sound more like a thoughtful but less confident human wrote it. You will achieve this by performing the following actions on a random selection of targets (do not change everything, aim for a 40-70% replacement rate):\n1. Reduce Formality and Confidence: Identify strong, confident, or goal-oriented phrases and replace them with more personal, uncertain, or hopeful alternatives.\n•    Find: I will, I plan to, I aim to, my objective is to\n•    Replace with: I hope to, I would like to, I'm thinking about trying to, I want to see if I can, it might be cool to\n•    Find: This will establish, This will demonstrate, This analysis reveals\n•    Replace with: This could help show, Maybe this will point to, I feel like this shows, What I get from this is\n2. Simplify Academic and Professional Vocabulary: Find standard academic or overly formal words and replace them with simpler, more common or colloquial equivalents.\n•    Find: utilize, employ\n•    Replace with: use, make use of\n•    Find: examine, investigate, analyze\n•    Replace with: look into, check out, figure out, get a handle on\n•    Find: furthermore, moreover, additionally\n•    Replace with: also, on top of that, and another thing is\n•    Find: consequently, therefore, thus\n•    Replace with: so, because of that, which is why\n•    Find: methodology, framework\n•    Replace with: approach, way of doing things, setup, basic idea\n•    Find: necessitates, requires\n•    Replace with: needs, means I have to\n•    Find: a pursuit of this scope\n•    Replace with: doing something this big, this kind of project\n3. Inject Colloquial Elements:\n•    Introduce conversational filler words like just, really, kind of, sort of.\n•    Use contractions (it is -> it's, I will -> I'll, I would -> I'd).\n•    Occasionally use informal sentence starters like \"The thing is,\" or \"What I'm trying to say is,\".\nCrucial Rule: The final text should be a mixture. It should not be completely informal. The desired effect is that of a person who knows the formal language but whose natural, less certain voice is breaking through. Preserve the core ideas of the original text."
 }

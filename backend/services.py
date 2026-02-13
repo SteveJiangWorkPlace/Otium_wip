@@ -10,7 +10,7 @@ import logging
 import time
 import re
 import hashlib
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, AsyncGenerator
 
 import google.genai
 import google.genai.errors
@@ -25,7 +25,7 @@ from utils import TextValidator
 # ==========================================
 
 def generate_gemini_content_with_fallback(prompt: str, api_key: Optional[str] = None,
-                                         primary_model: str = "gemini-3-pro-preview",  # 改为3-pro-preview作为主要模型
+                                         primary_model: str = "gemini-2.5-flash",  # 文本相关功能使用flash作为主要模型
                                          fallback_model: str = "gemini-2.5-pro") -> Dict[str, Any]:
     """带容错的 Gemini 内容生成
 
@@ -245,6 +245,254 @@ def generate_gemini_content_with_fallback(prompt: str, api_key: Optional[str] = 
     except Exception as e:
         logging.error(f"未知错误: {str(e)}", exc_info=True)
         return {"success": False, "error": "系统错误，请稍后再试", "error_type": "unknown"}
+
+
+# ==========================================
+# 流式翻译服务
+# ==========================================
+
+def split_into_sentences(text: str) -> List[str]:
+    """将文本分割成句子
+
+    Args:
+        text: 输入文本
+
+    Returns:
+        句子列表
+    """
+    import re
+
+    # 使用中文和英文标点分割句子
+    # 匹配中文标点：。！？和英文标点：. ! ?
+    # 保留分割符号在句子中
+    sentences = re.split(r'(?<=[。！？.!?])\s*', text.strip())
+
+    # 过滤空句子
+    sentences = [s.strip() for s in sentences if s.strip()]
+
+    return sentences
+
+
+async def generate_gemini_content_stream(
+    prompt: str,
+    api_key: Optional[str] = None,
+    primary_model: str = "gemini-2.5-flash",
+    fallback_model: Optional[str] = "gemini-2.5-pro"
+) -> AsyncGenerator[Dict[str, Any], None]:
+    """流式生成 Gemini 内容，支持主备模型切换
+
+    Args:
+        prompt: 提示词文本
+        api_key: Gemini API密钥，如果为None则使用环境变量
+        primary_model: 主要模型名称
+        fallback_model: 备用模型名称，如果为None则不使用备用模型
+
+    Yields:
+        包含流式结果的字典，格式：{"type": "chunk"|"sentence"|"complete", "text": str, "index": int, "total": int, "error": str}
+    """
+    import asyncio
+
+    logging.info(f"开始流式翻译，主模型: {primary_model}, 备用模型: {fallback_model}, prompt长度: {len(prompt)}")
+
+    # 安全设置
+    safety_settings = [
+        {
+            "category": "HARM_CATEGORY_HATE_SPEECH",
+            "threshold": "BLOCK_NONE"
+        },
+        {
+            "category": "HARM_CATEGORY_HARASSMENT",
+            "threshold": "BLOCK_NONE"
+        },
+        {
+            "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+            "threshold": "BLOCK_NONE"
+        },
+        {
+            "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+            "threshold": "BLOCK_NONE"
+        }
+    ]
+
+    try:
+        # 检查API密钥
+        current_api_key = api_key
+        if not current_api_key:
+            raise GeminiAPIError("未提供 Gemini API Key，请在侧边栏输入", "missing_key")
+
+        # 创建客户端
+        client = google.genai.Client(api_key=current_api_key)
+
+        # 准备配置
+        config = {
+            "safety_settings": safety_settings
+        }
+
+        # 尝试主模型
+        current_model = primary_model
+        models_tried = []
+
+        # 尝试使用主模型
+        try:
+            logging.info(f"调用Gemini流式API: 模型={current_model}")
+            response_stream = client.models.generate_content_stream(
+                model=current_model,
+                contents=prompt,
+                config=config
+            )
+            models_tried.append(current_model)
+        except Exception as primary_error:
+            logging.warning(f"主模型 {primary_model} 调用失败: {str(primary_error)}")
+
+            # 检查是否有备用模型
+            if fallback_model and fallback_model != primary_model:
+                logging.info(f"尝试切换到备用模型: {fallback_model}")
+                current_model = fallback_model
+                try:
+                    response_stream = client.models.generate_content_stream(
+                        model=current_model,
+                        contents=prompt,
+                        config=config
+                    )
+                    models_tried.append(current_model)
+                    logging.info(f"备用模型 {fallback_model} 调用成功")
+                except Exception as fallback_error:
+                    logging.error(f"备用模型 {fallback_model} 也调用失败: {str(fallback_error)}")
+                    # 重新抛出主模型的错误，让外部异常处理处理
+                    raise primary_error
+            else:
+                # 没有备用模型或备用模型与主模型相同，直接抛出错误
+                raise primary_error
+
+        # 流式处理缓冲区
+        full_response = ""
+        buffer = ""
+        sentences = []
+        sentence_index = 0
+
+        # 用于检测句子边界的正则表达式
+        # 匹配中文标点：。！？和英文标点：. ! ?
+        import re
+        sentence_end_pattern = re.compile(r'[。！？.!?]')
+
+        # 处理流式响应
+        for chunk in response_stream:
+            if hasattr(chunk, 'text'):
+                chunk_text = chunk.text
+            elif hasattr(chunk, 'candidates') and chunk.candidates:
+                candidate = chunk.candidates[0]
+                if hasattr(candidate, 'content') and candidate.content:
+                    if hasattr(candidate.content, 'parts') and candidate.content.parts:
+                        chunk_text = candidate.content.parts[0].text
+                    elif hasattr(candidate.content, 'text'):
+                        chunk_text = candidate.content.text
+                else:
+                    chunk_text = ""
+            else:
+                chunk_text = ""
+
+            if chunk_text:
+                full_response += chunk_text
+                buffer += chunk_text
+
+                # 返回块级数据
+                yield {
+                    "type": "chunk",
+                    "text": chunk_text,
+                    "full_text": full_response,
+                    "chunk_index": len(full_response) - len(chunk_text)
+                }
+
+                # 检测缓冲区中是否有完整的句子
+                while True:
+                    # 查找句子结束位置
+                    match = sentence_end_pattern.search(buffer)
+                    if not match:
+                        break
+
+                    # 找到句子结束位置
+                    end_pos = match.end()
+                    # 提取句子（包括结束标点）
+                    sentence = buffer[:end_pos].strip()
+                    if sentence:
+                        sentences.append(sentence)
+
+                        # 返回句子级数据
+                        yield {
+                            "type": "sentence",
+                            "text": sentence,
+                            "index": sentence_index,
+                            "total": sentence_index + 1,  # 暂时设置为当前句子数，最终会更新
+                            "full_text": full_response
+                        }
+                        sentence_index += 1
+
+                        # 从缓冲区中移除已处理的句子
+                        buffer = buffer[end_pos:].lstrip()
+                    else:
+                        # 如果没有有效句子内容，移动位置
+                        buffer = buffer[end_pos:].lstrip()
+
+        # 处理缓冲区中剩余的内容（可能是一个不完整的句子）
+        if buffer.strip():
+            # 将剩余内容作为一个句子
+            sentences.append(buffer.strip())
+            yield {
+                "type": "sentence",
+                "text": buffer.strip(),
+                "index": sentence_index,
+                "total": sentence_index + 1,
+                "full_text": full_response
+            }
+            sentence_index += 1
+
+        # 更新所有已发送句子的总数
+        # 重新发送更新后的句子信息（可选，但前端可能不需要）
+        # 或者直接发送完成信号
+        logging.info(f"翻译完成，共 {len(sentences)} 个句子")
+
+        # 返回完成信号
+        yield {
+            "type": "complete",
+            "text": full_response,
+            "total_sentences": len(sentences),
+            "model_used": current_model,
+            "models_tried": models_tried
+        }
+
+    except Exception as e:
+        logging.error(f"流式翻译错误: {str(e)}", exc_info=True)
+
+        # 尝试获取错误类型
+        error_msg = str(e).lower()
+
+        if "service unavailable" in error_msg or "503" in error_msg:
+            error_type = "service_unavailable"
+            error_message = "Google API服务暂时不可用，请稍后再试"
+        elif "timeout" in error_msg or "deadline" in error_msg:
+            error_type = "timeout"
+            error_message = "请求超时，请检查网络连接"
+        elif "network" in error_msg or "connection" in error_msg:
+            error_type = "network_error"
+            error_message = "无法连接到Google API服务，请检查网络连接"
+        elif "quota" in error_msg or "resource_exhausted" in error_msg:
+            error_type = "quota"
+            error_message = "API 配额已用尽，请稍后再试"
+        elif "429" in error_msg or "rate_limit" in error_msg:
+            error_type = "rate_limit"
+            error_message = "请求过于频繁，请稍后再试"
+        elif "invalid" in error_msg or "api_key" in error_msg or "permission" in error_msg:
+            error_type = "invalid_key"
+            error_message = "API Key 无效或已过期，请检查配置"
+        else:
+            error_type = "unknown"
+            error_message = f"系统错误: {str(e)}"
+
+        yield {
+            "type": "error",
+            "error": error_message,
+            "error_type": error_type
+        }
 
 
 # ==========================================
