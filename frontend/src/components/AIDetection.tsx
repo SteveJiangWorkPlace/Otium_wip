@@ -11,6 +11,7 @@ interface AIDetectionProps {
   disabled?: boolean
   autoDetect?: boolean
   result?: AIDetectionResponse | null
+  onCopyNotification?: (message: string) => void
 }
 
 const AIDetection: React.FC<AIDetectionProps> = ({
@@ -19,6 +20,7 @@ const AIDetection: React.FC<AIDetectionProps> = ({
   disabled = false,
   autoDetect = false,
   result: externalResult = null,
+  onCopyNotification,
 }) => {
   const [loading, setLoading] = useState(false)
   const [internalResult, setInternalResult] = useState<AIDetectionResponse | null>(null)
@@ -123,10 +125,18 @@ const AIDetection: React.FC<AIDetectionProps> = ({
     const cleanedText = cleanTextFromMarkdown(result.full_text)
     navigator.clipboard.writeText(cleanedText).then(
       () => {
-        alert('已复制AI检测分析文本到剪贴板！')
+        if (onCopyNotification) {
+          onCopyNotification('已复制到剪贴板')
+        } else {
+          alert('已复制到剪贴板')
+        }
       },
       () => {
-        alert('复制失败，请手动复制')
+        if (onCopyNotification) {
+          onCopyNotification('复制失败，请手动复制')
+        } else {
+          alert('复制失败，请手动复制')
+        }
       }
     )
   }

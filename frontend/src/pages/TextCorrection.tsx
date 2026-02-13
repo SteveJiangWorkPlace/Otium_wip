@@ -60,10 +60,6 @@ const TextCorrection: React.FC = () => {
     }
   }, [])
 
-  // 加载步骤对应的提示消息
-  const loadingStepMessages = {
-    error_checking: '正在进行智能纠错...正在检查错别字、漏字和重复字，请稍候',
-  }
 
   useEffect(() => {
     if (!userInfo) {

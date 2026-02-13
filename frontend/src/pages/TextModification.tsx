@@ -28,13 +28,7 @@ const TextModification: React.FC = () => {
     showAnnotations,
     streaming,
     partialText,
-    sentences,
-    currentSentenceIndex,
-    totalSentences,
-    streamError,
-    cancelStream,
     setInputText,
-    setLoading,
     setSelectedDirectives,
     setModifiedText,
     setShowAnnotations,
@@ -206,6 +200,7 @@ const TextModification: React.FC = () => {
       })
 
       // 消费流式生成器
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       for await (const _ of streamGenerator) {
         // 数据已在onProgress回调中处理
       }

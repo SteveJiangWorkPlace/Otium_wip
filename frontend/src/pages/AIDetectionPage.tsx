@@ -219,6 +219,7 @@ const AIDetectionPage: React.FC = () => {
                   onDetectionComplete={handleDetectionComplete}
                   autoDetect={shouldDetect}
                   result={detectionResult}
+                  onCopyNotification={showNotification}
                 />
               )}
             </div>

@@ -28,16 +28,10 @@ const TextTranslation: React.FC = () => {
     editableText,
     streaming,
     partialText,
-    sentences,
-    currentSentenceIndex,
-    totalSentences,
-    streamError,
     cancelStream,
     setInputText,
     setVersion,
     setEnglishType,
-    setLoading,
-    setLoadingStep,
     setTranslatedText,
     setEditableText,
     setStreaming,
@@ -83,24 +77,7 @@ const TextTranslation: React.FC = () => {
     }
   }, [])
 
-  // 显示成功通知
-  const showNotification = (message: string) => {
-    // 清除之前的定时器
-    if (notificationTimerRef.current) {
-      clearTimeout(notificationTimerRef.current)
-    }
-    // 设置通知
-    setCopyNotification(message)
-    // 2秒后自动清除通知
-    notificationTimerRef.current = setTimeout(() => {
-      setCopyNotification(null)
-    }, 2000)
-  }
 
-  // 加载步骤对应的提示消息
-  const loadingStepMessages = {
-    translating: '正在翻译...请耐心等待，这可能需要几秒钟到一分钟时间',
-  }
 
   useEffect(() => {
     if (!userInfo) {
@@ -117,58 +94,6 @@ const TextTranslation: React.FC = () => {
     await handleStreamTranslation()
   }
 
-  const handleTraditionalTranslation = async () => {
-    // 显示全局进度
-    showProgress('传统翻译运行中，请稍后', 'translation')
-
-    setLoading(true)
-    setLoadingStep('translating')
-    try {
-      const response = await apiClient.checkText({
-        text: inputText,
-        operation: englishType === 'us' ? 'translate_us' : 'translate_uk',
-        version: version
-      })
-
-      if (response.success) {
-        setTranslatedText(response.text)
-        setEditableText(response.text)
-        // 更新进度消息
-        updateProgress('传统翻译完成')
-        // 2秒后隐藏进度（全局状态栏会显示完成状态）
-        setTimeout(() => {
-          hideProgress()
-        }, 2000)
-
-        // 翻译成功后，获取最新的用户信息以更新剩余次数
-        try {
-          const updatedUserInfo = await apiClient.getCurrentUser()
-          updateUserInfo(updatedUserInfo)
-          console.log('用户信息已更新')
-        } catch (error) {
-          console.warn('获取更新后的用户信息失败:', error)
-          // 不再需要处理剩余次数，现在只使用每日限制
-        }
-      }
-    } catch (error) {
-      let errorMessage = '翻译失败，请稍后重试'
-      if (error instanceof Error) {
-        errorMessage = error.message
-      } else if (error && typeof error === 'object' && 'response' in error) {
-        const axiosError = error as any
-        errorMessage = axiosError.response?.data?.detail || errorMessage
-      }
-      updateProgress(`传统翻译失败: ${errorMessage}`)
-      // 2秒后隐藏进度
-      setTimeout(() => {
-        hideProgress()
-      }, 2000)
-      alert(errorMessage)
-    } finally {
-      setLoading(false)
-      setLoadingStep(null)
-    }
-  }
 
   const handleStreamTranslation = async () => {
     if (!inputText.trim()) {
@@ -260,6 +185,7 @@ const TextTranslation: React.FC = () => {
       })
 
       // 消费流式生成器
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       for await (const _ of streamGenerator) {
         // 数据已在onProgress回调中处理
       }
