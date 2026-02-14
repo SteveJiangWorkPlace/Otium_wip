@@ -1094,6 +1094,66 @@ async def health_check():
         }
 
 # ==========================================
+# 提示词性能监控API
+# ==========================================
+
+@app.get("/api/debug/prompt-metrics")
+@api_error_handler
+async def get_prompt_metrics():
+    """获取提示词性能指标"""
+    from .prompt_monitor import prompt_performance_monitor
+    from .prompt_cache import prompt_cache_manager
+
+    return {
+        "timestamp": datetime.now().isoformat(),
+        "performance_metrics": prompt_performance_monitor.get_report(),
+        "cache_metrics": prompt_cache_manager.get_stats(),
+        "config": {
+            "default_template_version": "compact",
+            "cache_enabled": True,
+            "cache_ttl_seconds": 3600,
+            "cache_max_entries": 1000
+        }
+    }
+
+
+@app.post("/api/debug/prompt-cache/clear")
+@api_error_handler
+async def clear_prompt_cache():
+    """清空提示词缓存"""
+    from .prompt_cache import prompt_cache_manager
+    prompt_cache_manager.clear()
+
+    return {
+        "success": True,
+        "message": "提示词缓存已清空",
+        "timestamp": datetime.now().isoformat()
+    }
+
+
+@app.post("/api/debug/prompt-metrics/reset")
+@api_error_handler
+async def reset_prompt_metrics():
+    """重置提示词性能指标"""
+    from .prompt_monitor import prompt_performance_monitor
+    prompt_performance_monitor.reset_metrics()
+
+    return {
+        "success": True,
+        "message": "提示词性能指标已重置",
+        "timestamp": datetime.now().isoformat()
+    }
+
+
+@app.get("/api/debug/prompt-test")
+@api_error_handler
+async def test_prompt_build():
+    """测试提示词构建性能"""
+    from .prompts import test_prompt_build_performance
+    return test_prompt_build_performance()
+
+
+# ==========================================
 # 管理员API
 # ==========================================
 

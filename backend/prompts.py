@@ -1,72 +1,255 @@
 """
-Prompt构建模块
+Prompt构建模块（优化版本）
 
 包含所有用于AI模型交互的prompt构建函数和快捷批注命令。
+此版本集成了模板系统、缓存机制和性能监控。
+
+主要优化：
+1. 模板化：静态内容提取为常量模板，减少字符串拼接开销
+2. 缓存：提示词缓存，相似文本复用构建结果
+3. 监控：性能监控，记录构建时间、缓存命中率等指标
+4. 多版本：支持原始、紧凑、AI优化三种模板版本
 """
 
 import re
+import time
 from typing import List, Dict, Any, Optional
 
+# 导入新模块
+try:
+    # 相对导入（当作为包的一部分时）
+    from .prompt_templates import (
+        # 纠错模板
+        ERROR_CHECK_COMPACT_TEMPLATE,
+        ERROR_CHECK_AI_OPTIMIZED_TEMPLATE,
+
+        # 翻译模板
+        TRANSLATION_BASE_TEMPLATE,
+        TRANSLATION_COMPACT_TEMPLATE,
+        TRANSLATION_AI_OPTIMIZED_TEMPLATE,
+        SENTENCE_STRUCTURE_RULES,
+        SENTENCE_STRUCTURE_RULES_SHORT,
+        SENTENCE_STRUCTURE_RULES_OPTIMIZED,
+        SPELLING_RULES,
+
+        # 英文精修模板
+        ENGLISH_REFINE_BASE_TEMPLATE,
+        ENGLISH_REFINE_COMPACT_TEMPLATE,
+        ENGLISH_REFINE_AI_OPTIMIZED_TEMPLATE,
+
+        # 快捷批注模板
+        SHORTCUT_ANNOTATIONS_COMPACT,
+        SHORTCUT_ANNOTATIONS_AI_OPTIMIZED,
+        SHORTCUT_ANNOTATIONS_HYBRID_COMPACT,
+        SHORTCUT_ANNOTATIONS_HYBRID_AI_OPTIMIZED,
+
+        # 版本常量
+        TEMPLATE_VERSIONS
+    )
+
+    from .prompt_cache import prompt_cache_manager
+    from .prompt_monitor import prompt_performance_monitor
+except ImportError:
+    # 绝对导入（当直接运行时）
+    from prompt_templates import (
+        ERROR_CHECK_COMPACT_TEMPLATE,
+        ERROR_CHECK_AI_OPTIMIZED_TEMPLATE,
+        TRANSLATION_BASE_TEMPLATE,
+        TRANSLATION_COMPACT_TEMPLATE,
+        TRANSLATION_AI_OPTIMIZED_TEMPLATE,
+        SENTENCE_STRUCTURE_RULES,
+        SENTENCE_STRUCTURE_RULES_SHORT,
+        SENTENCE_STRUCTURE_RULES_OPTIMIZED,
+        SPELLING_RULES,
+        ENGLISH_REFINE_BASE_TEMPLATE,
+        ENGLISH_REFINE_COMPACT_TEMPLATE,
+        ENGLISH_REFINE_AI_OPTIMIZED_TEMPLATE,
+        SHORTCUT_ANNOTATIONS_COMPACT,
+        SHORTCUT_ANNOTATIONS_AI_OPTIMIZED,
+        SHORTCUT_ANNOTATIONS_HYBRID_COMPACT,
+        SHORTCUT_ANNOTATIONS_HYBRID_AI_OPTIMIZED,
+        TEMPLATE_VERSIONS
+    )
+
+    from prompt_cache import prompt_cache_manager
+    from prompt_monitor import prompt_performance_monitor
+
 
 # ==========================================
-# Prompt构建函数
+# 配置常量
 # ==========================================
 
-def build_error_check_prompt(chinese_text: str) -> str:
-    """构建用于智能纠错的提示词"""
-    return f"""
-校对中文文本，检查并直接修改以下文本中的三类错误：错别字、漏字和重复字。
-直接修改这三类错误，不要只是标记它们。
-不要修改表达方式、语法结构或其他内容。不修改专业术语，不修改写作风格，不修改标点符号（除非明显错误）。
+# 默认模板版本
+# 用户指定配置：
+# 1. 智能纠错：使用compact版本
+# 2. 学术翻译：使用ai_optimized版本，但句子结构规则使用compact版本（SENTENCE_STRUCTURE_RULES_SHORT）
+# 3. 英文精修：使用ai_optimized版本
+DEFAULT_TEMPLATE_VERSION = "compact"  # 智能纠错默认使用compact版本
+TRANSLATION_TEMPLATE_VERSION = "ai_optimized"  # 学术翻译使用ai_optimized版本
+ENGLISH_REFINE_TEMPLATE_VERSION = "ai_optimized"  # 英文精修使用ai_optimized版本
 
-输入文本:
-{chinese_text}
-
-输出格式:
-- 返回修改后的完整文本
-- 对于每处修改，用**双星号**将修改后的内容包围起来，例如"这是一个**正确**的例子"
-- 不要添加任何解释或评论，只返回修改后的文本
-- 如无错误，直接返回原文
-"""
+# 默认快捷批注版本
+# "compact": 大部分使用紧凑版本，"去AI词汇"和"人性化处理"保留原始完整内容（根据用户要求）
+# "original_compact": 纯紧凑版本（无混合，仅用于测试对比）
+DEFAULT_ANNOTATIONS_VERSION = "compact"
 
 
-def build_academic_translate_prompt(chinese_text: str, style: str = "US", version: str = "professional") -> str:
-    """构建翻译提示词"""
-    spelling_rule = "American Spelling (Color, Honor, Analyze)" if style == "US" else "British Spelling (Colour, Honour, Analyse)"
+# ==========================================
+# 智能纠错提示词构建
+# ==========================================
 
-    if version == "basic":
-        sentence_structure_guideline = """**Sentence Structure (Basic Rule)**: Strictly avoid using the "comma + verb-ing" structure (e.g., ", revealing trends"). Instead, use relative clauses (e.g., ", which revealed..."), coordination (e.g., "and revealed..."), or start new sentences where appropriate for better flow."""
-    else:
-        sentence_structure_guideline = """**Sentence Structure Variety (Balanced Rule)**: AI models often overuse the "comma + verb-ing" structure (e.g., ", revealing trends"). Do not strictly ban it, but **use it sparingly** to avoid a repetitive "AI tone." Instead, prioritize variety by using relative clauses (e.g., ", which revealed..."), coordination (e.g., "and revealed..."), or starting new sentences where appropriate for better flow."""
-
-    return f"""
-    You are an expert academic translator specializing in translating Chinese academic papers into English.
-
-    **Task:** Translate the Chinese academic text into professional academic English.
-
-    **Spelling Convention:** {spelling_rule}
-
-    **Input (Chinese Academic Text):**
-    {chinese_text}
-
-    **TRANSLATION GUIDELINES:**
-    1. **Academic Style**: Maintain formal academic tone appropriate for scholarly publications.
-    2. **Technical Terminology**: Preserve specialized terminology and translate it accurately.
-    3. **Paragraph Structure**: Maintain the original paragraph structure.
-    4. **Citations**: Preserve any citation formats or references in their original form.
-    5. **Natural Translation**: Focus on accuracy and clarity rather than stylistic concerns.
-    6. {sentence_structure_guideline}
-    7. **IMPORTANT - Remove Markdown**: Remove all Markdown formatting symbols like asterisks (*), double asterisks (**), underscores (_), etc. from the output. Provide clean text without any Markdown formatting.
-    8. **Punctuation with Quotation Marks**: For general text (not formal citations), always place commas, periods, and other punctuation marks OUTSIDE of quotation marks, not inside. For example, use "example", not "example,". For formal citations, maintain the original citation style's punctuation rules.
-    9. **Names Capitalization**: Always properly capitalize all personal names, organizational names, and proper nouns. Ensure that all names of people, institutions, theories named after people, etc. are correctly capitalized in the English translation.
-
-    **Output:**
-    Provide ONLY the translated English text without explanations, comments, or any Markdown formatting symbols.
+def build_error_check_prompt(chinese_text: str, template_version: str = DEFAULT_TEMPLATE_VERSION) -> str:
     """
+    构建用于智能纠错的提示词（优化版本）
 
+    Args:
+        chinese_text: 中文文本
+        template_version: 模板版本 ("original", "compact", "ai_optimized")
+
+    Returns:
+        构建好的提示词
+    """
+    # 记录开始时间
+    start_time = time.time()
+
+    # 选择模板
+    if template_version == "ai_optimized":
+        template = ERROR_CHECK_AI_OPTIMIZED_TEMPLATE
+    else:  # 默认使用compact版本
+        template = ERROR_CHECK_COMPACT_TEMPLATE
+
+    # 构建提示词
+    prompt = template.format(chinese_text=chinese_text)
+
+    # 记录性能
+    build_time = time.time() - start_time
+    prompt_performance_monitor.record_function_call(
+        func_name="build_error_check_prompt",
+        build_time=build_time,
+        prompt_length=len(prompt)
+    )
+
+    return prompt
+
+
+# ==========================================
+# 学术翻译提示词构建
+# ==========================================
+
+def build_academic_translate_prompt(
+    chinese_text: str,
+    style: str = "US",
+    version: str = "professional",
+    template_version: str = TRANSLATION_TEMPLATE_VERSION,
+    use_cache: bool = True
+) -> str:
+    """
+    构建翻译提示词（优化版本）
+
+    Args:
+        chinese_text: 中文文本
+        style: 拼写风格 ("US", "UK")
+        version: 版本 ("basic", "professional")
+        template_version: 模板版本 ("original", "compact", "ai_optimized")
+        use_cache: 是否使用缓存
+
+    Returns:
+        构建好的提示词
+    """
+    # 记录开始时间
+    start_time = time.time()
+
+    # 缓存检查
+    if use_cache:
+        cached_prompt = prompt_cache_manager.get(
+            text=chinese_text,
+            style=style,
+            version=version,
+            template_version=template_version
+        )
+
+        if cached_prompt is not None:
+            # 记录缓存命中
+            prompt_performance_monitor.record_cache_hit(True)
+
+            # 记录性能（缓存命中）
+            build_time = time.time() - start_time
+            prompt_performance_monitor.record_function_call(
+                func_name="build_academic_translate_prompt",
+                build_time=build_time,
+                prompt_length=len(cached_prompt)
+            )
+
+            return cached_prompt
+
+    # 记录缓存未命中
+    prompt_performance_monitor.record_cache_hit(False)
+
+    # 根据模板版本选择规则
+    if template_version == "original":
+        # 原始版本
+        template = TRANSLATION_BASE_TEMPLATE
+        sentence_rule_dict = SENTENCE_STRUCTURE_RULES
+        rule_param_name = "sentence_structure_rule"
+    elif template_version == "ai_optimized":
+        # AI优化版本（使用AI优化模板，但句子结构规则使用compact版本，根据用户要求）
+        template = TRANSLATION_AI_OPTIMIZED_TEMPLATE
+        sentence_rule_dict = SENTENCE_STRUCTURE_RULES_SHORT  # 使用compact版本的规则
+        rule_param_name = "sentence_structure_rule_optimized"  # AI优化模板使用这个参数名
+    else:
+        # 紧凑版本
+        template = TRANSLATION_COMPACT_TEMPLATE
+        sentence_rule_dict = SENTENCE_STRUCTURE_RULES_SHORT
+        rule_param_name = "sentence_structure_rule_short"
+
+    # 获取拼写规则
+    spelling_rule = SPELLING_RULES.get(style, SPELLING_RULES["US"])
+
+    # 获取句子结构规则
+    sentence_structure_rule = sentence_rule_dict.get(version, sentence_rule_dict.get("professional"))
+
+    # 构建提示词
+    prompt = template.format(
+        spelling_rule=spelling_rule,
+        chinese_text=chinese_text,
+        **{rule_param_name: sentence_structure_rule}
+    )
+
+    # 缓存结果
+    if use_cache:
+        prompt_cache_manager.set(
+            text=chinese_text,
+            style=style,
+            version=version,
+            prompt=prompt,
+            template_version=template_version
+        )
+
+    # 记录性能
+    build_time = time.time() - start_time
+    prompt_performance_monitor.record_function_call(
+        func_name="build_academic_translate_prompt",
+        build_time=build_time,
+        prompt_length=len(prompt)
+    )
+
+    return prompt
+
+
+# ==========================================
+# 批注预处理函数
+# ==========================================
 
 def preprocess_annotations(text: str) -> str:
-    """将【】批注转换为更明确的格式，确保只与前面的句子关联"""
+    """
+    将【】批注转换为更明确的格式，确保只与前面的句子关联
+
+    Args:
+        text: 包含批注的文本
+
+    Returns:
+        处理后的文本
+    """
     # 处理【】格式批注
     processed = text
     for match in re.finditer(r'([^。！？.!?]+[。！？.!?]+)【([^】]*)】', processed):
@@ -87,13 +270,32 @@ def preprocess_annotations(text: str) -> str:
     return processed
 
 
+# ==========================================
+# 英文精修提示词构建
+# ==========================================
+
 def build_english_refine_prompt(
     text_with_instructions: str,
     hidden_instructions: str = "",
-    annotations: Optional[List[Dict[str, Any]]] = None
+    annotations: Optional[List[Dict[str, Any]]] = None,
+    template_version: str = ENGLISH_REFINE_TEMPLATE_VERSION
 ) -> str:
-    """构建英文精修提示词，强化局部批注的限制性"""
-    # 使用改进的预处理函数
+    """
+    构建英文精修提示词（优化版本）
+
+    Args:
+        text_with_instructions: 包含批注的文本
+        hidden_instructions: 隐藏的全局指令
+        annotations: 批注列表
+        template_version: 模板版本 ("original", "compact", "ai_optimized")
+
+    Returns:
+        构建好的提示词
+    """
+    # 记录开始时间
+    start_time = time.time()
+
+    # 预处理文本
     processed_text = preprocess_annotations(text_with_instructions)
 
     # 构建句子到批注的映射，用于提示词中的具体示例
@@ -134,72 +336,145 @@ The following directives should be applied consistently throughout the ENTIRE do
 {hidden_instructions}
 """
 
-    return f"""
-{annotation_notice}
+    # 根据模板版本选择模板
+    if template_version == "original":
+        template = ENGLISH_REFINE_BASE_TEMPLATE
+    elif template_version == "ai_optimized":
+        template = ENGLISH_REFINE_AI_OPTIMIZED_TEMPLATE
+    else:  # compact
+        template = ENGLISH_REFINE_COMPACT_TEMPLATE
 
-You are an expert academic editor specializing in academic papers and scholarly writing.
+    # 构建提示词
+    prompt = template.format(
+        annotation_notice=annotation_notice,
+        hidden_section=hidden_section,
+        processed_text=processed_text
+    )
 
-**CRITICAL INSTRUCTION TYPES:**
+    # 记录性能
+    build_time = time.time() - start_time
+    prompt_performance_monitor.record_function_call(
+        func_name="build_english_refine_prompt",
+        build_time=build_time,
+        prompt_length=len(prompt)
+    )
 
-**TYPE 1: LOCAL INSTRUCTIONS (in 【】 or [])**
-- These are ATTACHED to specific sentences
-- ONLY modify the sentence that IMMEDIATELY PRECEDES the instruction marker
-- Example: "This is a sentence.【make it more formal】" → ONLY modify "This is a sentence."
-- NEVER apply these instructions to any other sentence in the document
-- The instruction ONLY affects the ONE sentence or phrase it is directly attached to
-- All other sentences MUST remain COMPLETELY UNCHANGED
-
-**TYPE 2: GLOBAL DIRECTIVES (listed in the section below)**
-- These apply to the ENTIRE document consistently
-- Apply these to ALL sentences throughout the text
-
-**CRITICAL RULE - READ CAREFULLY:**
-When you see "Sentence A.【instruction X】 Sentence B.", the instruction X ONLY applies to Sentence A.
-Sentence B and all other sentences should NOT be affected by instruction X.
-
-{hidden_section}
-
-**CONCRETE EXAMPLES:**
-
-Example 1:
-Input: "The study shows significant results.【use more academic vocabulary】 The data supports this conclusion."
-Correct Output: "The study **demonstrates substantial findings**. The data supports this conclusion."
-Wrong Output: "The study **demonstrates substantial findings**. The data **corroborates this assertion**." ← WRONG! The instruction should NOT affect the second sentence.
-
-
-**PROCESSING STEPS:**
-1. Read the text sentence by sentence from beginning to end
-2. For each sentence:
-   - Check if there is a 【】 or [] marker IMMEDIATELY AFTER it (within the same line)
-   - If YES: Apply that specific instruction to THAT SENTENCE ONLY, then move to the next sentence
-   - If NO: Only apply the GLOBAL DIRECTIVES (if any), then move to the next sentence
-3. After processing all sentences, remove all instruction markers (【】/[]) from the output
-4. Highlight all modified parts with double asterisks (e.g., **modified text**)
-5. Ensure smooth transitions and maintain professional academic tone
-
-**OUTPUT REQUIREMENTS:**
-- Highlight modified parts with **double asterisks**
-- Output MUST be in ENGLISH only
-- Maintain original meaning and intent
-- NO explanations, NO comments, NO meta-text
-- ONLY output the refined text itself
-
-Now, please refine the following text, remembering that local instructions ONLY apply to the sentence they are attached to:
-{processed_text}
-"""
+    return prompt
 
 
 # ==========================================
-# 快捷批注命令（与原代码完全一致）
+# 快捷批注命令
 # ==========================================
 
-SHORTCUT_ANNOTATIONS = {
-    "主语修正": "将所有抽象概念作为主语的句子改写为以人为主语。例如，将'The framework suggests...'改为'Researchers using this framework suggest...'",
-    "句式修正": "查找并修改所有'逗号 + -ing'结构的句子以及同位语句式。例如，将'The data was analyzed, revealing trends'改为'The data was analyzed and revealed trends'或拆分为两个句子, 将'Mr. Wang, our new project manager, will arrive tomorrow'改为'Mr. Wang is our new project manager. He will arrive tomorrow'",
-    "符号修正": "检查所有引号内容，确保逗号和句号放在闭合的引号之外。例如，将'Smith stated that \"this is important,\"'改为'Smith stated that \"this is important\",''",
-    "丰富句式": "识别句子长度过于一致的段落，调整为混合使用短句(5-10词)、中等句(15-20词)和长句(25-30词)",
-    "灵活表达": "在适当位置添加破折号、分号，或将某些句子改为以'And'、'But'、'However'开头，以增加文本的自然流动性",
-    "同义替换": "识别并替换过于学术化或AI风格的词汇，使用更简洁自然的同义词。例如，将'utilize'改为'use'，将'conceptualize'改为'think about'",
-    "去AI词汇": "通过以下规则润色英文文本：\n严格避免使用副词+形容词以及副词+动词的组合\n严格避免将动词ing形式作名词用法\n将 \"This [动词]...\" 的独立句，改为由 \"which\" 连接的非限定性定语从句\n使用分号（;）连接两个语法各自独立、但后者是前者思想的直接延续或解释的句子，以增强逻辑流动性\n同时严格避免使用以下表达方式和词汇短语：\n1.    用master或其衍生词代表掌握某项技能的意思\n2.    主句 + , + -ing形式的伴随状语句式\n3.    my goal is to\n4.    hone\n5.    permit\n6.    deep comprehension\n7.    look forward to\n8.    address\n9.    command\n10.    drawn to\n11.    delve into\n12.    demonstrate（不要高频出现）\n13.    draw\n14.    drawn to\n15.    privilege\n16.    testament\n17.    commitment\n18.    tenure\n19.    thereby\n20.    thereby + doing\n21.    cultivate\n22.    Building on this\n23.    Building on this foundation\n24.    intend to",
-    "人性化处理": "Revise the English text to make it sound more like a thoughtful but less confident human wrote it. You will achieve this by performing the following actions on a random selection of targets (do not change everything, aim for a 40-70% replacement rate):\n1. Reduce Formality and Confidence: Identify strong, confident, or goal-oriented phrases and replace them with more personal, uncertain, or hopeful alternatives.\n•    Find: I will, I plan to, I aim to, my objective is to\n•    Replace with: I hope to, I would like to, I'm thinking about trying to, I want to see if I can, it might be cool to\n•    Find: This will establish, This will demonstrate, This analysis reveals\n•    Replace with: This could help show, Maybe this will point to, I feel like this shows, What I get from this is\n2. Simplify Academic and Professional Vocabulary: Find standard academic or overly formal words and replace them with simpler, more common or colloquial equivalents.\n•    Find: utilize, employ\n•    Replace with: use, make use of\n•    Find: examine, investigate, analyze\n•    Replace with: look into, check out, figure out, get a handle on\n•    Find: furthermore, moreover, additionally\n•    Replace with: also, on top of that, and another thing is\n•    Find: consequently, therefore, thus\n•    Replace with: so, because of that, which is why\n•    Find: methodology, framework\n•    Replace with: approach, way of doing things, setup, basic idea\n•    Find: necessitates, requires\n•    Replace with: needs, means I have to\n•    Find: a pursuit of this scope\n•    Replace with: doing something this big, this kind of project\n3. Inject Colloquial Elements:\n•    Introduce conversational filler words like just, really, kind of, sort of.\n•    Use contractions (it is -> it's, I will -> I'll, I would -> I'd).\n•    Occasionally use informal sentence starters like \"The thing is,\" or \"What I'm trying to say is,\".\nCrucial Rule: The final text should be a mixture. It should not be completely informal. The desired effect is that of a person who knows the formal language but whose natural, less certain voice is breaking through. Preserve the core ideas of the original text."
-}
+def get_shortcut_annotations(version: str = DEFAULT_ANNOTATIONS_VERSION) -> Dict[str, str]:
+    """
+    获取快捷批注命令（混合版本：大部分优化，"去AI词汇"和"人性化处理"保留原始完整内容）
+
+    Args:
+        version: 批注版本 ("compact", "ai_optimized", "original_compact", "original_ai")
+
+    Returns:
+        快捷批注字典
+    """
+    # 根据用户要求，"去AI词汇"和"人性化处理"必须保留原始完整内容
+    # 因此默认使用混合版本
+    if version == "ai_optimized":
+        # AI优化版本，但关键批注使用原始完整内容
+        return SHORTCUT_ANNOTATIONS_HYBRID_AI_OPTIMIZED.copy()
+    elif version == "original_ai":
+        # 纯AI优化版本（无混合，仅用于测试对比）
+        return SHORTCUT_ANNOTATIONS_AI_OPTIMIZED.copy()
+    elif version == "original_compact":
+        # 纯紧凑版本（无混合，仅用于测试对比）
+        return SHORTCUT_ANNOTATIONS_COMPACT.copy()
+    else:  # compact 或默认
+        # 紧凑版本，但关键批注使用原始完整内容
+        return SHORTCUT_ANNOTATIONS_HYBRID_COMPACT.copy()
+
+
+# 向后兼容：导出默认的快捷批注
+SHORTCUT_ANNOTATIONS = get_shortcut_annotations(DEFAULT_ANNOTATIONS_VERSION)
+
+
+# ==========================================
+# 工具函数
+# ==========================================
+
+def get_prompt_stats() -> Dict[str, Any]:
+    """
+    获取提示词构建统计信息
+
+    Returns:
+        统计信息字典
+    """
+    return prompt_performance_monitor.get_report()
+
+
+def get_cache_stats() -> Dict[str, Any]:
+    """
+    获取缓存统计信息
+
+    Returns:
+        缓存统计信息字典
+    """
+    return prompt_cache_manager.get_stats()
+
+
+def clear_prompt_cache() -> None:
+    """清空提示词缓存"""
+    prompt_cache_manager.clear()
+
+
+def reset_prompt_monitor() -> None:
+    """重置性能监控器"""
+    prompt_performance_monitor.reset_metrics()
+
+
+# ==========================================
+# 测试函数（开发使用）
+# ==========================================
+
+def test_prompt_build_performance() -> Dict[str, Any]:
+    """
+    测试提示词构建性能
+
+    Returns:
+        性能测试结果
+    """
+    test_text = "这是一个测试文本，用于测试提示词构建的性能。This is a test text for testing prompt building performance."
+
+    results = {}
+
+    # 测试纠错提示词
+    start_time = time.time()
+    error_check_prompt = build_error_check_prompt(test_text)
+    error_check_time = time.time() - start_time
+
+    # 测试翻译提示词（无缓存）
+    start_time = time.time()
+    translation_prompt = build_academic_translate_prompt(test_text, use_cache=False)
+    translation_time = time.time() - start_time
+
+    # 测试翻译提示词（有缓存）
+    start_time = time.time()
+    translation_prompt_cached = build_academic_translate_prompt(test_text, use_cache=True)
+    translation_time_cached = time.time() - start_time
+
+    results = {
+        "error_check": {
+            "time_ms": round(error_check_time * 1000, 2),
+            "length": len(error_check_prompt)
+        },
+        "translation_no_cache": {
+            "time_ms": round(translation_time * 1000, 2),
+            "length": len(translation_prompt)
+        },
+        "translation_with_cache": {
+            "time_ms": round(translation_time_cached * 1000, 2),
+            "length": len(translation_prompt_cached)
+        },
+        "cache_stats": prompt_cache_manager.get_stats(),
+        "performance_stats": prompt_performance_monitor.get_report()
+    }
+
+    return results
