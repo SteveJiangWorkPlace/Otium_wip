@@ -131,7 +131,7 @@ def call_gptzero_api(text: str) -> Tuple[bool, float, float]:
     else:
         try:
             print(f"调用GPTZero API，文本长度: {len(text)} 字符")
-            result = gptzero_detect_ai(text, settings.GPTZERO_API_KEY)
+            result = check_gptzero(text, settings.GPTZERO_API_KEY)
         except Exception as e:
             print(f"GPTZero API调用失败: {e}")
             result = simulate_gptzero_api(text)
