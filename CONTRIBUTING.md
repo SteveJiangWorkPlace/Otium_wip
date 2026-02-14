@@ -141,6 +141,12 @@ git push origin feature/your-feature-name
           ValidationError: 文本格式无效时
       """
   ```
+- **提示词开发规范**：
+  - 提示词模板应定义在 `prompt_templates.py` 中
+  - 保持原始提示词在注释中完整备份
+  - 使用模板版本常量管理不同版本
+  - 所有提示词构建应通过 `prompts.py` 中的函数进行
+  - 新功能应集成缓存和监控系统
 
 ### 提交前检查
 运行以下命令确保代码质量：

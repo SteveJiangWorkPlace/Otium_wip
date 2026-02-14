@@ -77,20 +77,18 @@ def simulate_gptzero_api(text: str) -> Dict[str, Any]:
     # 模拟处理时间
     time.sleep(random.uniform(0.3, 1.0))
 
-    # 模拟AI检测结果
+    # 模拟AI检测结果（匹配check_gptzero返回格式）
     return {
         "success": True,
-        "ai_probability": round(random.uniform(0.2, 0.8), 2),
-        "document": {
-            "ai_score": round(random.uniform(0.2, 0.8), 2),
-            "words": len(text.split())
-        },
-        "sentences": [
+        "ai_score": round(random.uniform(0.2, 0.8), 2),
+        "message": "",
+        "detailed_scores": [
             {
                 "text": "Simulated sentence",
                 "ai_score": round(random.uniform(0.2, 0.8), 2)
             }
-        ]
+        ],
+        "full_text": text[:100] + "..." if len(text) > 100 else text
     }
 
 # 实际调用API
@@ -140,7 +138,7 @@ def call_gptzero_api(text: str) -> Tuple[bool, float, float]:
     elapsed_time = end_time - start_time
 
     if result.get("success"):
-        ai_score = result.get("ai_probability", result.get("document", {}).get("ai_score", 0.5))
+        ai_score = result.get("ai_score", 0.5)
         return True, ai_score, elapsed_time
     else:
         return False, 0.5, elapsed_time

@@ -1,76 +1,48 @@
 """
-Prompt构建模块（优化版本）
+Prompt构建模块（生产版本）
 
 包含所有用于AI模型交互的prompt构建函数和快捷批注命令。
-此版本集成了模板系统、缓存机制和性能监控。
+此版本集成了模板系统、缓存机制和性能监控，使用稳定的原始提示词版本作为生产版本。
 
-主要优化：
-1. 模板化：静态内容提取为常量模板，减少字符串拼接开销
-2. 缓存：提示词缓存，相似文本复用构建结果
-3. 监控：性能监控，记录构建时间、缓存命中率等指标
-4. 多版本：支持原始、紧凑、AI优化三种模板版本
+主要特性：
+1. 生产稳定性：使用原始完整提示词版本作为生产版本，确保翻译质量和语义完整性
+2. 缓存机制：提示词缓存，相似文本复用构建结果
+3. 性能监控：性能监控，记录构建时间、缓存命中率等指标
+4. 可扩展架构：保留多版本模板架构（production/original/compact/ai_optimized），便于未来优化
+5. 修改后的快捷批注：production版本基于原始版本，但进行用户指定的修改
+
+版本管理策略：
+- production: 生产版本（基于原始完整版本，快捷批注进行特定修改）
+- original: 原始版本备份（最初始版本，快捷批注已移除"灵活表达"）
+- compact: 紧凑版本框架（具体内容已删除，用户可自行填充调试）
+- ai_optimized: AI优化版本框架（具体内容已删除，用户可自行填充调试）
+
+注意：所有主要提示词（纠错、翻译、精修）的production和original版本内容相同，确保语义完整性。
 """
 
 import re
 import time
 from typing import List, Dict, Any, Optional
 
-# 导入新模块
+# 导入原始函数（从备份文件）
 try:
     # 相对导入（当作为包的一部分时）
-    from .prompt_templates import (
-        # 纠错模板
-        ERROR_CHECK_COMPACT_TEMPLATE,
-        ERROR_CHECK_AI_OPTIMIZED_TEMPLATE,
-
-        # 翻译模板
-        TRANSLATION_BASE_TEMPLATE,
-        TRANSLATION_COMPACT_TEMPLATE,
-        TRANSLATION_AI_OPTIMIZED_TEMPLATE,
-        SENTENCE_STRUCTURE_RULES,
-        SENTENCE_STRUCTURE_RULES_SHORT,
-        SENTENCE_STRUCTURE_RULES_OPTIMIZED,
-        SPELLING_RULES,
-
-        # 英文精修模板
-        ENGLISH_REFINE_BASE_TEMPLATE,
-        ENGLISH_REFINE_COMPACT_TEMPLATE,
-        ENGLISH_REFINE_AI_OPTIMIZED_TEMPLATE,
-
-        # 快捷批注模板
-        SHORTCUT_ANNOTATIONS_COMPACT,
-        SHORTCUT_ANNOTATIONS_AI_OPTIMIZED,
-        SHORTCUT_ANNOTATIONS_HYBRID_COMPACT,
-        SHORTCUT_ANNOTATIONS_HYBRID_AI_OPTIMIZED,
-
-        # 版本常量
-        TEMPLATE_VERSIONS
+    from .prompts_backup import (
+        SHORTCUT_ANNOTATIONS_ORIGINAL,
+        build_error_check_prompt_original,
+        build_academic_translate_prompt_original,
+        build_english_refine_prompt_original
     )
-
     from .prompt_cache import prompt_cache_manager
     from .prompt_monitor import prompt_performance_monitor
 except ImportError:
     # 绝对导入（当直接运行时）
-    from prompt_templates import (
-        ERROR_CHECK_COMPACT_TEMPLATE,
-        ERROR_CHECK_AI_OPTIMIZED_TEMPLATE,
-        TRANSLATION_BASE_TEMPLATE,
-        TRANSLATION_COMPACT_TEMPLATE,
-        TRANSLATION_AI_OPTIMIZED_TEMPLATE,
-        SENTENCE_STRUCTURE_RULES,
-        SENTENCE_STRUCTURE_RULES_SHORT,
-        SENTENCE_STRUCTURE_RULES_OPTIMIZED,
-        SPELLING_RULES,
-        ENGLISH_REFINE_BASE_TEMPLATE,
-        ENGLISH_REFINE_COMPACT_TEMPLATE,
-        ENGLISH_REFINE_AI_OPTIMIZED_TEMPLATE,
-        SHORTCUT_ANNOTATIONS_COMPACT,
-        SHORTCUT_ANNOTATIONS_AI_OPTIMIZED,
-        SHORTCUT_ANNOTATIONS_HYBRID_COMPACT,
-        SHORTCUT_ANNOTATIONS_HYBRID_AI_OPTIMIZED,
-        TEMPLATE_VERSIONS
+    from prompts_backup import (
+        SHORTCUT_ANNOTATIONS_ORIGINAL,
+        build_error_check_prompt_original,
+        build_academic_translate_prompt_original,
+        build_english_refine_prompt_original
     )
-
     from prompt_cache import prompt_cache_manager
     from prompt_monitor import prompt_performance_monitor
 
@@ -79,19 +51,80 @@ except ImportError:
 # 配置常量
 # ==========================================
 
-# 默认模板版本
-# 用户指定配置：
-# 1. 智能纠错：使用compact版本
-# 2. 学术翻译：使用ai_optimized版本，但句子结构规则使用compact版本（SENTENCE_STRUCTURE_RULES_SHORT）
-# 3. 英文精修：使用ai_optimized版本
-DEFAULT_TEMPLATE_VERSION = "compact"  # 智能纠错默认使用compact版本
-TRANSLATION_TEMPLATE_VERSION = "ai_optimized"  # 学术翻译使用ai_optimized版本
-ENGLISH_REFINE_TEMPLATE_VERSION = "ai_optimized"  # 英文精修使用ai_optimized版本
+# 生产环境模板版本（稳定版本）
+# 根据用户最终要求：使用原始提示词版本作为生产版本，确保质量和稳定性
+PRODUCTION_TEMPLATE_VERSION = "production"  # 生产版本（基于原始版本）
+DEFAULT_TEMPLATE_VERSION = PRODUCTION_TEMPLATE_VERSION  # 智能纠错使用生产版本
+TRANSLATION_TEMPLATE_VERSION = PRODUCTION_TEMPLATE_VERSION  # 学术翻译使用生产版本
+ENGLISH_REFINE_TEMPLATE_VERSION = PRODUCTION_TEMPLATE_VERSION  # 英文精修使用生产版本
 
 # 默认快捷批注版本
-# "compact": 大部分使用紧凑版本，"去AI词汇"和"人性化处理"保留原始完整内容（根据用户要求）
-# "original_compact": 纯紧凑版本（无混合，仅用于测试对比）
-DEFAULT_ANNOTATIONS_VERSION = "compact"
+# "production": 生产版本（基于修改后的原始版本，移除"灵活表达"，修改"符号修正"，更新"人性化处理"）
+# "original": 原始版本（从prompts_backup.py导入，已移除"灵活表达"）
+DEFAULT_ANNOTATIONS_VERSION = "production"
+
+# 生产版本快捷批注命令（production版本）
+# 基于原始版本，但进行用户指定的修改（移除"灵活表达"，修改"符号修正"，更新"人性化处理"）
+SHORTCUT_ANNOTATIONS_MODIFIED = {
+    "主语修正": "将所有抽象概念作为主语的句子改写为以人为主语。例如，将'The framework suggests...'改为'Researchers using this framework suggest...'",
+    "句式修正": "查找并修改所有'逗号 + -ing'结构的句子以及同位语句式。例如，将'The data was analyzed, revealing trends'改为'The data was analyzed and revealed trends'或拆分为两个句子, 将'Mr. Wang, our new project manager, will arrive tomorrow'改为'Mr. Wang is our new project manager. He will arrive tomorrow'",
+    "符号修正": "确保标点符号在引号外，同时用分号连接两个关系紧密的独立从句",
+    "丰富句式": "识别句子长度过于一致的段落，调整为混合使用短句(5-10词)、中等句(15-20词)和长句(25-30词)",
+    "同义替换": "识别并替换过于学术化或AI风格的词汇，使用更简洁自然的同义词。例如，将'utilize'改为'use'，将'conceptualize'改为'think about'",
+    "去AI词汇": """通过以下规则润色英文文本：
+严格避免使用副词+形容词以及副词+动词的组合
+严格避免将动词ing形式作名词用法
+将 "This [动词]..." 的独立句，改为由 "which" 连接的非限定性定语从句
+使用分号（;）连接两个语法各自独立、但后者是前者思想的直接延续或解释的句子，以增强逻辑流动性
+同时严格避免使用以下表达方式和词汇短语：
+1.    用master或其衍生词代表掌握某项技能的意思
+2.    主句 + , + -ing形式的伴随状语句式
+3.    my goal is to
+4.    hone
+5.    permit
+6.    deep comprehension
+7.    look forward to
+8.    address
+9.    command
+10.    drawn to
+11.    delve into
+12.    demonstrate（不要高频出现）
+13.    draw
+14.    drawn to
+15.    privilege
+16.    testament
+17.    commitment
+18.    tenure
+19.    thereby
+20.    thereby + doing
+21.    cultivate
+22.    Building on this
+23.    Building on this foundation
+24.    intend to""",
+    "人性化处理": """Revise the text to sound more like a thoughtful but less confident human by selectively modifying 40-70% of the content.
+
+1. **Reduce Formality and Confidence**:
+   - Find: I will, I plan to, I aim to, my objective is to
+   - Replace with: I hope to, I would like to, I'm thinking about trying to, I want to see if I can, it might be cool to
+   - Find: This will establish, This will demonstrate, This analysis reveals
+   - Replace with: This could help show, Maybe this will point to, I feel like this shows, What I get from this is
+
+2. **Simplify Academic Vocabulary**:
+   - Find: utilize, employ → Replace with: use, make use of
+   - Find: examine, investigate, analyze → Replace with: look into, check out, figure out, get a handle on
+   - Find: furthermore, moreover, additionally → Replace with: also, on top of that, and another thing is
+   - Find: consequently, therefore, thus → Replace with: so, because of that, which is why
+   - Find: methodology, framework → Replace with: approach, way of doing things, setup, basic idea
+   - Find: necessitates, requires → Replace with: needs, means I have to
+   - Find: a pursuit of this scope → Replace with: doing something this big, this kind of project
+
+3. **Inject Conversational Elements**:
+   - Use contractions (it is → it's, I will → I'll, I would → I'd)
+   - Add filler words: just, really, kind of, sort of
+   - Occasionally use informal starters: "The thing is," "What I'm trying to say is,"
+
+The final text should be a natural blend of formal knowledge and a more personal voice, preserving the core ideas of the original. Aim for 40-70% replacement rate, don't change everything."""
+}
 
 
 # ==========================================
@@ -100,11 +133,11 @@ DEFAULT_ANNOTATIONS_VERSION = "compact"
 
 def build_error_check_prompt(chinese_text: str, template_version: str = DEFAULT_TEMPLATE_VERSION) -> str:
     """
-    构建用于智能纠错的提示词（优化版本）
+    构建用于智能纠错的提示词（生产版本）
 
     Args:
         chinese_text: 中文文本
-        template_version: 模板版本 ("original", "compact", "ai_optimized")
+        template_version: 模板版本 ("production", "original") - 其他版本已不再支持
 
     Returns:
         构建好的提示词
@@ -112,14 +145,8 @@ def build_error_check_prompt(chinese_text: str, template_version: str = DEFAULT_
     # 记录开始时间
     start_time = time.time()
 
-    # 选择模板
-    if template_version == "ai_optimized":
-        template = ERROR_CHECK_AI_OPTIMIZED_TEMPLATE
-    else:  # 默认使用compact版本
-        template = ERROR_CHECK_COMPACT_TEMPLATE
-
-    # 构建提示词
-    prompt = template.format(chinese_text=chinese_text)
+    # 生产版本和原始版本都使用原始完整版本（内容相同）
+    prompt = build_error_check_prompt_original(chinese_text)
 
     # 记录性能
     build_time = time.time() - start_time
@@ -144,13 +171,13 @@ def build_academic_translate_prompt(
     use_cache: bool = True
 ) -> str:
     """
-    构建翻译提示词（优化版本）
+    构建翻译提示词（生产版本）
 
     Args:
         chinese_text: 中文文本
         style: 拼写风格 ("US", "UK")
         version: 版本 ("basic", "professional")
-        template_version: 模板版本 ("original", "compact", "ai_optimized")
+        template_version: 模板版本 ("production", "original") - 其他版本已不再支持
         use_cache: 是否使用缓存
 
     Returns:
@@ -186,34 +213,14 @@ def build_academic_translate_prompt(
     prompt_performance_monitor.record_cache_hit(False)
 
     # 根据模板版本选择规则
-    if template_version == "original":
-        # 原始版本
-        template = TRANSLATION_BASE_TEMPLATE
-        sentence_rule_dict = SENTENCE_STRUCTURE_RULES
-        rule_param_name = "sentence_structure_rule"
-    elif template_version == "ai_optimized":
-        # AI优化版本（使用AI优化模板，但句子结构规则使用compact版本，根据用户要求）
-        template = TRANSLATION_AI_OPTIMIZED_TEMPLATE
-        sentence_rule_dict = SENTENCE_STRUCTURE_RULES_SHORT  # 使用compact版本的规则
-        rule_param_name = "sentence_structure_rule_optimized"  # AI优化模板使用这个参数名
+    # 生产版本和原始版本都使用原始函数
+    if template_version in ["original", "production"]:
+        # 原始版本/生产版本 - 直接调用原始函数
+        prompt = build_academic_translate_prompt_original(chinese_text, style, version)
     else:
-        # 紧凑版本
-        template = TRANSLATION_COMPACT_TEMPLATE
-        sentence_rule_dict = SENTENCE_STRUCTURE_RULES_SHORT
-        rule_param_name = "sentence_structure_rule_short"
-
-    # 获取拼写规则
-    spelling_rule = SPELLING_RULES.get(style, SPELLING_RULES["US"])
-
-    # 获取句子结构规则
-    sentence_structure_rule = sentence_rule_dict.get(version, sentence_rule_dict.get("professional"))
-
-    # 构建提示词
-    prompt = template.format(
-        spelling_rule=spelling_rule,
-        chinese_text=chinese_text,
-        **{rule_param_name: sentence_structure_rule}
-    )
+        # 其他版本（compact或ai_optimized）不再支持，回退到原始版本
+        # 注意：压缩版本模板已移除，只保留生产版本
+        prompt = build_academic_translate_prompt_original(chinese_text, style, version)
 
     # 缓存结果
     if use_cache:
@@ -281,13 +288,13 @@ def build_english_refine_prompt(
     template_version: str = ENGLISH_REFINE_TEMPLATE_VERSION
 ) -> str:
     """
-    构建英文精修提示词（优化版本）
+    构建英文精修提示词（生产版本）
 
     Args:
         text_with_instructions: 包含批注的文本
         hidden_instructions: 隐藏的全局指令
         annotations: 批注列表
-        template_version: 模板版本 ("original", "compact", "ai_optimized")
+        template_version: 模板版本 ("production", "original") - 其他版本已不再支持
 
     Returns:
         构建好的提示词
@@ -337,19 +344,22 @@ The following directives should be applied consistently throughout the ENTIRE do
 """
 
     # 根据模板版本选择模板
-    if template_version == "original":
-        template = ENGLISH_REFINE_BASE_TEMPLATE
-    elif template_version == "ai_optimized":
-        template = ENGLISH_REFINE_AI_OPTIMIZED_TEMPLATE
-    else:  # compact
-        template = ENGLISH_REFINE_COMPACT_TEMPLATE
-
-    # 构建提示词
-    prompt = template.format(
-        annotation_notice=annotation_notice,
-        hidden_section=hidden_section,
-        processed_text=processed_text
-    )
+    # 生产版本和原始版本都使用原始函数
+    if template_version in ["original", "production"]:
+        # 原始版本/生产版本 - 直接调用原始函数
+        prompt = build_english_refine_prompt_original(
+            text_with_instructions=text_with_instructions,
+            hidden_instructions=hidden_instructions,
+            annotations=annotations
+        )
+    else:
+        # 其他版本（compact或ai_optimized）不再支持，回退到原始版本
+        # 注意：压缩版本模板已移除，只保留生产版本
+        prompt = build_english_refine_prompt_original(
+            text_with_instructions=text_with_instructions,
+            hidden_instructions=hidden_instructions,
+            annotations=annotations
+        )
 
     # 记录性能
     build_time = time.time() - start_time
@@ -368,28 +378,26 @@ The following directives should be applied consistently throughout the ENTIRE do
 
 def get_shortcut_annotations(version: str = DEFAULT_ANNOTATIONS_VERSION) -> Dict[str, str]:
     """
-    获取快捷批注命令（混合版本：大部分优化，"去AI词汇"和"人性化处理"保留原始完整内容）
+    获取快捷批注命令
 
     Args:
-        version: 批注版本 ("compact", "ai_optimized", "original_compact", "original_ai")
+        version: 批注版本 ("production", "original", "original_modified")
+        - "production": 生产版本（基于修改后的原始版本，移除"灵活表达"，修改"符号修正"，更新"人性化处理"）
+        - "original": 原始版本（已移除"灵活表达"）
+        - "original_modified": 向后兼容别名，等同于"production"
 
     Returns:
         快捷批注字典
     """
-    # 根据用户要求，"去AI词汇"和"人性化处理"必须保留原始完整内容
-    # 因此默认使用混合版本
-    if version == "ai_optimized":
-        # AI优化版本，但关键批注使用原始完整内容
-        return SHORTCUT_ANNOTATIONS_HYBRID_AI_OPTIMIZED.copy()
-    elif version == "original_ai":
-        # 纯AI优化版本（无混合，仅用于测试对比）
-        return SHORTCUT_ANNOTATIONS_AI_OPTIMIZED.copy()
-    elif version == "original_compact":
-        # 纯紧凑版本（无混合，仅用于测试对比）
-        return SHORTCUT_ANNOTATIONS_COMPACT.copy()
-    else:  # compact 或默认
-        # 紧凑版本，但关键批注使用原始完整内容
-        return SHORTCUT_ANNOTATIONS_HYBRID_COMPACT.copy()
+    if version == "original":
+        # 完全原始版本（已移除"灵活表达"）
+        return SHORTCUT_ANNOTATIONS_ORIGINAL.copy()
+    elif version in ["production", "original_modified"]:
+        # 生产版本/修改后的版本
+        return SHORTCUT_ANNOTATIONS_MODIFIED.copy()
+    else:
+        # 默认返回生产版本
+        return SHORTCUT_ANNOTATIONS_MODIFIED.copy()
 
 
 # 向后兼容：导出默认的快捷批注

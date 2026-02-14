@@ -51,7 +51,13 @@
       "Bash(cmd /C:*)",
       "Bash(wmic process where \"ProcessId=48804\" get Name:*)",
       "Bash(start_frontend.bat)",
-      "Bash(cmd /c:*)"
+      "Bash(cmd /c:*)",
+      "Bash(wc:*)",
+      "Bash(cd:*)",
+      "Bash(CI=true npm test:*)",
+      "Bash($OutputEncoding = [System.Text.Encoding]::UTF8)",
+      "Bash(venv/Scripts/pip.exe list:*)",
+      "Bash(venv/Scripts/uvicorn.exe:*)"
     ]
   }
 }
