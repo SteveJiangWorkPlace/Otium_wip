@@ -144,7 +144,7 @@ def call_gptzero_api(text: str) -> Tuple[bool, float, float]:
         return False, 0.5, elapsed_time
 
 # 计算文本差异
-def calculate_text_difference(text1: str, text2: str) -> Dict[str, any]:
+def calculate_text_difference(text1: str, text2: str) -> Dict[str, Any]:
     """计算两个文本之间的差异"""
     # 简单的单词级别比较
     words1 = set(text1.lower().split())
