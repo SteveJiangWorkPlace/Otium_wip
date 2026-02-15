@@ -104,6 +104,8 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(255), unique=True, nullable=False, index=True)
+    email = Column(String(255), nullable=True, unique=True, index=True)  # 邮箱地址，可为空（现有用户无邮箱）
+    email_verified = Column(Boolean, default=False)  # 邮箱验证状态
     password_hash = Column(String(255), nullable=False)  # SHA256哈希
     expiry_date = Column(Date, nullable=False)
     max_translations = Column(Integer, default=1000)
@@ -122,6 +124,8 @@ class User(Base):
         """转换为字典格式（兼容现有API）"""
         return {
             "username": self.username,
+            "email": self.email,
+            "email_verified": self.email_verified,
             "expiry_date": self.expiry_date.strftime("%Y-%m-%d") if self.expiry_date else None,
             "max_translations": self.max_translations,
             "daily_translation_limit": self.daily_translation_limit,

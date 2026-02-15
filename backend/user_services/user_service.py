@@ -402,6 +402,302 @@ class UserService:
         finally:
             db.close()
 
+    def register_user(self, username: str, email: str, password: str, email_verified: bool = False) -> Tuple[bool, str]:
+        """注册新用户
+
+        Args:
+            username: 用户名
+            email: 邮箱地址
+            password: 密码
+            email_verified: 邮箱是否已验证（默认False）
+
+        Returns:
+            Tuple[bool, str]: (是否成功, 错误信息)
+        """
+        db = self._get_db_session()
+        try:
+            # 验证用户名长度和格式
+            if len(username) < 3:
+                return False, "用户名至少需要3个字符"
+            if len(username) > 50:
+                return False, "用户名不能超过50个字符"
+
+            # 验证密码长度
+            if len(password) < 6:
+                return False, "密码至少需要6个字符"
+
+            # 验证邮箱格式（简单验证）
+            if "@" not in email or "." not in email:
+                return False, "邮箱格式不正确"
+
+            # 检查用户名是否已存在
+            existing_user = db.query(User).filter(User.username == username).first()
+            if existing_user:
+                return False, "用户名已被使用"
+
+            # 检查邮箱是否已存在（如果有邮箱验证要求）
+            if email:
+                existing_email = db.query(User).filter(User.email == email).first()
+                if existing_email:
+                    return False, "邮箱已被注册"
+
+            # 设置默认值：过期时间设为2099-12-31
+            expiry_date_obj = date(2099, 12, 31)
+
+            # 创建新用户
+            new_user = User(
+                username=username,
+                email=email,
+                email_verified=email_verified,
+                password_hash=hash_password(password),
+                expiry_date=expiry_date_obj,
+                max_translations=0,  # 不再使用总次数限制
+                daily_translation_limit=settings.DAILY_TRANSLATION_LIMIT,  # 使用默认配置
+                daily_ai_detection_limit=settings.DAILY_AI_DETECTION_LIMIT,  # 使用默认配置
+                is_admin=False,
+                is_active=True
+            )
+            db.add(new_user)
+            db.flush()  # 获取用户ID
+
+            # 创建使用记录
+            usage = UserUsage(user_id=new_user.id)
+            db.add(usage)
+
+            db.commit()
+            logging.info(f"用户注册成功: {username} ({email})")
+            return True, "注册成功"
+
+        except Exception as e:
+            db.rollback()
+            logging.error(f"注册用户失败: {str(e)}")
+            return False, f"注册失败: {str(e)}"
+        finally:
+            db.close()
+
+    def update_user_email(self, username: str, email: str, email_verified: bool = False) -> Tuple[bool, str]:
+        """更新用户邮箱
+
+        Args:
+            username: 用户名
+            email: 新邮箱地址
+            email_verified: 邮箱是否已验证
+
+        Returns:
+            Tuple[bool, str]: (是否成功, 错误信息)
+        """
+        db = self._get_db_session()
+        try:
+            user = db.query(User).filter(User.username == username).first()
+
+            if not user:
+                return False, "用户不存在"
+
+            # 验证邮箱格式
+            if "@" not in email or "." not in email:
+                return False, "邮箱格式不正确"
+
+            # 检查邮箱是否已被其他用户使用
+            existing_email = db.query(User).filter(User.email == email, User.username != username).first()
+            if existing_email:
+                return False, "邮箱已被其他用户使用"
+
+            user.email = email
+            user.email_verified = email_verified
+            db.commit()
+
+            logging.info(f"用户邮箱更新成功: {username} -> {email}")
+            return True, "邮箱更新成功"
+
+        except Exception as e:
+            db.rollback()
+            logging.error(f"更新用户邮箱失败: {str(e)}")
+            return False, f"更新失败: {str(e)}"
+        finally:
+            db.close()
+
+    def verify_user_email(self, username: str) -> Tuple[bool, str]:
+        """验证用户邮箱（标记为已验证）
+
+        Args:
+            username: 用户名
+
+        Returns:
+            Tuple[bool, str]: (是否成功, 错误信息)
+        """
+        db = self._get_db_session()
+        try:
+            user = db.query(User).filter(User.username == username).first()
+
+            if not user:
+                return False, "用户不存在"
+
+            if not user.email:
+                return False, "用户没有设置邮箱"
+
+            user.email_verified = True
+            db.commit()
+
+            logging.info(f"用户邮箱验证成功: {username}")
+            return True, "邮箱验证成功"
+
+        except Exception as e:
+            db.rollback()
+            logging.error(f"验证用户邮箱失败: {str(e)}")
+            return False, f"验证失败: {str(e)}"
+        finally:
+            db.close()
+
+    def request_password_reset(self, email: str) -> Tuple[bool, str, Optional[str]]:
+        """请求密码重置（验证邮箱存在性）
+
+        Args:
+            email: 邮箱地址
+
+        Returns:
+            Tuple[bool, str, Optional[str]]: (是否成功, 错误信息, 用户名或None)
+        """
+        db = self._get_db_session()
+        try:
+            # 查找邮箱对应的用户
+            user = db.query(User).filter(User.email == email).first()
+
+            if not user:
+                return False, "该邮箱未注册", None
+
+            if not user.is_active:
+                return False, "用户已被禁用", None
+
+            logging.info(f"密码重置请求: {email} -> {user.username}")
+            return True, "重置请求已接受", user.username
+
+        except Exception as e:
+            logging.error(f"处理密码重置请求失败: {str(e)}")
+            return False, f"处理失败: {str(e)}", None
+        finally:
+            db.close()
+
+    def reset_password(self, username: str, new_password: str) -> Tuple[bool, str]:
+        """重置用户密码
+
+        Args:
+            username: 用户名
+            new_password: 新密码
+
+        Returns:
+            Tuple[bool, str]: (是否成功, 错误信息)
+        """
+        # 验证密码长度
+        if len(new_password) < 6:
+            return False, "密码至少需要6个字符"
+
+        db = self._get_db_session()
+        try:
+            user = db.query(User).filter(User.username == username).first()
+
+            if not user:
+                return False, "用户不存在"
+
+            if not user.is_active:
+                return False, "用户已被禁用"
+
+            # 更新密码
+            user.password_hash = hash_password(new_password)
+            db.commit()
+
+            logging.info(f"密码重置成功: {username}")
+            return True, "密码重置成功"
+
+        except Exception as e:
+            db.rollback()
+            logging.error(f"重置密码失败: {str(e)}")
+            return False, f"重置失败: {str(e)}"
+        finally:
+            db.close()
+
+    def get_user_by_email(self, email: str) -> Optional[Dict[str, Any]]:
+        """通过邮箱获取用户信息
+
+        Args:
+            email: 邮箱地址
+
+        Returns:
+            Optional[Dict[str, Any]]: 用户信息或None
+        """
+        db = self._get_db_session()
+        try:
+            user = db.query(User).filter(User.email == email).first()
+
+            if not user:
+                return None
+
+            return {
+                "username": user.username,
+                "email": user.email,
+                "email_verified": user.email_verified,
+                "is_admin": user.is_admin,
+                "is_active": user.is_active,
+                "created_at": user.created_at.isoformat() if user.created_at else None
+            }
+
+        finally:
+            db.close()
+
+    def check_username_available(self, username: str) -> Tuple[bool, str]:
+        """检查用户名是否可用
+
+        Args:
+            username: 用户名
+
+        Returns:
+            Tuple[bool, str]: (是否可用, 错误信息)
+        """
+        # 验证用户名长度和格式
+        if len(username) < 3:
+            return False, "用户名至少需要3个字符"
+        if len(username) > 50:
+            return False, "用户名不能超过50个字符"
+
+        # 检查是否包含非法字符（仅允许字母、数字、下划线、连字符）
+        import re
+        if not re.match(r'^[a-zA-Z0-9_-]+$', username):
+            return False, "用户名只能包含字母、数字、下划线和连字符"
+
+        db = self._get_db_session()
+        try:
+            existing_user = db.query(User).filter(User.username == username).first()
+            if existing_user:
+                return False, "用户名已被使用"
+
+            return True, "用户名可用"
+
+        finally:
+            db.close()
+
+    def check_email_available(self, email: str) -> Tuple[bool, str]:
+        """检查邮箱是否可用
+
+        Args:
+            email: 邮箱地址
+
+        Returns:
+            Tuple[bool, str]: (是否可用, 错误信息)
+        """
+        # 验证邮箱格式
+        if "@" not in email or "." not in email:
+            return False, "邮箱格式不正确"
+
+        db = self._get_db_session()
+        try:
+            existing_email = db.query(User).filter(User.email == email).first()
+            if existing_email:
+                return False, "邮箱已被注册"
+
+            return True, "邮箱可用"
+
+        finally:
+            db.close()
+
 
 # 向后兼容的别名
 # 注意：为了保持完全兼容，我们提供is_user_allowed方法

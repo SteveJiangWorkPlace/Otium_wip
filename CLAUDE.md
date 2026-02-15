@@ -41,6 +41,38 @@ Otium 是一个全栈学术文本处理平台，专注于智能文本检查、AI
 - **Gemini AI** - Google的AI模型服务
 - **GPTZero** - AI文本检测服务
 
+## 架构概览
+
+Otium采用前后端分离架构，前端React应用通过REST API和SSE流式连接与后端FastAPI服务通信。核心架构特点：
+
+### 后端模块化设计
+- **配置管理** (`config.py`)：集中管理环境变量和设置
+- **数据验证** (`schemas.py`)：Pydantic模型定义API请求/响应格式
+- **异常处理** (`exceptions.py`)：统一错误处理和HTTP异常
+- **工具类** (`utils.py`)：用户限制管理、速率限制、文本验证
+- **提示词系统** (`prompts.py`, `prompt_templates.py`, `prompt_cache.py`, `prompt_monitor.py`)：模板化、缓存、监控的提示词构建系统
+- **API服务** (`services.py`)：集成Gemini AI和GPTZero外部API
+- **主应用** (`main.py`)：API路由定义和FastAPI应用初始化
+
+### 前端状态管理
+- **模块化Zustand stores**：每个功能（认证、翻译、纠错、检测、修改）有独立store
+- **全局进度状态** (`useGlobalProgressStore`)：管理跨页面任务进度，显示全局进度条
+- **持久化**：Zustand persist中间件保持用户状态
+
+### API通信模式
+- **传统REST API**：用于用户认证、文本检查、AI检测等同步操作
+- **流式SSE API**：用于翻译和文本修改，支持逐句显示结果
+- **认证**：JWT令牌通过Authorization头传递
+- **错误处理**：统一错误响应格式，前端自动处理令牌刷新
+
+### 数据流
+1. 用户在前端页面输入文本并选择选项
+2. 前端调用对应API（传统或流式）
+3. 后端验证请求、检查用户限制、构建提示词（可能使用缓存）
+4. 调用外部AI服务（Gemini/GPTZero）
+5. 处理结果并返回给前端
+6. 前端更新状态并显示结果，全局进度条显示任务状态
+
 ## 项目结构
 
 ```
@@ -90,27 +122,57 @@ Otium/
 
 ### 启动开发服务器
 
-#### 后端（FastAPI）
+#### 使用启动脚本（推荐）
+**后端（FastAPI）**：
 ```bash
 cd backend
 # Windows命令提示符
 start_backend.bat
-# 或PowerShell
+```
+
+```powershell
+# PowerShell（使用UTF-8编码避免乱码）
+$OutputEncoding = [System.Text.Encoding]::UTF8
+cd backend
 .\start_backend.ps1
 ```
 
-后端将在 http://localhost:8000 启动，自动重载。
-
-#### 前端（React）
+**前端（React）**：
 ```bash
 cd frontend
 # Windows命令提示符
 start_frontend.bat
-# 或PowerShell
+```
+
+```powershell
+# PowerShell（使用UTF-8编码避免乱码）
+$OutputEncoding = [System.Text.Encoding]::UTF8
+cd frontend
 .\start_frontend.ps1
 ```
 
-前端将在 http://localhost:3000 启动，热重载。
+后端将在 http://localhost:8000 启动（自动重载），前端将在 http://localhost:3000 启动（热重载）。
+
+#### 手动启动（备用方式）
+如果端口被占用或需要自定义配置，参考 `MANUAL_STARTUP.md` 进行手动启动：
+
+**后端手动启动**：
+```powershell
+$OutputEncoding = [System.Text.Encoding]::UTF8
+cd backend
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+**前端手动启动**：
+```powershell
+$OutputEncoding = [System.Text.Encoding]::UTF8
+cd frontend
+npm install
+npm start
+```
 
 ### 构建项目
 
@@ -119,7 +181,6 @@ start_frontend.bat
 cd frontend
 npm run build
 ```
-
 构建产物位于 `frontend/build/` 目录。
 
 #### 后端依赖安装
@@ -130,17 +191,69 @@ pip install -r requirements.txt
 
 ### 测试
 
+**重要**：每次新增功能后必须检查并补充相应的单元测试。
+
 #### 后端测试
 ```bash
 cd backend
-pytest
+pytest                          # 运行所有测试
+pytest tests/test_health.py     # 运行单个测试文件
+pytest -v                       # 详细输出
+pytest --cov=. --cov-report=html  # 生成覆盖率报告
 ```
 
 #### 前端测试
 ```bash
 cd frontend
-npm test
+npm test                       # 运行所有测试
+npm test -- --testNamePattern="特定测试"  # 运行匹配的测试
 ```
+
+#### 使用测试脚本
+项目提供了 `scripts/run_tests.py` 脚本，支持更多测试选项：
+```bash
+cd backend
+python ../scripts/run_tests.py              # 运行所有测试
+python ../scripts/run_tests.py --unit       # 只运行单元测试
+python ../scripts/run_tests.py --coverage   # 运行测试并生成覆盖率报告
+python ../scripts/run_tests.py --health     # 只运行健康检查
+```
+
+### 数据库迁移
+项目使用 Alembic 进行数据库迁移（计划迁移到数据库，目前为 JSON 文件存储）：
+
+```bash
+cd backend
+alembic upgrade head      # 应用所有迁移
+alembic revision --autogenerate -m "描述"  # 创建新迁移
+alembic current           # 查看当前迁移版本
+```
+
+### 调试和监控
+
+#### 提示词性能监控
+提示词性能优化系统提供了监控端点：
+- `GET /api/debug/prompt-metrics` - 查看性能指标（构建时间、缓存命中率等）
+- `POST /api/debug/prompt-cache/clear` - 清空提示词缓存
+
+#### 后端 API 文档
+- Swagger UI：http://localhost:8000/docs
+- ReDoc：http://localhost:8000/redoc
+
+#### 验证配置
+```bash
+cd backend
+python verify_final_config.py      # 验证提示词系统配置
+python final_system_test.py        # 运行系统测试
+```
+
+### 脚本工具
+`scripts/` 目录提供了多个实用脚本：
+- `backup_tool.py` - 文件备份工具
+- `validate_config.py` - 配置验证脚本
+- `validate_refactor.py` - 重构验证脚本
+- `run_tests.py` - 测试运行脚本（如上所述）
+- `check_deployment.py` - 部署检查脚本
 
 ## 关键架构模式
 
@@ -194,7 +307,7 @@ npm test
 - 默认管理员：`admin` / `admin123`
 - 用户限制通过 `UserLimitManager` 管理每日API调用次数
 
-## 最近UI修改（2026-02-13）
+## 最近UI修改（2026-02-13及2026-02-15）
 
 1. **取消所有"执行中，请稍后"提示**：
    - 移除了所有页面的loadingMessage组件
@@ -215,6 +328,25 @@ npm test
    - 完成：`"{任务名称}完成"`
    - 错误：`"{任务名称}错误: {错误信息}"`
    - 取消：`"{任务名称}已取消"`
+
+5. **侧边栏优化（2026-02-15）**：
+   - 移除侧边栏API密钥输入功能，后续通过环境变量配置
+   - 登出图标替换为自定义logout.svg，使用fill="#000000"确保主题黑色填充
+   - 登出图标放大至20px，按钮尺寸增至32px
+   - 登出按钮对齐至侧边栏右侧（justify-content: flex-end）
+   - 按钮背景与侧边栏底色一致（var(--color-gray-50)）
+   - 侧边栏宽度从224px扩大至280px
+   - 菜单项整体下移，通过增加.nav的padding-top至var(--spacing-12)实现与右侧工作区标题对齐
+   - 用户信息（用户名、翻译次数、AI检测次数）从侧边栏移除（移至工作区右上角）
+
+6. **工作区用户信息图标（2026-02-15）**：
+   - 在工作区右上角（gemini图标上方，与全局状态栏高度齐平）添加圆形用户信息图标
+   - 图标填充色为var(--color-gray-900)（主题黑色/深灰色），字体为白色
+   - 图标内容为当前用户名的前两个字母大写
+   - 点击图标显示弹出框，包含用户名、角色、今日翻译次数和AI检测次数
+   - 在所有功能页面添加顶部状态栏区域（.topBarContainer），包含GlobalProgressBar和用户信息图标
+   - 已修改的页面：TextCorrection.tsx、TextTranslation.tsx、AIDetectionPage.tsx、TextModification.tsx
+   - 对应的CSS样式已添加到各页面的.module.css文件中
 
 ## 代码规范
 

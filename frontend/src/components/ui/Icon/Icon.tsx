@@ -155,9 +155,10 @@ const icons = {
 } as const
 
 export type IconName = keyof typeof icons
+export type IconNameOrPath = IconName | `${string}.svg`
 
 export interface NamedIconProps extends IconProps {
-  name: IconName
+  name: IconNameOrPath
 }
 
 const Icon: React.FC<NamedIconProps> = ({
@@ -174,7 +175,21 @@ const Icon: React.FC<NamedIconProps> = ({
     className
   ].filter(Boolean).join(' ')
 
-  const iconSvg = icons[name]
+  // 如果是SVG路径，渲染img标签
+  if (typeof name === 'string' && name.endsWith('.svg')) {
+    return (
+      <img
+        src={name}
+        alt=""
+        className={iconClasses}
+        aria-hidden="true"
+        {...props as React.ImgHTMLAttributes<HTMLImageElement>}
+      />
+    )
+  }
+
+  // 否则渲染内置图标
+  const iconSvg = icons[name as IconName]
 
   if (!iconSvg) {
     console.warn(`Icon "${name}" not found`)

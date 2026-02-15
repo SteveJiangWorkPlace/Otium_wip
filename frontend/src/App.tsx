@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import Login from './pages/Login';
+import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
 import Admin from './pages/Admin';
 import TextCorrection from './pages/TextCorrection';
 import TextTranslation from './pages/TextTranslation';
@@ -28,6 +30,9 @@ const App: React.FC = () => {
       <Router>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password/:token" element={<ForgotPassword />} />
           <Route path="/" element={<Navigate to="/correction" />} />
           <Route
             path="/correction"
