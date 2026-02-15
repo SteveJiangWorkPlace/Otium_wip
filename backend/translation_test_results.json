@@ -1,0 +1,60 @@
+{
+  "test_text_preview": "值得肯定的是，Tyler Perry并没有在影片中延续和强化这种“当代社会的white savior”的形象，同时避免了围绕着Cartwright进行叙事发展而可能产生的白人中心主义叙事。随着影片剧情的发展，这对黑人couple与Cartwright开始产生潜在的利益冲突时，Cartwright的形象发生了变化。In the Cartwright’s office sequence, Chris直...",
+  "test_text_length": 703,
+  "simulation_mode": false,
+  "results": {
+    "新提示词-基础版-UK": {
+      "prompt_length": 1387,
+      "prompt_time": 0.0,
+      "translation_success": true,
+      "translation_text": "It is noteworthy that Tyler Perry did not perpetuate or reinforce the image of the \"white saviour of contemporary society\" in the film, whilst simultaneously avoiding the white-centric narrative that ...",
+      "translation_time": 10.621816873550415,
+      "ai_score": 0.060976003862848356,
+      "gptzero_time": 1.4232242107391357,
+      "total_time": 12.04504108428955,
+      "version": "basic",
+      "style": "UK",
+      "template_version": "ai_optimized",
+      "use_new_prompt": true
+    },
+    "新提示词-专业版-UK": {
+      "prompt_length": 1372,
+      "prompt_time": 0.0,
+      "translation_success": true,
+      "translation_text": "It is noteworthy that Tyler Perry does not perpetuate or reinforce the image of the “white saviour of contemporary society” in the film, while simultaneously avoiding a Eurocentric narrative that coul...",
+      "translation_time": 12.806704998016357,
+      "ai_score": 0.01695352972858825,
+      "gptzero_time": 1.36928391456604,
+      "total_time": 14.175988912582397,
+      "version": "professional",
+      "style": "UK",
+      "template_version": "ai_optimized",
+      "use_new_prompt": true
+    },
+    "原始提示词-专业版-UK": {
+      "prompt_length": 2822,
+      "prompt_time": 0.0,
+      "translation_success": true,
+      "translation_text": "It is commendable that Tyler Perry did not perpetuate or reinforce the image of a \"white saviour in contemporary society\" in the film, whilst also avoiding the white-centric narrative that could have ...",
+      "translation_time": 10.769248247146606,
+      "ai_score": 0.003255866085036588,
+      "gptzero_time": 1.152400016784668,
+      "total_time": 11.921648263931274,
+      "version": "professional",
+      "style": "UK",
+      "template_version": "original",
+      "use_new_prompt": false
+    }
+  },
+  "summary": {
+    "new_basic_vs_pro": {
+      "similarity": 69.06,
+      "ai_score_diff": 0.04402247413426011
+    },
+    "original_vs_new": {
+      "prompt_length_reduction": 1450,
+      "prompt_time_reduction_pct": "N/A",
+      "ai_score_diff": 0.013697663643551662
+    }
+  }
+}

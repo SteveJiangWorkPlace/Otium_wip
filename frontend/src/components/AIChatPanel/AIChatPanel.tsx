@@ -301,6 +301,8 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
             </button>
           </div>
         </div>
+        {/* 底部预留位置 */}
+        <div className={styles.aiStatusBar}></div>
       </div>
 
     </div>

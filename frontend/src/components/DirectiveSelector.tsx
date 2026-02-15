@@ -15,6 +15,7 @@ const DIRECTIVES = [
   '丰富句式',
   '灵活表达',
   '去AI词汇',
+  '人性化处理',
 ]
 
 const DIRECTIVE_INFO = {
@@ -24,6 +25,7 @@ const DIRECTIVE_INFO = {
   '丰富句式': '混合使用不同长度的句子',
   '灵活表达': '灵活使用标点和更自然的句子开头',
   '去AI词汇': '识别并替换AI高频词汇和短语',
+  '人性化处理': '替换为更加人性化的表达',
 }
 
 const DirectiveSelector: React.FC<DirectiveSelectorProps> = ({
@@ -58,7 +60,9 @@ const DirectiveSelector: React.FC<DirectiveSelectorProps> = ({
       </div>
 
       <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-3)', lineHeight: 'var(--line-height-relaxed)' }}>
-        您可以使用【】在文本中添加局部批注进行精准修改，也可以选择以下快捷指令进行全文修改。快捷指令适用于整篇文本，初次修改建议仅选择"去AI三板斧"。如果AI率仍不达标，可尝试选择其他指令继续优化。
+        <div style={{ marginBottom: 'var(--spacing-1)' }}>• 如果AI率较高，初次修改建议选择"去AI三板斧"</div>
+        <div style={{ marginBottom: 'var(--spacing-1)' }}>• 如果修改后AI率仍不达标，可尝试选择其他指令继续优化</div>
+        <div style={{ marginBottom: 'var(--spacing-1)' }}>• 快捷指令为全局修改，如需局部修改，可在文本中使用【】符号添加批注指令</div>
       </div>
 
       <div className={styles.actions}>

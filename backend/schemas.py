@@ -161,3 +161,50 @@ class AIChatResponse(BaseModel):
     session_id: Optional[str] = None
     model_used: str
     error: Optional[str] = None
+
+
+# ==========================================
+# 流式翻译模型
+# ==========================================
+
+class StreamTranslationRequest(BaseModel):
+    """流式翻译请求模型"""
+    text: str
+    operation: str  # "translate_us", "translate_uk"
+    version: Optional[str] = "professional"
+
+
+class StreamTranslationChunk(BaseModel):
+    """流式翻译数据块模型"""
+    type: str  # "chunk", "sentence", "complete", "error"
+    text: Optional[str] = None
+    full_text: Optional[str] = None
+    index: Optional[int] = None  # 句子索引
+    total: Optional[int] = None  # 总句子数
+    chunk_index: Optional[int] = None  # 块索引
+    error: Optional[str] = None
+    error_type: Optional[str] = None
+    total_sentences: Optional[int] = None
+
+
+# ==========================================
+# 流式文本修改模型
+# ==========================================
+
+class StreamRefineTextRequest(BaseModel):
+    """流式文本修改请求模型"""
+    text: str
+    directives: List[str] = []
+
+
+class StreamRefineTextChunk(BaseModel):
+    """流式文本修改数据块模型"""
+    type: str  # "chunk", "sentence", "complete", "error"
+    text: Optional[str] = None
+    full_text: Optional[str] = None
+    index: Optional[int] = None  # 句子索引
+    total: Optional[int] = None  # 总句子数
+    chunk_index: Optional[int] = None  # 块索引
+    error: Optional[str] = None
+    error_type: Optional[str] = None
+    total_sentences: Optional[int] = None

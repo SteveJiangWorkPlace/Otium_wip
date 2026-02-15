@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/useAuthStore'
+import { useGlobalProgressStore } from '../store/useGlobalProgressStore'
 import { apiClient } from '../api/client'
 import { cleanTextFromMarkdown } from '../utils/textCleaner'
 import { Card, Textarea, Button } from '../components'
 import DirectiveSelector from '../components/DirectiveSelector'
+import GlobalProgressBar from '../components/GlobalProgressBar/GlobalProgressBar'
 import AIDetection from '../components/AIDetection'
 import ResultDisplay from '../components/ResultDisplay'
 import { AIDetectionResponse } from '../types'
@@ -13,6 +15,7 @@ import styles from './Home.module.css'
 const Home: React.FC = () => {
   const navigate = useNavigate()
   const { userInfo } = useAuthStore()
+  const { showProgress, hideProgress, updateProgress } = useGlobalProgressStore()
 
   const [inputText, setInputText] = useState('')
   const [version, setVersion] = useState<'professional' | 'basic'>('professional')
@@ -45,6 +48,9 @@ const Home: React.FC = () => {
       return
     }
 
+    // 显示全局进度
+    showProgress('智能纠错运行中，请稍后', 'correction')
+
     setLoading(true)
     setLoadingStep('error_checking')
     try {
@@ -60,7 +66,12 @@ const Home: React.FC = () => {
         setEditableText('')
         setRefinedText('')
         setAiDetectionResult(null)
-        alert('智能纠错完成！')
+        // 更新进度消息
+        updateProgress('智能纠错完成')
+        // 2秒后隐藏进度
+        setTimeout(() => {
+          hideProgress()
+        }, 2000)
       }
     } catch (error) {
       let errorMessage = '处理失败，请稍后重试'
@@ -70,6 +81,11 @@ const Home: React.FC = () => {
         const axiosError = error as any
         errorMessage = axiosError.response?.data?.detail || errorMessage
       }
+      updateProgress(`智能纠错失败: ${errorMessage}`)
+      // 2秒后隐藏进度
+      setTimeout(() => {
+        hideProgress()
+      }, 2000)
       alert(errorMessage)
     } finally {
       setLoading(false)
@@ -98,7 +114,7 @@ const Home: React.FC = () => {
         setEditableText(response.text)
         setRefinedText('')
         setAiDetectionResult(null)
-        alert(`${type === 'us' ? '美式' : '英式'}翻译完成！`)
+        // 成功时不显示提醒
       }
     } catch (error) {
       let errorMessage = '翻译失败，请稍后重试'
@@ -245,12 +261,6 @@ const Home: React.FC = () => {
             </div>
           </div>
 
-          {loading && loadingStep && (
-            <div className={styles.loadingMessage}>
-              <div className={styles.loadingSpinner} />
-              <span>{loadingStepMessages[loadingStep]}</span>
-            </div>
-          )}
         </Card>
 
 

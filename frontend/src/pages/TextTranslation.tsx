@@ -1,13 +1,16 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/useAuthStore'
 import { useTranslationStore } from '../store/useTranslationStore'
+import { useGlobalProgressStore } from '../store/useGlobalProgressStore'
 import { useAIChatStore } from '../store/useAIChatStore'
 import { apiClient } from '../api/client'
 import { cleanTextFromMarkdown } from '../utils/textCleaner'
+import type { StreamTranslationRequest } from '../types'
 import Card from '../components/ui/Card/Card'
 import Textarea from '../components/ui/Textarea/Textarea'
 import Button from '../components/ui/Button/Button'
+import GlobalProgressBar from '../components/GlobalProgressBar/GlobalProgressBar'
 import AIChatPanel from '../components/AIChatPanel/AIChatPanel'
 import styles from './TextTranslation.module.css'
 
@@ -23,15 +26,33 @@ const TextTranslation: React.FC = () => {
     loadingStep,
     translatedText,
     editableText,
+    streaming,
+    partialText,
+    cancelStream,
     setInputText,
     setVersion,
     setEnglishType,
-    setLoading,
-    setLoadingStep,
     setTranslatedText,
     setEditableText,
+    setStreaming,
+    setPartialText,
+    appendPartialText,
+    setSentences,
+    addSentence,
+    setCurrentSentenceIndex,
+    setTotalSentences,
+    setStreamError,
+    setCancelStream,
+    resetStreamState,
     clear
   } = useTranslationStore()
+
+  const { showProgress, hideProgress, updateProgress } = useGlobalProgressStore()
+
+
+  // 复制通知状态
+  const [copyNotification, setCopyNotification] = useState<string | null>(null)
+  const notificationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // AI聊天状态
   const {
@@ -47,10 +68,16 @@ const TextTranslation: React.FC = () => {
     setCurrentPage(pageKey)
   }, [setCurrentPage])
 
-  // 加载步骤对应的提示消息
-  const loadingStepMessages = {
-    translating: '正在翻译...请耐心等待，这可能需要几秒钟到一分钟时间',
-  }
+  // 清理通知定时器
+  useEffect(() => {
+    return () => {
+      if (notificationTimerRef.current) {
+        clearTimeout(notificationTimerRef.current)
+      }
+    }
+  }, [])
+
+
 
   useEffect(() => {
     if (!userInfo) {
@@ -64,42 +91,136 @@ const TextTranslation: React.FC = () => {
       return
     }
 
-    setLoading(true)
-    setLoadingStep('translating')
+    await handleStreamTranslation()
+  }
+
+
+  const handleStreamTranslation = async () => {
+    if (!inputText.trim()) {
+      alert('请先输入文本')
+      return
+    }
+
+    // 显示全局进度
+    showProgress('智能翻译运行中，请稍后', 'translation')
+
+    // 重置流式状态
+    resetStreamState()
+    setStreaming(true)
+    setPartialText('')
+    setSentences([])
+    setCurrentSentenceIndex(0)
+    setTotalSentences(0)
+    setStreamError(null)
+
+    // 创建AbortController用于取消请求
+    const abortController = new AbortController()
+    setCancelStream(() => () => {
+      abortController.abort()
+      hideProgress()
+    })
+
     try {
-      const response = await apiClient.checkText({
+      // 构建流式翻译请求
+      const streamRequest: StreamTranslationRequest = {
         text: inputText,
         operation: englishType === 'us' ? 'translate_us' : 'translate_uk',
         version: version
+      }
+
+      // 调用流式翻译API
+      const streamGenerator = apiClient.translateStream(streamRequest, {
+        signal: abortController.signal,
+        onProgress: (chunk) => {
+          // 处理不同类型的块
+          switch (chunk.type) {
+            case 'chunk':
+              if (chunk.text) {
+                appendPartialText(chunk.text)
+              }
+              break
+            case 'sentence':
+              // 句子数据现在显示，实现逐句翻译效果
+              if (chunk.text && chunk.index !== undefined) {
+                // 添加或更新句子
+                addSentence(chunk.text, chunk.index)
+                setCurrentSentenceIndex(chunk.index)
+                setTotalSentences(chunk.total || 0)
+                // 同时更新部分文本，用于实时显示，每句换行
+                appendPartialText(chunk.text, true)
+              }
+              break
+            case 'complete':
+              if (chunk.text) {
+                setTranslatedText(chunk.text)
+                setEditableText(chunk.text)
+                setStreaming(false)
+                // 更新进度消息
+                updateProgress('智能翻译完成')
+                // 2秒后隐藏进度（全局状态栏会显示完成状态）
+                setTimeout(() => {
+                  hideProgress()
+                }, 2000)
+
+                // 更新用户信息
+                try {
+                  apiClient.getCurrentUser().then(updateUserInfo)
+                } catch (error) {
+                  console.warn('获取更新后的用户信息失败:', error)
+                }
+              }
+              break
+            case 'error':
+              setStreamError(chunk.error || '未知错误')
+              setStreaming(false)
+              updateProgress(`智能翻译错误: ${chunk.error}`)
+              // 2秒后隐藏进度
+              setTimeout(() => {
+                hideProgress()
+              }, 2000)
+              alert(`流式翻译错误: ${chunk.error}`)
+              break
+          }
+        }
       })
 
-      if (response.success) {
-        setTranslatedText(response.text)
-        setEditableText(response.text)
-        alert(`${englishType === 'us' ? '美式' : '英式'}翻译完成！`)
+      // 消费流式生成器
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      for await (const _ of streamGenerator) {
+        // 数据已在onProgress回调中处理
+      }
 
-        // 翻译成功后，获取最新的用户信息以更新剩余次数
-        try {
-          const updatedUserInfo = await apiClient.getCurrentUser()
-          updateUserInfo(updatedUserInfo)
-          console.log('用户信息已更新')
-        } catch (error) {
-          console.warn('获取更新后的用户信息失败:', error)
-          // 不再需要处理剩余次数，现在只使用每日限制
-        }
-      }
     } catch (error) {
-      let errorMessage = '翻译失败，请稍后重试'
-      if (error instanceof Error) {
-        errorMessage = error.message
-      } else if (error && typeof error === 'object' && 'response' in error) {
-        const axiosError = error as any
-        errorMessage = axiosError.response?.data?.detail || errorMessage
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('流式翻译已取消')
+        setStreamError('翻译已取消')
+        updateProgress('智能翻译已取消')
+      } else {
+        let errorMessage = '流式翻译失败，请稍后重试'
+        if (error instanceof Error) {
+          errorMessage = error.message
+        }
+        setStreamError(errorMessage)
+        updateProgress(`智能翻译失败: ${errorMessage}`)
+        alert(errorMessage)
       }
-      alert(errorMessage)
+      setStreaming(false)
+      // 2秒后隐藏进度
+      setTimeout(() => {
+        hideProgress()
+      }, 2000)
     } finally {
-      setLoading(false)
-      setLoadingStep(null)
+      setCancelStream(null)
+    }
+  }
+
+  const handleCancelStream = () => {
+    if (cancelStream) {
+      cancelStream()
+      setStreaming(false)
+      setCancelStream(null)
+      setStreamError('翻译已取消')
+      hideProgress()
     }
   }
 
@@ -109,17 +230,52 @@ const TextTranslation: React.FC = () => {
 
   const handleCopyInput = () => {
     if (inputText) {
-      navigator.clipboard.writeText(inputText)
-      alert('已复制输入文本到剪贴板')
+      try {
+        navigator.clipboard.writeText(inputText)
+        // 清除之前的定时器
+        if (notificationTimerRef.current) {
+          clearTimeout(notificationTimerRef.current)
+        }
+        // 设置通知
+        setCopyNotification('已复制输入文本到剪贴板')
+        // 2秒后自动清除通知
+        notificationTimerRef.current = setTimeout(() => {
+          setCopyNotification(null)
+        }, 2000)
+      } catch (error) {
+        console.error('复制失败:', error)
+        // 可选：显示错误通知
+        setCopyNotification('复制失败，请手动复制')
+        notificationTimerRef.current = setTimeout(() => {
+          setCopyNotification(null)
+        }, 2000)
+      }
     }
   }
 
   const handleCopyResult = () => {
     if (translatedText) {
-      // 清理markdown符号后复制
-      const cleanedText = cleanTextFromMarkdown(translatedText)
-      navigator.clipboard.writeText(cleanedText)
-      alert('已复制到剪贴板')
+      try {
+        // 清理markdown符号后复制
+        const cleanedText = cleanTextFromMarkdown(translatedText)
+        navigator.clipboard.writeText(cleanedText)
+        // 清除之前的定时器
+        if (notificationTimerRef.current) {
+          clearTimeout(notificationTimerRef.current)
+        }
+        // 设置通知
+        setCopyNotification('已复制到剪贴板')
+        // 2秒后自动清除通知
+        notificationTimerRef.current = setTimeout(() => {
+          setCopyNotification(null)
+        }, 2000)
+      } catch (error) {
+        console.error('复制失败:', error)
+        setCopyNotification('复制失败，请手动复制')
+        notificationTimerRef.current = setTimeout(() => {
+          setCopyNotification(null)
+        }, 2000)
+      }
     }
   }
 
@@ -133,7 +289,7 @@ const TextTranslation: React.FC = () => {
     splitPosition: 70,
   }
 
-  const workspaceWidth = conversation.isExpanded ? 72.5 : 100
+  const workspaceWidth = conversation.isExpanded ? 70 : 100
 
   const handleEditText = (text: string) => {
     setEditableText(text)
@@ -141,12 +297,21 @@ const TextTranslation: React.FC = () => {
 
   return (
     <div className={styles.translationContainer} ref={containerRef}>
+      {/* 复制成功通知 */}
+      {copyNotification && (
+        <div className={styles.copyNotification}>
+          {copyNotification}
+        </div>
+      )}
       <div className={styles.pageContainer}>
         {/* 工作区 */}
         <div
           className={styles.workspaceContainer}
           style={{ width: `${workspaceWidth}%` }}
         >
+          {/* 全局进度条 */}
+          <GlobalProgressBar />
+
           <div className={styles.workspaceHeader}>
             {/* 标题已移除，AI按钮已移到输入区域 */}
           </div>
@@ -244,15 +409,26 @@ const TextTranslation: React.FC = () => {
                 <div className={styles.inputFooter}>
                   <div className={styles.buttonRow}>
                     <div className={styles.leftButtonGroup}>
-                      <Button
-                        variant="primary"
-                        size="small"
-                        onClick={handleTranslation}
-                        loading={loading && loadingStep === 'translating'}
-                        disabled={loading}
-                      >
-                        开始翻译
-                      </Button>
+                      {streaming ? (
+                        <Button
+                          variant="danger"
+                          size="small"
+                          onClick={handleCancelStream}
+                          disabled={!cancelStream}
+                        >
+                          取消翻译
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="primary"
+                          size="small"
+                          onClick={handleTranslation}
+                          loading={loading && loadingStep === 'translating'}
+                          disabled={loading || streaming}
+                        >
+                          开始翻译
+                        </Button>
+                      )}
                     </div>
                     <div className={styles.rightButtonGroup}>
                       <Button
@@ -275,13 +451,20 @@ const TextTranslation: React.FC = () => {
                   </div>
                 </div>
 
-                {loading && loadingStep && (
-                  <div className={styles.loadingMessage}>
-                    <div className={styles.loadingSpinner} />
-                    <span>{loadingStepMessages[loadingStep]}</span>
+
+                {/* 流式翻译实时结果显示 */}
+                {streaming && partialText && (
+                  <div className={styles.partialText}>
+                    <div className={styles.partialTextLabel}>实时翻译进度</div>
+                    <div className={styles.partialTextContent}>{partialText}</div>
+                    <div className={styles.partialTextIndicator}>
+                      <div className={styles.loadingSpinner} />
+                      <span>翻译进行中...</span>
+                    </div>
                   </div>
                 )}
               </Card>
+
 
               {/* 翻译结果显示 */}
               {translatedText && (
@@ -315,7 +498,7 @@ const TextTranslation: React.FC = () => {
 
         {/* AI面板 */}
         {conversation.isExpanded && (
-          <div className={styles.aiPanelContainer} style={{ width: '27.5%' }}>
+          <div className={styles.aiPanelContainer} style={{ width: '30%' }}>
             <AIChatPanel pageKey={pageKey} />
           </div>
         )}

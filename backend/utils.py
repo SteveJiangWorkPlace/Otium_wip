@@ -321,7 +321,7 @@ class UserLimitManager:
 
         # 这里应该持久化到文件或数据库
         # 简化起见，仅在内存中更新
-        return True, "更新成功"
+        return True, ""
 
     def add_user(self, username: str, password: str, expiry_date: str, max_translations: int):
         """添加新用户"""
@@ -334,7 +334,7 @@ class UserLimitManager:
             "password": password
         }
 
-        return True, "添加成功"
+        return True, ""
 
     def get_all_users(self):
         """获取所有用户信息"""

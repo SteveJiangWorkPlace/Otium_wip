@@ -44,19 +44,15 @@ const Button: React.FC<ButtonProps> = ({
       aria-busy={loading}
       {...props}
     >
-      {loading && (
-        <span className={styles.loader} aria-hidden="true">
-          <div className={styles.spinner} />
-        </span>
-      )}
+      {/* 移除了loading时的加载动画，只保留disabled状态 */}
 
-      {!loading && icon && iconPosition === 'left' && (
+      {icon && iconPosition === 'left' && (
         <span className={styles.iconLeft}>{icon}</span>
       )}
 
       <span className={styles.content}>{children}</span>
 
-      {!loading && icon && iconPosition === 'right' && (
+      {icon && iconPosition === 'right' && (
         <span className={styles.iconRight}>{icon}</span>
       )}
     </button>

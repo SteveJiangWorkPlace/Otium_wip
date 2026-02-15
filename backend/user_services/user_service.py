@@ -201,7 +201,7 @@ class UserService:
             ).count()
 
             logging.info(f"获取用户信息: {username}")
-            logging.info(f"今日使用: 翻译 {daily_translation_used}/{settings.DAILY_TRANSLATION_LIMIT} 次, AI检测 {daily_ai_detection_used}/{settings.DAILY_AI_DETECTION_LIMIT} 次")
+            logging.info(f"今日使用: 翻译 {daily_translation_used}/{user.daily_translation_limit} 次, AI检测 {daily_ai_detection_used}/{user.daily_ai_detection_limit} 次")
 
             return {
                 "username": username,
@@ -237,7 +237,7 @@ class UserService:
                 user.daily_ai_detection_limit = daily_ai_detection_limit
 
             db.commit()
-            return True, "用户信息更新成功"
+            return True, ""
 
         except Exception as e:
             db.rollback()
@@ -277,7 +277,7 @@ class UserService:
             db.add(usage)
 
             db.commit()
-            return True, "添加成功"
+            return True, ""
 
         except Exception as e:
             db.rollback()
