@@ -16,8 +16,9 @@
   NODE_VERSION = "18"
 
   # React environment variables
+  # IMPORTANT: Update this with your actual Render backend URL
+  # You can also set this in Netlify Dashboard -> Site settings -> Environment variables
   REACT_APP_API_BASE_URL = "https://otium.onrender.com"
-  # Note: Update this with your actual Render backend URL after deployment
 
 # Redirects configuration
 # Handle client-side routing for React Router
@@ -37,7 +38,7 @@
       style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
       img-src 'self' data: https:;
       font-src 'self';
-      connect-src 'self' https://otium.onrender.com;
+      connect-src 'self' https://*.onrender.com;
     '''
 
     # Other security headers
@@ -50,8 +51,9 @@
 # Environment variables that need to be set in Netlify dashboard
 # These are just examples - actual values should be set in Netlify UI
 [context.production.environment]
+  # Production API base URL - set this to your actual Render backend URL
+  # You should set this in Netlify Dashboard -> Site settings -> Environment variables
   REACT_APP_API_BASE_URL = "https://otium.onrender.com"
-  # Add any other production-specific environment variables here
 
 [context.deploy-preview.environment]
   REACT_APP_API_BASE_URL = "http://localhost:8000"
