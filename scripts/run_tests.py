@@ -199,6 +199,18 @@ class TestRunner:
         logger.info("运行单元测试...")
         return self.run_pytest(["-m", "unit", "-v"])
 
+    def run_deployment_tests(self) -> bool:
+        """运行部署配置测试"""
+        logger.info("运行部署配置测试...")
+
+        # 运行特定的部署配置测试
+        deployment_test = self.backend_dir / "tests" / "test_deployment_config.py"
+        if not deployment_test.exists():
+            logger.error(f"部署配置测试文件不存在: {deployment_test}")
+            return False
+
+        return self.run_pytest([str(deployment_test), "-v"])
+
     def run_all_tests(self) -> bool:
         """运行所有测试"""
         logger.info("运行所有测试...")
@@ -321,6 +333,7 @@ def main():
   %(prog)s                     # 运行所有测试
   %(prog)s --health           # 只运行健康检查
   %(prog)s --unit             # 运行单元测试
+  %(prog)s --deployment       # 运行部署配置测试
   %(prog)s --coverage         # 运行测试并生成覆盖率报告
   %(prog)s --clean            # 清理后运行测试
   %(prog)s --verbose          # 详细输出
@@ -337,6 +350,12 @@ def main():
         '--unit',
         action='store_true',
         help='运行单元测试'
+    )
+
+    parser.add_argument(
+        '--deployment',
+        action='store_true',
+        help='运行部署配置测试'
     )
 
     parser.add_argument(
@@ -394,6 +413,8 @@ def main():
             success = runner.run_health_check()
         elif args.unit:
             success = runner.run_unit_tests()
+        elif args.deployment:
+            success = runner.run_deployment_tests()
         elif args.coverage:
             success = runner.run_with_coverage()
         else:

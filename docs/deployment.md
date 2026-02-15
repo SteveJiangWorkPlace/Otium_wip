@@ -76,6 +76,36 @@ ACCESS_TOKEN_EXPIRE_MINUTES=30
 # CORS配置（允许Netlify前端访问）
 CORS_ORIGINS=https://your-netlify-app.netlify.app,http://localhost:3000
 
+# 邮件服务配置（必需，用于用户注册和密码重置）
+# 首先设置邮件提供商（resend 或 smtp）
+EMAIL_PROVIDER=resend
+
+# 选项1：Resend API（推荐，HTTP API方式，更可靠）
+RESEND_API_KEY=你的Resend_API密钥
+RESEND_FROM=你的已验证邮箱（如onboarding@resend.dev或自定义域名邮箱）
+
+# 选项2：SendGrid（SMTP方式，与Render集成良好）
+# EMAIL_PROVIDER=smtp
+# SMTP_HOST=smtp.sendgrid.net
+# SMTP_PORT=587
+# SMTP_USERNAME=apikey
+# SMTP_PASSWORD=你的SendGrid_API密钥
+# SMTP_FROM=你的已验证邮箱
+# SMTP_TIMEOUT=30
+# SMTP_TLS=true
+# SMTP_SSL=false
+
+# 选项3：QQ邮箱（需要授权码，不是登录密码）
+# EMAIL_PROVIDER=smtp
+# SMTP_HOST=smtp.qq.com
+# SMTP_PORT=465
+# SMTP_USERNAME=你的QQ邮箱（如123456789@qq.com）
+# SMTP_PASSWORD=QQ邮箱授权码（16位字符串）
+# SMTP_FROM=发件人邮箱（与SMTP_USERNAME相同）
+# SMTP_TIMEOUT=30
+# SMTP_SSL=true
+# SMTP_TLS=false
+
 # 数据库配置（如果使用数据库）
 DATABASE_URL=postgresql://user:password@host:port/database
 ```
@@ -182,6 +212,15 @@ netlify deploy --prod
 2. 验证API配额
 3. 配置适当的重试机制
 
+### 问题5：邮件发送失败
+**症状**：用户注册或密码重置时显示"验证码已生成，如果未收到邮件请检查邮箱或联系管理员"
+**解决方案**：
+1. 检查SMTP环境变量配置是否正确（参考环境变量配置部分）
+2. 验证邮件服务账户是否激活（QQ邮箱需要开启SMTP服务并获取授权码）
+3. 测试SMTP连接：运行 `python backend/test_smtp_connection.py`
+4. 考虑使用SendGrid替代QQ邮箱（Render集成更好）
+5. 检查Render日志中的SMTP错误信息
+
 ## 📈 性能优化
 
 ### 前端优化
@@ -226,6 +265,6 @@ REACT_APP_API_BASE_URL=https://otium-backend.onrender.com
 
 ---
 
-**最后更新**：2026-02-08
+**最后更新**：2026-02-15
 **部署状态**：Netlify + Render 已验证
 **注意事项**：免费层有使用限制，生产环境建议升级到付费计划

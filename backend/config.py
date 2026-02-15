@@ -103,6 +103,9 @@ class Settings:
     ENABLE_TRANSLATION_DIRECTIVES: bool = os.environ.get("ENABLE_TRANSLATION_DIRECTIVES", "True").lower() in ("true", "1", "yes")
 
     # 邮件服务配置
+    EMAIL_PROVIDER: str = os.environ.get("EMAIL_PROVIDER", "resend")  # resend, smtp
+
+    # SMTP配置（当EMAIL_PROVIDER=smtp时使用）
     SMTP_HOST: str = os.environ.get("SMTP_HOST", "smtp.sendgrid.net")
     SMTP_PORT: int = int(os.environ.get("SMTP_PORT", "587"))
     SMTP_USERNAME: str = os.environ.get("SMTP_USERNAME", "apikey")
@@ -111,6 +114,10 @@ class Settings:
     SMTP_TLS: bool = os.environ.get("SMTP_TLS", "true").lower() in ("true", "1", "yes")
     SMTP_SSL: bool = os.environ.get("SMTP_SSL", "false").lower() in ("true", "1", "yes")
     SMTP_TIMEOUT: int = int(os.environ.get("SMTP_TIMEOUT", "30"))  # 默认30秒超时
+
+    # Resend API配置（当EMAIL_PROVIDER=resend时使用）
+    RESEND_API_KEY: str = os.environ.get("RESEND_API_KEY", "")
+    RESEND_FROM: str = os.environ.get("RESEND_FROM", "onboarding@resend.dev")
 
     # 验证码和令牌配置
     VERIFICATION_CODE_TTL: int = int(os.environ.get("VERIFICATION_CODE_TTL", "600"))  # 10分钟
@@ -164,10 +171,16 @@ class Settings:
             logging.warning("⚠️ 使用PostgreSQL但未设置DATABASE_URL环境变量")
 
         # 检查邮件配置
-        if not self.SMTP_PASSWORD:
-            logging.warning("⚠️ SMTP_PASSWORD 未设置，邮件发送功能将不可用")
-        if self.SMTP_FROM == "noreply@example.com":
-            logging.warning("⚠️ SMTP_FROM 使用默认值，请设置为有效的发件人邮箱")
+        if self.EMAIL_PROVIDER == "smtp":
+            if not self.SMTP_PASSWORD:
+                logging.warning("⚠️ SMTP_PASSWORD 未设置，邮件发送功能将不可用")
+            if self.SMTP_FROM == "noreply@example.com":
+                logging.warning("⚠️ SMTP_FROM 使用默认值，请设置为有效的发件人邮箱")
+        elif self.EMAIL_PROVIDER == "resend":
+            if not self.RESEND_API_KEY:
+                logging.warning("⚠️ RESEND_API_KEY 未设置，邮件发送功能将不可用")
+            if self.RESEND_FROM == "onboarding@resend.dev":
+                logging.warning("⚠️ RESEND_FROM 使用默认值，请设置为已验证的发件人邮箱")
 
 
 # 全局配置实例
