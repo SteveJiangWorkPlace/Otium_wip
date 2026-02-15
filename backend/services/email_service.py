@@ -30,11 +30,12 @@ class EmailService:
         self.smtp_from = settings.SMTP_FROM
         self.smtp_tls = settings.SMTP_TLS
         self.smtp_ssl = settings.SMTP_SSL
+        self.smtp_timeout = settings.SMTP_TIMEOUT  # 超时设置
 
         # 前端URL用于重置密码链接
         self.frontend_base_url = settings.FRONTEND_BASE_URL
 
-        logger.info(f"邮件服务初始化: {self.smtp_host}:{self.smtp_port}")
+        logger.info(f"邮件服务初始化: {self.smtp_host}:{self.smtp_port}, 超时: {self.smtp_timeout}秒")
 
     def _get_logo_base64(self) -> str:
         """读取SVG logo文件，设置fill为黑色，返回base64编码
@@ -94,11 +95,11 @@ class EmailService:
         """创建SMTP连接"""
         try:
             if self.smtp_ssl:
-                # SSL连接
-                smtp = smtplib.SMTP_SSL(self.smtp_host, self.smtp_port)
+                # SSL连接，使用配置的超时
+                smtp = smtplib.SMTP_SSL(self.smtp_host, self.smtp_port, timeout=self.smtp_timeout)
             else:
-                # 普通连接
-                smtp = smtplib.SMTP(self.smtp_host, self.smtp_port)
+                # 普通连接，使用配置的超时
+                smtp = smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=self.smtp_timeout)
 
             if self.smtp_tls and not self.smtp_ssl:
                 # STARTTLS加密

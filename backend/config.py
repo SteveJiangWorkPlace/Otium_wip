@@ -110,6 +110,7 @@ class Settings:
     SMTP_FROM: str = os.environ.get("SMTP_FROM", "noreply@example.com")
     SMTP_TLS: bool = os.environ.get("SMTP_TLS", "true").lower() in ("true", "1", "yes")
     SMTP_SSL: bool = os.environ.get("SMTP_SSL", "false").lower() in ("true", "1", "yes")
+    SMTP_TIMEOUT: int = int(os.environ.get("SMTP_TIMEOUT", "30"))  # 默认30秒超时
 
     # 验证码和令牌配置
     VERIFICATION_CODE_TTL: int = int(os.environ.get("VERIFICATION_CODE_TTL", "600"))  # 10分钟
