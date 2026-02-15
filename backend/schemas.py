@@ -53,8 +53,8 @@ class AddUserRequest(BaseModel):
     """添加用户请求模型"""
     username: str
     password: str
-    daily_translation_limit: int = 10
-    daily_ai_detection_limit: int = 10
+    daily_translation_limit: int = 3
+    daily_ai_detection_limit: int = 3
 
 
 class SendVerificationRequest(BaseModel):

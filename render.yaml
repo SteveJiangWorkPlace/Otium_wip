@@ -44,6 +44,12 @@ services:
       - key: DATABASE_TYPE
         value: postgresql
 
+      # ==================== 用户限制配置 ====================
+      - key: DAILY_TRANSLATION_LIMIT
+        value: "3"
+      - key: DAILY_AI_DETECTION_LIMIT
+        value: "3"
+
       # ==================== 管理员配置 ====================
       - key: ADMIN_USERNAME
         value: admin
@@ -129,14 +135,109 @@ preDeployScript: |
   ls -la
   echo "Backend directory:"
   ls -la backend/
-  echo "Python path:"
-  python -c "import sys; print('\\n'.join(sys.path))"
-  echo "Running database migrations..."
+
+  # 检查Python环境
+  echo "=== Python环境检查 ==="
+  python --version
+  python -c "import sys; print('Python路径:', sys.executable)"
+  python -c "import sys; print('系统路径:'); print('\\n'.join(sys.path))"
+
+  # 检查Alembic安装
+  echo "=== Alembic检查 ==="
+  python -c "import alembic; print(f'Alembic版本: {alembic.__version__}')" || echo "警告: Alembic导入失败"
+
+  # 检查alembic.ini文件
+  echo "=== 迁移文件检查 ==="
+  if [ -f "backend/alembic.ini" ]; then
+    echo "alembic.ini文件存在"
+    ls -la backend/alembic.ini
+  else
+    echo "错误: alembic.ini文件不存在!"
+    exit 1
+  fi
+
+  # 检查migrations目录
+  if [ -d "backend/migrations" ]; then
+    echo "migrations目录存在"
+    ls -la backend/migrations/
+    if [ -d "backend/migrations/versions" ]; then
+      echo "versions目录存在"
+      ls -la backend/migrations/versions/
+    else
+      echo "警告: versions目录不存在"
+    fi
+  else
+    echo "错误: migrations目录不存在!"
+    exit 1
+  fi
+
+  # 运行数据库迁移
+  echo "=== 运行数据库迁移 ==="
   cd backend
-  # Run Alembic migrations
-  echo "Running: alembic upgrade head"
-  alembic upgrade head
-  echo "Database migrations completed successfully"
+
+  # 检查当前迁移状态
+  echo "检查当前迁移状态:"
+  alembic current || echo "无法获取当前迁移状态，继续执行..."
+
+  # 检查可用迁移
+  echo "检查可用迁移:"
+  alembic history || echo "无法获取迁移历史，继续执行..."
+
+  # 运行迁移
+  echo "运行迁移: alembic upgrade head"
+  if alembic upgrade head; then
+    echo "数据库迁移成功完成"
+  else
+    echo "错误: 数据库迁移失败!"
+    echo "尝试降级后再升级..."
+    alembic downgrade -1 || echo "降级失败，继续..."
+    alembic upgrade head || echo "升级失败，应用将继续启动但可能有限制"
+  fi
+
+  # 验证users表结构
+  echo "=== 验证数据库表结构 ==="
+  python -c "
+import os
+import sys
+sys.path.insert(0, '.')
+from sqlalchemy import inspect, create_engine
+from models.database import get_database_url
+
+try:
+    print('获取数据库URL...')
+    db_url = get_database_url()
+    print(f'数据库URL: {db_url[:50]}...' if len(db_url) > 50 else f'数据库URL: {db_url}')
+
+    engine = create_engine(db_url)
+    inspector = inspect(engine)
+
+    print('数据库中的表:')
+    tables = inspector.get_table_names()
+    for table in tables:
+        print(f'  - {table}')
+
+    if 'users' in tables:
+        print('users表存在，检查列:')
+        columns = inspector.get_columns('users')
+        for col in columns:
+            print(f'  - {col[\"name\"]}: {col[\"type\"]}')
+
+        # 检查email列
+        column_names = [col['name'] for col in columns]
+        if 'email' in column_names:
+            print('✅ users表已包含email列')
+        else:
+            print('❌ users表缺少email列')
+    else:
+        print('❌ users表不存在')
+
+except Exception as e:
+    print(f'验证数据库时出错: {e}')
+    import traceback
+    traceback.print_exc()
+  "
+
+  echo "预部署脚本完成"
 
 # ============================================
 # Notes:

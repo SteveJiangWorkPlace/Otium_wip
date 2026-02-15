@@ -109,8 +109,8 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)  # SHA256哈希
     expiry_date = Column(Date, nullable=False)
     max_translations = Column(Integer, default=1000)
-    daily_translation_limit = Column(Integer, default=10)  # 每日翻译限制
-    daily_ai_detection_limit = Column(Integer, default=10)  # 每日AI检测限制
+    daily_translation_limit = Column(Integer, default=3)  # 每日翻译限制
+    daily_ai_detection_limit = Column(Integer, default=3)  # 每日AI检测限制
     is_admin = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=func.now())

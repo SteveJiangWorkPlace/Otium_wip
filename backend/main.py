@@ -32,6 +32,7 @@ import uuid
 import warnings
 
 # 过滤Pydantic的ArbitraryTypeWarning警告
+warnings.filterwarnings("ignore", category=UserWarning, module="pydantic._internal._generate_schema")
 warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
 
 # 配置日志
@@ -77,69 +78,98 @@ load_dotenv()
 
 def run_migrations_if_needed():
     """运行数据库迁移（如果可用）"""
+    logging.info("开始检查数据库迁移...")
+
     try:
         from alembic import command
         from alembic.config import Config
 
         # 获取alembic.ini路径
         alembic_ini_path = os.path.join(os.path.dirname(__file__), "alembic.ini")
+        logging.info(f"检查alembic.ini路径: {alembic_ini_path}")
         if not os.path.exists(alembic_ini_path):
             logging.warning(f"alembic.ini未找到: {alembic_ini_path}")
+            # 仍然尝试确保email列存在
+            ensure_email_column_exists()
             return
+
+        logging.info(f"alembic.ini文件存在，大小: {os.path.getsize(alembic_ini_path)} bytes")
 
         # 创建配置
         alembic_cfg = Config(alembic_ini_path)
+        logging.info("Alembic配置创建成功")
 
         # 运行迁移到最新版本
         logging.info("运行数据库迁移...")
         command.upgrade(alembic_cfg, "head")
         logging.info("数据库迁移完成")
+
     except ImportError as e:
         logging.warning(f"alembic未安装，跳过迁移: {e}")
     except Exception as e:
-        logging.error(f"数据库迁移失败: {e}")
+        logging.error(f"数据库迁移失败: {e}", exc_info=True)
         logging.warning("迁移失败，应用将继续启动")
 
     # 无论迁移是否成功，都尝试确保email列存在
+    logging.info("运行email列检查后备方案...")
     ensure_email_column_exists()
 
 def ensure_email_column_exists():
     """确保users表有email列（迁移失败时的后备方案）"""
+    logging.info("开始检查users表email列...")
     try:
         from models.database import get_engine
         from sqlalchemy import inspect, text
 
         engine = get_engine()
+        logging.info(f"获取数据库引擎: {engine.url}")
         inspector = inspect(engine)
 
+        # 检查users表是否存在
+        table_names = inspector.get_table_names()
+        logging.info(f"数据库中的表: {table_names}")
+
+        if 'users' not in table_names:
+            logging.warning("users表不存在，可能尚未创建")
+            return
+
         # 检查users表是否存在email列
-        columns = [col['name'] for col in inspector.get_columns('users')]
-        if 'email' in columns:
-            logging.debug("email列已存在")
+        columns = inspector.get_columns('users')
+        column_names = [col['name'] for col in columns]
+        logging.info(f"users表的列: {column_names}")
+
+        if 'email' in column_names:
+            logging.info("email列已存在")
             return
 
         logging.warning("users表缺少email列，尝试添加...")
 
         # 根据数据库类型执行ALTER TABLE
         from config import settings
+        logging.info(f"数据库类型: {settings.DATABASE_TYPE}")
+
         if settings.DATABASE_TYPE == 'postgresql':
             # PostgreSQL
+            logging.info("为PostgreSQL添加email列...")
             with engine.connect() as conn:
                 conn.execute(text("ALTER TABLE users ADD COLUMN email VARCHAR(255)"))
                 conn.execute(text("ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT false"))
-                conn.execute(text("CREATE INDEX ix_users_email ON users(email)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_users_email ON users(email)"))
                 conn.commit()
+                logging.info("PostgreSQL ALTER TABLE执行成功")
         else:
             # SQLite
+            logging.info("为SQLite添加email列...")
             with engine.connect() as conn:
                 conn.execute(text("ALTER TABLE users ADD COLUMN email VARCHAR(255)"))
                 conn.execute(text("ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT 0"))
                 conn.execute(text("CREATE INDEX ix_users_email ON users(email)"))
                 conn.commit()
+                logging.info("SQLite ALTER TABLE执行成功")
 
         logging.info("成功添加email列和email_verified列")
     except Exception as e:
-        logging.error(f"添加email列失败: {e}")
+        logging.error(f"添加email列失败: {e}", exc_info=True)
         # 不抛出异常，应用继续运行
 
 # 日志配置
