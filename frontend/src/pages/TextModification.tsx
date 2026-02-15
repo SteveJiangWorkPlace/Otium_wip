@@ -13,7 +13,6 @@ import Button from '../components/ui/Button/Button'
 import { useToast } from '../components/ui/Toast'
 import DirectiveSelector from '../components/DirectiveSelector'
 import GlobalProgressBar from '../components/GlobalProgressBar/GlobalProgressBar'
-import UserInfoIcon from '../components/ui/UserInfoIcon/UserInfoIcon'
 import AIChatPanel from '../components/AIChatPanel/AIChatPanel'
 import styles from './TextModification.module.css'
 
@@ -284,10 +283,9 @@ const TextModification: React.FC = () => {
           className={styles.workspaceContainer}
           style={{ width: `${workspaceWidth}%` }}
         >
-          {/* 顶部状态栏：全局进度条和用户信息图标 */}
+          {/* 顶部状态栏：全局进度条 */}
           <div className={styles.topBarContainer}>
             <GlobalProgressBar />
-            <UserInfoIcon />
           </div>
 
           <div className={styles.workspaceHeader}>

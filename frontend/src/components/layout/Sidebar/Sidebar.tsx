@@ -1,5 +1,6 @@
 import React from 'react'
 import { useAuthStore } from '../../../store/useAuthStore'
+import UserInfoIcon from '../../ui/UserInfoIcon/UserInfoIcon'
 import styles from './Sidebar.module.css'
 
 export interface SidebarProps {
@@ -63,16 +64,19 @@ const Sidebar: React.FC<SidebarProps> = ({
     <aside className={`${styles.sidebar} ${isCollapsed ? styles.collapsed : ''}`}>
       <div className={styles.header}>
         {!isCollapsed && (
-          <div className={styles.logo}>
-            <img
-              src="/logopic.svg"
-              alt="Otium"
-              className={styles.logoImage}
-            />
-            <div className={styles.logoTexts}>
-              <span className={styles.logoText}>Otium</span>
+          <>
+            <div className={styles.logo}>
+              <img
+                src="/logopic.svg"
+                alt="Otium"
+                className={styles.logoImage}
+              />
+              <div className={styles.logoTexts}>
+                <span className={styles.logoText}>Otium</span>
+              </div>
             </div>
-          </div>
+            <UserInfoIcon />
+          </>
         )}
       </div>
 

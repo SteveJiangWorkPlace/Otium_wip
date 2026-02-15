@@ -8,7 +8,6 @@ import Card from '../components/ui/Card/Card'
 import Textarea from '../components/ui/Textarea/Textarea'
 import Button from '../components/ui/Button/Button'
 import GlobalProgressBar from '../components/GlobalProgressBar/GlobalProgressBar'
-import UserInfoIcon from '../components/ui/UserInfoIcon/UserInfoIcon'
 import AIDetection from '../components/AIDetection'
 import AIChatPanel from '../components/AIChatPanel/AIChatPanel'
 import { AIDetectionResponse } from '../types'
@@ -134,10 +133,9 @@ const AIDetectionPage: React.FC = () => {
           className={styles.workspaceContainer}
           style={{ width: `${workspaceWidth}%` }}
         >
-          {/* 顶部状态栏：全局进度条和用户信息图标 */}
+          {/* 顶部状态栏：全局进度条 */}
           <div className={styles.topBarContainer}>
             <GlobalProgressBar />
-            <UserInfoIcon />
           </div>
 
           <div className={styles.workspaceHeader}>
