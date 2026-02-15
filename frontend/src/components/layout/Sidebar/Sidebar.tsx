@@ -1,7 +1,5 @@
-import React, { useState } from 'react'
-import { Icon } from '../../ui'
+import React from 'react'
 import { useAuthStore } from '../../../store/useAuthStore'
-import { useApiKeys } from '../../../hooks/useApiKeys'
 import styles from './Sidebar.module.css'
 
 export interface SidebarProps {
@@ -12,6 +10,12 @@ export interface SidebarProps {
   onLogout: () => void
 }
 
+interface MenuItem {
+  id: string
+  label: string
+  visible: boolean
+}
+
 const Sidebar: React.FC<SidebarProps> = ({
   isCollapsed,
   activeMenu,
@@ -20,47 +24,34 @@ const Sidebar: React.FC<SidebarProps> = ({
   onLogout
 }) => {
   const isAdmin = useAuthStore((state) => state.isAdmin)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const userInfo = useAuthStore((state) => state.userInfo)
-  const { apiKeys, updateApiKey } = useApiKeys()
-  const [showApiKeys, setShowApiKeys] = useState(false)
-
-  // 处理API密钥输入变化并立即保存
-  const handleApiKeyChange = (key: 'geminiApiKey' | 'gptzeroApiKey', value: string) => {
-    console.log('Sidebar - API密钥输入变化:', { key, valueLength: value.length, valuePreview: value.substring(0, Math.min(5, value.length)) + '...' })
-    const success = updateApiKey(key, value)
-    console.log('Sidebar - updateApiKey结果:', success ? '成功' : '失败')
-  }
 
   // 菜单项定义 - 适配Otium项目
-  const menuItems = [
+  const menuItems: MenuItem[] = [
     {
       id: 'correction',
       label: '智能纠错',
-      icon: '' as const,
       visible: true
     },
     {
       id: 'translation',
       label: '文本翻译',
-      icon: '' as const,
       visible: true
     },
     {
       id: 'ai-detection',
       label: 'AI率检测',
-      icon: '' as const,
       visible: true
     },
     {
       id: 'modification',
       label: '文本修改',
-      icon: '' as const,
       visible: true
     },
     {
       id: 'admin',
       label: '管理员',
-      icon: '' as const,
       visible: isAdmin
     }
   ]
@@ -107,15 +98,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                   aria-label={item.label}
                   title={item.label}
                 >
-                  {item.icon && (
-                    <span className={styles.menuIcon}>
-                      <Icon
-                        name={item.icon}
-                        size="md"
-                        variant="default"
-                      />
-                    </span>
-                  )}
                   {!isCollapsed && (
                     <span className={styles.menuLabel}>{item.label}</span>
                   )}
@@ -127,89 +109,20 @@ const Sidebar: React.FC<SidebarProps> = ({
       </nav>
 
       <div className={styles.footer}>
-        {!isCollapsed && userInfo && (
-          <div className={styles.userInfo}>
-            <div className={styles.username}>{userInfo.username}</div>
-            <div className={styles.userStats}>
-              <div className={styles.userStatItem}>
-                <span className={styles.userStatLabel}>今日翻译：</span>
-                <span className={styles.userStatValue}>
-                  {userInfo.daily_translation_used}/{userInfo.daily_translation_limit}
-                </span>
-              </div>
-              <div className={styles.userStatItem}>
-                <span className={styles.userStatLabel}>今日AI检测：</span>
-                <span className={styles.userStatValue}>
-                  {userInfo.daily_ai_detection_used}/{userInfo.daily_ai_detection_limit}
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 简化的底部按钮：API密钥管理和退出登录 */}
+        {/* 底部按钮：退出登录 */}
         <div className={styles.bottomButtons}>
-          <button
-            className={styles.apiKeyButton}
-            onClick={() => setShowApiKeys(!showApiKeys)}
-            title="管理API密钥"
-          >
-            <span className={styles.apiKeyButtonIcon}>
-              <Icon name="lock" size="sm" variant="default" />
-            </span>
-          </button>
-
           <button
             className={styles.logoutButton}
             onClick={onLogout}
             title="退出登录"
           >
-            <span className={styles.logoutButtonIcon}>
-              <Icon name="close" size="sm" variant="default" />
-            </span>
+            <img
+              src="/logout.svg"
+              alt="退出登录"
+              className={styles.logoutIcon}
+            />
           </button>
         </div>
-
-        {/* API密钥管理面板（展开状态） */}
-        {showApiKeys && !isCollapsed && (
-          <div className={styles.apiKeysPanel}>
-            <div className={styles.apiKeyInputGroup}>
-              <label className={styles.apiKeyLabel}>
-                <span>Gemini API Key</span>
-              </label>
-              <input
-                type="password"
-                className={styles.apiKeyInput}
-                value={apiKeys.geminiApiKey}
-                onChange={(e) => handleApiKeyChange('geminiApiKey', e.target.value)}
-                placeholder="输入Google Gemini API密钥"
-              />
-            </div>
-
-            <div className={styles.apiKeyInputGroup}>
-              <label className={styles.apiKeyLabel}>
-                <span>GPTZero API Key</span>
-              </label>
-              <input
-                type="password"
-                className={styles.apiKeyInput}
-                value={apiKeys.gptzeroApiKey}
-                onChange={(e) => handleApiKeyChange('gptzeroApiKey', e.target.value)}
-                placeholder="输入GPTZero API密钥"
-              />
-            </div>
-
-            <div className={styles.apiKeysStatus}>
-              <div className={styles.apiKeyStatusItem}>
-                <span>Gemini API: {apiKeys.geminiApiKey ? '已配置' : '未配置'}</span>
-              </div>
-              <div className={styles.apiKeyStatusItem}>
-                <span>GPTZero API: {apiKeys.gptzeroApiKey ? '已配置' : '未配置'}</span>
-              </div>
-            </div>
-          </div>
-        )}
-
       </div>
     </aside>
   )

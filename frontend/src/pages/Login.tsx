@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { apiClient } from '../api/client'
 import { useAuthStore } from '../store/useAuthStore'
 import { Card, Input, Button, Icon } from '../components'
@@ -138,6 +138,15 @@ const Login: React.FC = () => {
           >
             {loading ? '登录中...' : '登录'}
           </Button>
+
+          <div className={styles.authLinks}>
+            <Link to="/register" className={styles.authLink}>
+              还没有账户？立即注册
+            </Link>
+            <Link to="/forgot-password" className={styles.authLink}>
+              忘记密码？
+            </Link>
+          </div>
         </form>
       </Card>
     </div>

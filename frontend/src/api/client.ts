@@ -218,6 +218,51 @@ export const apiClient = {
     return response.data;
   },
 
+  // ==================== 用户注册和密码重置 ====================
+
+  sendVerificationCode: async (email: string): Promise<ApiResponse> => {
+    const response = await axiosInstance.post<ApiResponse>('/register/send-verification', { email });
+    return response.data;
+  },
+
+  verifyEmail: async (email: string, code: string): Promise<ApiResponse & { verification_token?: string }> => {
+    const response = await axiosInstance.post<ApiResponse & { verification_token?: string }>('/register/verify-email', { email, code });
+    return response.data;
+  },
+
+  checkUsername: async (username: string): Promise<{ available: boolean; message: string }> => {
+    const response = await axiosInstance.get('/register/check-username', { params: { username } });
+    return response.data;
+  },
+
+  checkEmail: async (email: string): Promise<{ available: boolean; message: string }> => {
+    const response = await axiosInstance.get('/register/check-email', { params: { email } });
+    return response.data;
+  },
+
+  register: async (username: string, email: string, password: string, verificationToken: string): Promise<LoginResponse> => {
+    const response = await axiosInstance.post<LoginResponse>('/register', {
+      username,
+      email,
+      password,
+      verification_token: verificationToken
+    });
+    return response.data;
+  },
+
+  requestPasswordReset: async (email: string): Promise<ApiResponse & { username?: string }> => {
+    const response = await axiosInstance.post<ApiResponse & { username?: string }>('/password/reset-request', { email });
+    return response.data;
+  },
+
+  resetPassword: async (token: string, newPassword: string): Promise<ApiResponse & { username?: string }> => {
+    const response = await axiosInstance.post<ApiResponse & { username?: string }>('/password/reset', {
+      token,
+      new_password: newPassword
+    });
+    return response.data;
+  },
+
   // ==================== 文本处理 ====================
 
   checkText: async (data: CheckTextRequest): Promise<CheckTextResponse> => {

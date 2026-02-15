@@ -38,7 +38,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 # 导入自定义模块
-from services import (
+from api_services import (
     generate_gemini_content_with_fallback,
     generate_gemini_content_stream,
     split_into_sentences,
@@ -48,15 +48,20 @@ from services import (
     contains_annotation_marker,
     chat_with_gemini
 )
+from services.email_service import email_service
+from services.verification_service import verification_service
 from exceptions import APIError, GeminiAPIError, GPTZeroAPIError, RateLimitError, ValidationError, api_error_handler
 from utils import RateLimiter, TextValidator, CacheManager
 from user_services.user_service import UserService
 from models.database import init_database, get_session_local
 from schemas import (
     LoginRequest, CheckTextRequest, RefineTextRequest, AIDetectionRequest,
-    UserInfo, AdminLoginRequest, UpdateUserRequest, AddUserRequest, ErrorResponse,
+    UserInfo, UserInfoWithEmail, AdminLoginRequest, UpdateUserRequest, AddUserRequest, ErrorResponse,
     AIChatRequest, AIChatResponse, StreamTranslationRequest, StreamTranslationChunk,
-    StreamRefineTextRequest, StreamRefineTextChunk
+    StreamRefineTextRequest, StreamRefineTextChunk,
+    SendVerificationRequest, VerifyEmailRequest, RegisterRequest,
+    PasswordResetRequest, ResetPasswordRequest, CheckUsernameRequest,
+    VerificationResponse, CheckUsernameResponse, CheckEmailResponse, PasswordResetResponse
 )
 from config import settings, is_expired
 from prompts import (
@@ -295,6 +300,364 @@ async def login(data: LoginRequest):
                 details={"username": data.username}
             ).dict()
         )
+
+# ==========================================
+# 用户注册和密码重置API
+# ==========================================
+
+@app.post("/api/register/send-verification")
+@api_error_handler
+async def send_verification_code(request: SendVerificationRequest):
+    """发送邮箱验证码
+
+    用于注册流程中的邮箱验证
+    """
+    logger.info(f"发送验证码请求: {request.email}")
+
+    # 检查邮箱格式
+    if "@" not in request.email or "." not in request.email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(
+                error_code="INVALID_EMAIL",
+                message="邮箱格式不正确",
+                details={"email": request.email}
+            ).dict()
+        )
+
+    # 检查速率限制
+    if verification_service.is_rate_limited(request.email, "verify"):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=ErrorResponse(
+                error_code="RATE_LIMIT_EXCEEDED",
+                message="验证码发送过于频繁，请稍后再试",
+                details={"email": request.email}
+            ).dict()
+        )
+
+    # 检查邮箱是否已被注册
+    user_info = user_service.get_user_by_email(request.email)
+    if user_info:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(
+                error_code="EMAIL_ALREADY_REGISTERED",
+                message="该邮箱已被注册",
+                details={"email": request.email}
+            ).dict()
+        )
+
+    # 生成验证码
+    verification_code = verification_service.generate_code()
+
+    # 存储验证码到缓存
+    verification_service.store_verification_code(request.email, verification_code)
+
+    # 发送邮件
+    email_sent = email_service.send_verification_code(request.email, verification_code)
+
+    if not email_sent:
+        # 邮件发送失败，但仍然返回成功（不暴露内部错误）
+        # 在实际生产环境中，可能需要记录错误并提供更详细的错误信息
+        logger.error(f"验证码邮件发送失败: {request.email}")
+        # 仍然返回成功，但提示用户检查邮箱或联系管理员
+        return VerificationResponse(
+            success=True,
+            message="验证码已生成，如果未收到邮件请检查邮箱或联系管理员"
+        )
+
+    logger.info(f"验证码发送成功: {request.email}")
+    return VerificationResponse(
+        success=True,
+        message="验证码已发送到您的邮箱，请查收"
+    )
+
+
+@app.post("/api/register/verify-email")
+@api_error_handler
+async def verify_email_code(request: VerifyEmailRequest):
+    """验证邮箱验证码
+
+    验证成功后返回一个临时令牌，用于后续注册步骤
+    """
+    logger.info(f"验证邮箱验证码: {request.email}")
+
+    # 验证验证码
+    is_valid, error_message = verification_service.verify_code(request.email, request.code)
+
+    if not is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(
+                error_code="INVALID_VERIFICATION_CODE",
+                message=error_message,
+                details={"email": request.email}
+            ).dict()
+        )
+
+    # 验证成功，生成临时令牌（用于后续注册）
+    verification_token = verification_service.generate_alphanumeric_code(32)
+    verification_service.store_verified_token(request.email, verification_token)
+
+    logger.info(f"邮箱验证成功: {request.email}")
+    return VerificationResponse(
+        success=True,
+        message="邮箱验证成功",
+        verification_token=verification_token
+    )
+
+
+@app.get("/api/register/check-username")
+@api_error_handler
+async def check_username_available(username: str):
+    """检查用户名是否可用
+
+    用于注册时的实时用户名验证
+    """
+    logger.info(f"检查用户名可用性: {username}")
+
+    is_available, message = user_service.check_username_available(username)
+
+    return CheckUsernameResponse(
+        available=is_available,
+        message=message
+    )
+
+
+@app.post("/api/register")
+@api_error_handler
+async def register_user(request: RegisterRequest):
+    """注册新用户
+
+    需要提供已验证邮箱的临时令牌
+    """
+    logger.info(f"注册请求: 用户名={request.username}, 邮箱={request.email}")
+
+    # 验证临时令牌（确保邮箱已验证）
+    is_valid, token_email = verification_service.verify_verified_token(request.verification_token)
+
+    if not is_valid or token_email != request.email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(
+                error_code="INVALID_VERIFICATION_TOKEN",
+                message="邮箱验证已过期或无效，请重新验证邮箱",
+                details={"email": request.email}
+            ).dict()
+        )
+
+    # 验证用户名可用性
+    is_available, username_message = user_service.check_username_available(request.username)
+    if not is_available:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(
+                error_code="USERNAME_UNAVAILABLE",
+                message=username_message,
+                details={"username": request.username}
+            ).dict()
+        )
+
+    # 验证邮箱可用性
+    email_available, email_message = user_service.check_email_available(request.email)
+    if not email_available:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(
+                error_code="EMAIL_UNAVAILABLE",
+                message=email_message,
+                details={"email": request.email}
+            ).dict()
+        )
+
+    # 注册用户（邮箱已验证）
+    success, error_message = user_service.register_user(
+        username=request.username,
+        email=request.email,
+        password=request.password,
+        email_verified=True  # 邮箱已验证
+    )
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(
+                error_code="REGISTRATION_FAILED",
+                message=error_message,
+                details={
+                    "username": request.username,
+                    "email": request.email
+                }
+            ).dict()
+        )
+
+    # 发送欢迎邮件（异步或后台任务）
+    try:
+        email_service.send_welcome_email(request.email, request.username)
+    except Exception as e:
+        logger.error(f"发送欢迎邮件失败: {e}")
+        # 不中断注册流程，仅记录错误
+
+    # 使用注册的用户自动登录
+    allowed, auth_message = user_service.authenticate_user(request.username, request.password)
+    if not allowed:
+        # 注册成功但自动登录失败，返回成功但需要用户手动登录
+        logger.warning(f"注册成功但自动登录失败: {request.username}, {auth_message}")
+        return VerificationResponse(
+            success=True,
+            message="注册成功，请使用用户名和密码登录"
+        )
+
+    # 创建JWT令牌
+    token_data = {"sub": request.username, "role": "user"}
+    access_token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
+
+    # 获取用户信息
+    user_info = user_service.get_user_info(request.username)
+    if user_info:
+        user_info["role"] = "user"
+
+    logger.info(f"用户注册成功并自动登录: {request.username}")
+    return {
+        "success": True,
+        "token": access_token,
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": user_info,
+        "message": "注册成功"
+    }
+
+
+@app.post("/api/password/reset-request")
+@api_error_handler
+async def request_password_reset(request: PasswordResetRequest):
+    """请求密码重置（发送重置链接）"""
+    logger.info(f"密码重置请求: {request.email}")
+
+    # 验证邮箱格式
+    if "@" not in request.email or "." not in request.email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(
+                error_code="INVALID_EMAIL",
+                message="邮箱格式不正确",
+                details={"email": request.email}
+            ).dict()
+        )
+
+    # 检查邮箱是否存在
+    success, error_message, username = user_service.request_password_reset(request.email)
+
+    if not success:
+        # 即使邮箱不存在，也返回成功（防止邮箱枚举攻击）
+        logger.info(f"密码重置请求处理: {request.email} - {error_message}")
+        return PasswordResetResponse(
+            success=True,
+            message="如果邮箱已注册，重置链接将发送到您的邮箱"
+        )
+
+    # 生成重置令牌
+    reset_token = verification_service.generate_alphanumeric_code(32)
+    verification_service.store_reset_token(request.email, reset_token)
+
+    # 发送重置邮件
+    email_sent = email_service.send_password_reset_link(request.email, reset_token)
+
+    if not email_sent:
+        logger.error(f"密码重置邮件发送失败: {request.email}")
+        # 仍然返回成功，不暴露内部错误
+        return PasswordResetResponse(
+            success=True,
+            message="重置请求已处理，如果未收到邮件请检查邮箱或联系管理员",
+            username=username
+        )
+
+    logger.info(f"密码重置邮件发送成功: {request.email}")
+    return PasswordResetResponse(
+        success=True,
+        message="密码重置链接已发送到您的邮箱，请查收",
+        username=username
+    )
+
+
+@app.post("/api/password/reset")
+@api_error_handler
+async def reset_password(request: ResetPasswordRequest):
+    """重置密码（使用重置令牌）"""
+    logger.info(f"重置密码请求")
+
+    # 验证重置令牌
+    email = verification_service.consume_reset_token(request.token)
+
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(
+                error_code="INVALID_RESET_TOKEN",
+                message="重置链接已过期或无效，请重新申请",
+                details={}
+            ).dict()
+        )
+
+    # 获取用户名
+    user_info = user_service.get_user_by_email(email)
+    if not user_info:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(
+                error_code="USER_NOT_FOUND",
+                message="用户不存在",
+                details={"email": email}
+            ).dict()
+        )
+
+    username = user_info["username"]
+
+    # 重置密码
+    success, error_message = user_service.reset_password(username, request.new_password)
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(
+                error_code="PASSWORD_RESET_FAILED",
+                message=error_message,
+                details={"username": username}
+            ).dict()
+        )
+
+    logger.info(f"密码重置成功: {username}")
+    return PasswordResetResponse(
+        success=True,
+        message="密码重置成功，请使用新密码登录",
+        username=username
+    )
+
+
+@app.get("/api/register/check-email")
+@api_error_handler
+async def check_email_available(email: str):
+    """检查邮箱是否可用
+
+    用于注册时的实时邮箱验证
+    """
+    logger.info(f"检查邮箱可用性: {email}")
+
+    # 验证邮箱格式
+    if "@" not in email or "." not in email:
+        return CheckEmailResponse(
+            available=False,
+            message="邮箱格式不正确"
+        )
+
+    email_available, message = user_service.check_email_available(email)
+
+    return CheckEmailResponse(
+        available=email_available,
+        message=message
+    )
+
 
 @app.get("/api/user/info")
 @api_error_handler

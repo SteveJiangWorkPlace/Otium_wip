@@ -57,6 +57,41 @@ class AddUserRequest(BaseModel):
     daily_ai_detection_limit: int = 10
 
 
+class SendVerificationRequest(BaseModel):
+    """发送验证码请求模型"""
+    email: str
+
+
+class VerifyEmailRequest(BaseModel):
+    """验证邮箱请求模型"""
+    email: str
+    code: str
+
+
+class RegisterRequest(BaseModel):
+    """注册请求模型"""
+    username: str
+    email: str
+    password: str
+    verification_token: str  # 邮箱验证成功后获得的令牌
+
+
+class PasswordResetRequest(BaseModel):
+    """密码重置请求模型"""
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    """重置密码请求模型"""
+    token: str  # 重置令牌
+    new_password: str
+
+
+class CheckUsernameRequest(BaseModel):
+    """检查用户名请求模型"""
+    username: str
+
+
 # ==========================================
 # 响应模型
 # ==========================================
@@ -72,6 +107,47 @@ class UserInfo(BaseModel):
     is_active: bool
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+
+
+class UserInfoWithEmail(BaseModel):
+    """带邮箱的用户信息模型"""
+    username: str
+    email: Optional[str] = None
+    email_verified: bool = False
+    daily_translation_limit: int
+    daily_ai_detection_limit: int
+    daily_translation_used: int
+    daily_ai_detection_used: int
+    is_admin: bool
+    is_active: bool
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class VerificationResponse(BaseModel):
+    """验证响应模型"""
+    success: bool
+    message: str
+    verification_token: Optional[str] = None  # 邮箱验证成功后的临时令牌
+
+
+class CheckUsernameResponse(BaseModel):
+    """检查用户名响应模型"""
+    available: bool
+    message: str
+
+
+class CheckEmailResponse(BaseModel):
+    """检查邮箱响应模型"""
+    available: bool
+    message: str
+
+
+class PasswordResetResponse(BaseModel):
+    """密码重置响应模型"""
+    success: bool
+    message: str
+    username: Optional[str] = None  # 重置成功的用户名
 
 
 class ErrorResponse(BaseModel):

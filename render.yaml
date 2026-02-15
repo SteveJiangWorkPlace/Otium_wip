@@ -64,6 +64,32 @@ services:
       - key: LOG_TO_CONSOLE
         value: true
 
+      # ==================== 邮件服务配置 ====================
+      - key: SMTP_HOST
+        value: smtp.sendgrid.net
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USERNAME
+        value: apikey
+      - key: SMTP_PASSWORD
+        sync: false  # Must be set manually in Render dashboard
+      - key: SMTP_FROM
+        value: noreply@example.com
+      - key: SMTP_TLS
+        value: "true"
+      - key: SMTP_SSL
+        value: "false"
+      - key: VERIFICATION_CODE_TTL
+        value: "600"
+      - key: RESET_TOKEN_TTL
+        value: "86400"
+      - key: MAX_VERIFICATION_ATTEMPTS
+        value: "3"
+      - key: EMAIL_VERIFICATION_REQUIRED
+        value: "true"
+      - key: FRONTEND_BASE_URL
+        value: https://otiumtrans.netlify.app
+
   # PostgreSQL Database
   - type: postgres
     name: otium-database
@@ -103,10 +129,12 @@ preDeployScript: |
   ls -la backend/
   echo "Python path:"
   python -c "import sys; print('\\n'.join(sys.path))"
-  echo "Running database initialization..."
+  echo "Running database migrations..."
   cd backend
-  python models/database.py
-  echo "Database initialized successfully"
+  # Run Alembic migrations
+  echo "Running: alembic upgrade head"
+  alembic upgrade head
+  echo "Database migrations completed successfully"
 
 # ============================================
 # Notes:

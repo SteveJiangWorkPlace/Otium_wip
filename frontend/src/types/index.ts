@@ -101,6 +101,41 @@ export interface AdminLoginRequest {
   password: string;
 }
 
+// 发送验证码请求
+export interface SendVerificationRequest {
+  email: string;
+}
+
+// 验证邮箱请求
+export interface VerifyEmailRequest {
+  email: string;
+  code: string;
+}
+
+// 注册请求
+export interface RegisterRequest {
+  username: string;
+  email: string;
+  password: string;
+  verification_token: string;
+}
+
+// 密码重置请求
+export interface PasswordResetRequest {
+  email: string;
+}
+
+// 重置密码请求
+export interface ResetPasswordRequest {
+  token: string;
+  new_password: string;
+}
+
+// 检查用户名请求
+export interface CheckUsernameRequest {
+  username: string;
+}
+
 // ==================== 响应类型 ====================
 
 // 文本处理响应
@@ -151,6 +186,47 @@ export interface UserInfo {
   is_active: boolean;
   created_at?: string;
   updated_at?: string;
+}
+
+// 带邮箱的用户信息
+export interface UserInfoWithEmail {
+  username: string;
+  email?: string;
+  email_verified?: boolean;
+  daily_translation_limit: number;
+  daily_ai_detection_limit: number;
+  daily_translation_used: number;
+  daily_ai_detection_used: number;
+  is_admin: boolean;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// 验证响应
+export interface VerificationResponse {
+  success: boolean;
+  message: string;
+  verification_token?: string;
+}
+
+// 检查用户名响应
+export interface CheckUsernameResponse {
+  available: boolean;
+  message: string;
+}
+
+// 检查邮箱响应
+export interface CheckEmailResponse {
+  available: boolean;
+  message: string;
+}
+
+// 密码重置响应
+export interface PasswordResetResponse {
+  success: boolean;
+  message: string;
+  username?: string;
 }
 
 // ==================== 管理员相关 ====================

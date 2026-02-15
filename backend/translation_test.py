@@ -26,7 +26,7 @@ try:
     from prompts_backup import build_academic_translate_prompt_original
     from prompts import build_academic_translate_prompt
     from config import settings
-    from services import generate_gemini_content_with_fallback, check_gptzero
+    from api_services import generate_gemini_content_with_fallback, check_gptzero
     from prompt_monitor import prompt_performance_monitor
 except ImportError as e:
     print(f"导入错误: {e}")
