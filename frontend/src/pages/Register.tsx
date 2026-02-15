@@ -97,11 +97,14 @@ const Register: React.FC = () => {
     setSendingCode(true)
     setEmailError('')
     setFormError('')
+    console.log('开始发送验证码，邮箱:', email)
 
     try {
       // 先检查邮箱是否可用
       setCheckingEmail(true)
+      console.log('检查邮箱是否可用:', email)
       const emailCheck = await apiClient.checkEmail(email)
+      console.log('邮箱检查结果:', emailCheck)
 
       if (!emailCheck.available) {
         setEmailError('该邮箱已被注册')
@@ -111,7 +114,9 @@ const Register: React.FC = () => {
       }
 
       // 发送验证码
+      console.log('发送验证码请求:', email)
       const response = await apiClient.sendVerificationCode(email)
+      console.log('验证码发送响应:', response)
       if (response.success) {
         setFormError('')
         setCountdown(60) // 60秒倒计时
@@ -121,6 +126,12 @@ const Register: React.FC = () => {
       }
     } catch (error: any) {
       console.error('发送验证码出错:', error)
+      console.error('错误详情:', {
+        message: error.message,
+        response: error.response,
+        status: error.response?.status,
+        data: error.response?.data
+      })
       let errorMessage = '发送验证码失败，请稍后重试'
       if (error?.message) {
         errorMessage = error.message
