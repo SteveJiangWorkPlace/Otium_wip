@@ -54,7 +54,7 @@ axiosInstance.interceptors.request.use(
     // 添加 API 密钥到请求头
     try {
       const apiKeysStr = localStorage.getItem('otium_api_keys');
-      console.log('请求拦截器 - localStorage中的otium_api_keys:', apiKeysStr ? '存在' : '不存在');
+      console.log('请求拦截器 - 检查用户自定义API密钥 (otium_api_keys):', apiKeysStr ? '已设置' : '未设置（使用后端默认密钥）');
 
       // 调试：列出所有localStorage项
       console.log('请求拦截器 - localStorage所有键:', Object.keys(localStorage));
@@ -88,7 +88,7 @@ axiosInstance.interceptors.request.use(
           console.log('请求拦截器 - gptzeroApiKey为空或未设置');
         }
       } else {
-        console.log('请求拦截器 - otium_api_keys在localStorage中未找到');
+        console.log('请求拦截器 - 用户自定义API密钥未设置，将使用后端默认API密钥');
       }
 
       // 调试：打印所有请求头

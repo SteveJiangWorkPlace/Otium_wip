@@ -28,16 +28,31 @@ class Settings:
     HOST: str = os.environ.get("HOST", "0.0.0.0")
     PORT: int = int(os.environ.get("PORT", "8000"))
 
-    # CORS配置
-    CORS_ORIGINS: List[str] = [
-        origin.strip() for origin in os.environ.get(
-            "CORS_ORIGINS",
-            "http://localhost:3000,http://localhost:8000,https://your-netlify-app.netlify.app"
-        ).split(",") if origin.strip()  # 过滤空字符串
-    ]
-    # 如果CORS_ORIGINS为空，添加默认值
+    # CORS配置 - 更健壮地解析环境变量
+    CORS_ORIGINS: List[str] = []
+    cors_origins_env = os.environ.get("CORS_ORIGINS", "")
+
+    if cors_origins_env:
+        # 支持逗号分隔的列表，同时清理每个项目
+        import re
+        # 使用正则表达式分割逗号，同时处理可能的空格
+        origins = re.split(r'\s*,\s*', cors_origins_env)
+        for origin in origins:
+            origin = origin.strip()
+            # 去除可能的引号
+            if origin.startswith('"') and origin.endswith('"'):
+                origin = origin[1:-1]
+            elif origin.startswith("'") and origin.endswith("'"):
+                origin = origin[1:-1]
+            if origin:  # 非空字符串
+                CORS_ORIGINS.append(origin)
+        logging.info(f"CORS_ORIGINS从环境变量解析: {CORS_ORIGINS}")
+
+    # 如果CORS_ORIGINS为空或未设置，使用默认值
     if not CORS_ORIGINS:
-        CORS_ORIGINS = ["http://localhost:3000", "http://localhost:8000", "https://your-netlify-app.netlify.app"]
+        default_origins = ["http://localhost:3000", "http://localhost:8000", "https://otiumtrans.netlify.app"]
+        CORS_ORIGINS = default_origins
+        logging.info(f"CORS_ORIGINS使用默认值: {CORS_ORIGINS}")
 
     # 环境配置
     ENVIRONMENT: str = os.environ.get("ENVIRONMENT", "development")
