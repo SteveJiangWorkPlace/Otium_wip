@@ -68,11 +68,11 @@ const UserInfoIcon: React.FC = () => {
             </div>
             <div className={styles.infoRow}>
               <span className={styles.infoLabel}>今日翻译次数:</span>
-              <span className={styles.infoValue}>{userInfo.daily_translation_used || 0}</span>
+              <span className={styles.infoValue}>{userInfo.daily_translation_used || 0}/{userInfo.daily_translation_limit || 0}</span>
             </div>
             <div className={styles.infoRow}>
               <span className={styles.infoLabel}>今日AI检测次数:</span>
-              <span className={styles.infoValue}>{userInfo.daily_ai_detection_used || 0}</span>
+              <span className={styles.infoValue}>{userInfo.daily_ai_detection_used || 0}/{userInfo.daily_ai_detection_limit || 0}</span>
             </div>
           </div>
         </div>
