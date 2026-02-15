@@ -191,13 +191,43 @@ logging.info(f"ADMIN_USERNAME 值: {os.environ.get('ADMIN_USERNAME', 'admin')}")
 logging.info(f"ADMIN_PASSWORD 长度: {len(os.environ.get('ADMIN_PASSWORD', 'admin123'))}")
 
 # CORS配置
+logging.info(f"CORS环境变量CORS_ORIGINS: {os.environ.get('CORS_ORIGINS', '未设置')}")
+logging.info(f"settings.CORS_ORIGINS值: {settings.CORS_ORIGINS}")
+
+# 硬编码允许的源列表，确保前端URL被允许
+hardcoded_origins = [
+    "https://otiumtrans.netlify.app",
+    "http://localhost:3000",
+    "http://localhost:8000",
+    "http://localhost:3001",
+    "http://localhost:8001",
+]
+
+# 合并settings.CORS_ORIGINS和硬编码源
+all_allowed_origins = list(set(hardcoded_origins + settings.CORS_ORIGINS))
+logging.info(f"合并后的允许源列表: {all_allowed_origins}")
+logging.info(f"前端URL 'https://otiumtrans.netlify.app' 在允许源中: {'https://otiumtrans.netlify.app' in all_allowed_origins}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=all_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 自定义中间件确保CORS头部正确设置
+@app.middleware("http")
+async def add_cors_headers(request: Request, call_next):
+    response = await call_next(request)
+    # 确保CORS头部存在
+    origin = request.headers.get("origin")
+    if origin and origin in all_allowed_origins:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Accept"
+    return response
 
 security = HTTPBearer()
 

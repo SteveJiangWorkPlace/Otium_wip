@@ -29,10 +29,15 @@ class Settings:
     PORT: int = int(os.environ.get("PORT", "8000"))
 
     # CORS配置
-    CORS_ORIGINS: List[str] = os.environ.get(
-        "CORS_ORIGINS",
-        "http://localhost:3000,http://localhost:8000,https://your-netlify-app.netlify.app"
-    ).split(",")
+    CORS_ORIGINS: List[str] = [
+        origin.strip() for origin in os.environ.get(
+            "CORS_ORIGINS",
+            "http://localhost:3000,http://localhost:8000,https://your-netlify-app.netlify.app"
+        ).split(",") if origin.strip()  # 过滤空字符串
+    ]
+    # 如果CORS_ORIGINS为空，添加默认值
+    if not CORS_ORIGINS:
+        CORS_ORIGINS = ["http://localhost:3000", "http://localhost:8000", "https://your-netlify-app.netlify.app"]
 
     # 环境配置
     ENVIRONMENT: str = os.environ.get("ENVIRONMENT", "development")
