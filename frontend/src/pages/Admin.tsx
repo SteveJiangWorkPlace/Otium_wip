@@ -25,8 +25,8 @@ const Admin: React.FC = () => {
   const [formData, setFormData] = useState({
     username: '',
     password: '',
-    daily_translation_limit: 10,
-    daily_ai_detection_limit: 10,
+    daily_translation_limit: 3,
+    daily_ai_detection_limit: 3,
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
@@ -67,8 +67,8 @@ const Admin: React.FC = () => {
     setFormData({
       username: '',
       password: '',
-      daily_translation_limit: 10,
-      daily_ai_detection_limit: 10,
+      daily_translation_limit: 3,
+      daily_ai_detection_limit: 3,
     });
     setFormErrors({});
     setModalVisible(true);
