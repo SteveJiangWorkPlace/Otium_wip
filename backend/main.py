@@ -75,6 +75,73 @@ from prompts import (
 # 加载环境变量
 load_dotenv()
 
+def run_migrations_if_needed():
+    """运行数据库迁移（如果可用）"""
+    try:
+        from alembic import command
+        from alembic.config import Config
+
+        # 获取alembic.ini路径
+        alembic_ini_path = os.path.join(os.path.dirname(__file__), "alembic.ini")
+        if not os.path.exists(alembic_ini_path):
+            logging.warning(f"alembic.ini未找到: {alembic_ini_path}")
+            return
+
+        # 创建配置
+        alembic_cfg = Config(alembic_ini_path)
+
+        # 运行迁移到最新版本
+        logging.info("运行数据库迁移...")
+        command.upgrade(alembic_cfg, "head")
+        logging.info("数据库迁移完成")
+    except ImportError as e:
+        logging.warning(f"alembic未安装，跳过迁移: {e}")
+    except Exception as e:
+        logging.error(f"数据库迁移失败: {e}")
+        logging.warning("迁移失败，应用将继续启动")
+
+    # 无论迁移是否成功，都尝试确保email列存在
+    ensure_email_column_exists()
+
+def ensure_email_column_exists():
+    """确保users表有email列（迁移失败时的后备方案）"""
+    try:
+        from models.database import get_engine
+        from sqlalchemy import inspect, text
+
+        engine = get_engine()
+        inspector = inspect(engine)
+
+        # 检查users表是否存在email列
+        columns = [col['name'] for col in inspector.get_columns('users')]
+        if 'email' in columns:
+            logging.debug("email列已存在")
+            return
+
+        logging.warning("users表缺少email列，尝试添加...")
+
+        # 根据数据库类型执行ALTER TABLE
+        from config import settings
+        if settings.DATABASE_TYPE == 'postgresql':
+            # PostgreSQL
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN email VARCHAR(255)"))
+                conn.execute(text("ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT false"))
+                conn.execute(text("CREATE INDEX ix_users_email ON users(email)"))
+                conn.commit()
+        else:
+            # SQLite
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN email VARCHAR(255)"))
+                conn.execute(text("ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT 0"))
+                conn.execute(text("CREATE INDEX ix_users_email ON users(email)"))
+                conn.commit()
+
+        logging.info("成功添加email列和email_verified列")
+    except Exception as e:
+        logging.error(f"添加email列失败: {e}")
+        # 不抛出异常，应用继续运行
+
 # 日志配置
 log_level_str = os.environ.get("LOG_LEVEL", "INFO").upper()
 log_level = getattr(logging, log_level_str, logging.INFO)
@@ -141,6 +208,8 @@ class ErrorResponse(BaseModel):
 try:
     init_database()
     logging.info("数据库初始化成功")
+    # 运行迁移以确保数据库模式最新
+    run_migrations_if_needed()
 except Exception as e:
     logging.error(f"数据库初始化失败: {e}")
     logging.warning("应用将在无数据库连接的情况下启动，部分功能可能不可用")

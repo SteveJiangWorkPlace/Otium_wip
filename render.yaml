@@ -121,6 +121,8 @@ envVarGroups:
 # Pre-deploy script to run database migrations
 preDeployScript: |
   #!/bin/bash
+  set -e
+  set -o pipefail
   echo "=== Pre-deploy script ==="
   echo "Current directory: $(pwd)"
   echo "Directory structure:"
