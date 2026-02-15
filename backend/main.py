@@ -216,33 +216,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 自定义中间件确保CORS头部正确设置
-@app.middleware("http")
-async def add_cors_headers(request: Request, call_next):
-    origin = request.headers.get("origin")
-    method = request.method
-    path = request.url.path
-
-    # 记录CORS相关信息
-    if origin:
-        is_allowed = origin in all_allowed_origins
-        logging.info(f"CORS检查: 方法={method}, 路径={path}, 来源={origin}, 允许={is_allowed}")
-    else:
-        logging.info(f"CORS检查: 方法={method}, 路径={path}, 无来源头部")
-
-    response = await call_next(request)
-
-    # 确保CORS头部存在
-    if origin and origin in all_allowed_origins:
-        response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Accept, X-Requested-With"
-        logging.info(f"CORS头部已添加: Access-Control-Allow-Origin={origin}")
-    elif origin:
-        logging.warning(f"CORS拒绝: 来源={origin} 不在允许列表中")
-
-    return response
 
 security = HTTPBearer()
 
