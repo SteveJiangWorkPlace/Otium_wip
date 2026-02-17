@@ -13,7 +13,6 @@
   gap: var(--spacing-3);
 }
 
-
 .inputCard {
   width: 100%;
 }
@@ -71,7 +70,6 @@
   position: relative;
   margin-bottom: var(--spacing-4);
 }
-
 
 .inputFooter {
   margin-top: var(--spacing-4);
@@ -499,7 +497,9 @@
 }
 
 @keyframes dotPulse {
-  0%, 60%, 100% {
+  0%,
+  60%,
+  100% {
     opacity: 0;
   }
   30% {
@@ -517,10 +517,12 @@
 }
 
 @keyframes cursorBlink {
-  0%, 50% {
+  0%,
+  50% {
     opacity: 1;
   }
-  51%, 100% {
+  51%,
+  100% {
     opacity: 0;
   }
 }

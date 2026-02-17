@@ -88,7 +88,6 @@
   border-left: 1px solid transparent;
 }
 
-
 /* 响应式设计 */
 @media (max-width: 768px) {
   .pageContainer {
@@ -113,9 +112,7 @@
   .aiPanelContainer.expanded {
     transform: translateX(0);
   }
-
 }
-
 
 .inputCard {
   width: 100%;
@@ -136,7 +133,6 @@
   line-height: var(--line-height-tight);
 }
 
-
 .textareaWrapper {
   position: relative;
   margin-bottom: var(--spacing-4);
@@ -150,7 +146,6 @@
   color: var(--color-text-secondary);
   padding: var(--spacing-1);
 }
-
 
 .inputFooter {
   margin-top: var(--spacing-4);
@@ -226,7 +221,9 @@
 }
 
 @keyframes dotPulse {
-  0%, 60%, 100% {
+  0%,
+  60%,
+  100% {
     opacity: 0;
   }
   30% {
@@ -281,7 +278,6 @@
     gap: var(--spacing-3);
   }
 
-
   .inputFooter {
     flex-direction: column;
     align-items: flex-start;
@@ -294,7 +290,8 @@
     gap: var(--spacing-3);
   }
 
-  .leftButtonGroup, .rightButtonGroup {
+  .leftButtonGroup,
+  .rightButtonGroup {
     justify-content: center;
     width: 100%;
   }

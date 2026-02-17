@@ -21,11 +21,11 @@ export const cleanTextFromMarkdown = (text: string): string => {
 
   // 去除行首的markdown符号
   cleaned = cleaned
-    .replace(/^\*\s+/gm, '')     // 去除行首的 "* "
-    .replace(/^>\s+/gm, '')      // 去除行首的 "> "
-    .replace(/^-\s+/gm, '')      // 去除行首的 "- "
-    .replace(/^\d+\.\s+/gm, '')  // 去除行首的 "1. "
-    .replace(/^#+\s+/gm, '');    // 去除行首的 "# "
+    .replace(/^\*\s+/gm, '') // 去除行首的 "* "
+    .replace(/^>\s+/gm, '') // 去除行首的 "> "
+    .replace(/^-\s+/gm, '') // 去除行首的 "- "
+    .replace(/^\d+\.\s+/gm, '') // 去除行首的 "1. "
+    .replace(/^#+\s+/gm, ''); // 去除行首的 "# "
 
   // 去除残留的单独*符号（不在成对标记内）
   cleaned = cleaned.replace(/(\s)\*(\s|$)/g, '$1$2');

@@ -5,10 +5,11 @@
 这是测试框架的起点，随着项目发展会添加更多测试。
 """
 
+import os
+import sys
+
 import pytest
 from fastapi.testclient import TestClient
-import sys
-import os
 
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -22,6 +23,7 @@ class TestHealthChecks:
         try:
             # 动态导入以捕获导入错误
             import main
+
             assert main is not None
             print("✓ 成功导入 main 模块")
         except ImportError as e:
@@ -31,6 +33,7 @@ class TestHealthChecks:
         """测试 FastAPI 应用创建"""
         try:
             from main import app
+
             assert app is not None
             assert app.title == "Otium API"
             print(f"✓ 应用标题: {app.title}")
@@ -41,6 +44,7 @@ class TestHealthChecks:
         """测试 TestClient 创建"""
         try:
             from main import app
+
             client = TestClient(app)
             assert client is not None
             print("✓ TestClient 创建成功")
@@ -55,6 +59,7 @@ class TestBasicEndpoints:
     def client(self):
         """创建测试客户端 fixture"""
         from main import app
+
         return TestClient(app)
 
     def test_root_endpoint(self, client):
@@ -96,11 +101,7 @@ class TestEnvironment:
 
     def test_required_env_vars(self):
         """检查必需的环境变量"""
-        required_vars = [
-            "SECRET_KEY",
-            "GEMINI_API_KEY",
-            "GPTZERO_API_KEY"
-        ]
+        required_vars = ["SECRET_KEY", "GEMINI_API_KEY", "GPTZERO_API_KEY"]
 
         for var in required_vars:
             value = os.environ.get(var)
@@ -115,6 +116,7 @@ class TestDependencies:
     def test_fastapi_version(self):
         """测试 FastAPI 版本"""
         import fastapi
+
         version = fastapi.__version__
         assert version is not None
         print(f"✓ FastAPI 版本: {version}")
@@ -123,6 +125,7 @@ class TestDependencies:
         """测试 Pydantic 可用性"""
         try:
             import pydantic
+
             assert pydantic.__version__ is not None
             print(f"✓ Pydantic 版本: {pydantic.__version__}")
         except ImportError:
@@ -132,6 +135,7 @@ class TestDependencies:
         """测试 python-jose 可用性"""
         try:
             from jose import jwt
+
             assert jwt is not None
             print("✓ python-jose 可用")
         except ImportError:
@@ -140,14 +144,14 @@ class TestDependencies:
 
 def test_run_all_health_checks():
     """运行所有健康检查的汇总测试"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("运行健康检查测试")
-    print("="*60)
+    print("=" * 60)
 
     # 这个测试会运行所有上面的检查
     # 如果到达这里，说明基本健康检查通过
     print("✅ 所有基础健康检查通过")
-    print("="*60)
+    print("=" * 60)
 
 
 if __name__ == "__main__":

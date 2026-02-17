@@ -5,16 +5,11 @@
 
 import subprocess
 import sys
-import os
 
 
 def install_dependencies():
     """安装依赖"""
-    dependencies = [
-        "sqlalchemy>=2.0.0",
-        "psycopg2-binary>=2.9.0",
-        "alembic>=1.13.0"
-    ]
+    dependencies = ["sqlalchemy>=2.0.0", "psycopg2-binary>=2.9.0", "alembic>=1.13.0"]
 
     print("安装数据库迁移依赖...")
 

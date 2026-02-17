@@ -1,17 +1,17 @@
-import React from 'react'
-import Toast, { ToastType } from './Toast'
-import styles from './Toast.module.css'
+import React from 'react';
+import Toast, { ToastType } from './Toast';
+import styles from './Toast.module.css';
 
 export interface ToastItem {
-  id: string
-  message: string
-  type: ToastType
-  duration?: number
+  id: string;
+  message: string;
+  type: ToastType;
+  duration?: number;
 }
 
 interface ToastContainerProps {
-  toasts: ToastItem[]
-  onClose: (id: string) => void
+  toasts: ToastItem[];
+  onClose: (id: string) => void;
 }
 
 const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onClose }) => {
@@ -28,7 +28,7 @@ const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onClose }) => {
         />
       ))}
     </div>
-  )
-}
+  );
+};
 
-export default ToastContainer
+export default ToastContainer;

@@ -3,15 +3,15 @@
 测试用户认证流程，模拟API调用。
 """
 
-import sys
 import os
-import json
+import sys
 from datetime import datetime
 
 # 添加当前目录到路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from fastapi.testclient import TestClient
+
 from main import app
 
 # 创建测试客户端
@@ -37,17 +37,15 @@ except Exception as e:
 print("\n[TEST] 管理员登录")
 try:
     from config import settings
-    login_data = {
-        "username": "admin",
-        "password": settings.ADMIN_PASSWORD  # 从配置读取密码
-    }
+
+    login_data = {"username": "admin", "password": settings.ADMIN_PASSWORD}  # 从配置读取密码
     response = client.post("/api/login", json=login_data)
     print(f"  状态码: {response.status_code}")
 
     if response.status_code == 200:
         result = response.json()
         admin_token = result.get("token")
-        print(f"  [OK] 管理员登录成功")
+        print("  [OK] 管理员登录成功")
         print(f"  令牌: {admin_token[:20]}...")
 
         # 保存令牌供后续测试使用
@@ -60,7 +58,7 @@ try:
 
             if response.status_code == 200:
                 user_info = response.json()
-                print(f"  [OK] 获取用户信息成功")
+                print("  [OK] 获取用户信息成功")
                 print(f"  用户名: {user_info.get('username')}")
                 print(f"  角色: {user_info.get('role')}")
                 print(f"  剩余翻译次数: {user_info.get('remaining_translations')}")
@@ -82,20 +80,21 @@ try:
         "username": f"test_user_{datetime.now().strftime('%H%M%S')}",
         "password": "test123",
         "expiry_date": "2026-12-31",
-        "max_translations": 100
+        "max_translations": 100,
     }
 
     print(f"  测试用户: {test_user_data['username']}")
 
     # 注意：实际API需要管理员认证，这里我们只是测试UserService
     from user_services.user_service import UserService
+
     user_service = UserService()
 
     success, message = user_service.add_user(
         test_user_data["username"],
         test_user_data["password"],
         test_user_data["expiry_date"],
-        test_user_data["max_translations"]
+        test_user_data["max_translations"],
     )
 
     if success:
@@ -104,8 +103,7 @@ try:
         # 测试5: 验证新用户
         print("\n[TEST] 验证新用户登录")
         allowed, auth_message = user_service.authenticate_user(
-            test_user_data["username"],
-            test_user_data["password"]
+            test_user_data["username"], test_user_data["password"]
         )
 
         if allowed:
@@ -114,12 +112,12 @@ try:
             # 测试6: 获取新用户信息
             user_info = user_service.get_user_info(test_user_data["username"])
             if user_info:
-                print(f"  [OK] 获取用户信息成功")
+                print("  [OK] 获取用户信息成功")
                 print(f"  过期日期: {user_info.get('expiry_date')}")
                 print(f"  最大翻译次数: {user_info.get('max_translations')}")
                 print(f"  剩余翻译次数: {user_info.get('remaining_translations')}")
             else:
-                print(f"  [FAIL] 获取用户信息失败")
+                print("  [FAIL] 获取用户信息失败")
         else:
             print(f"  [FAIL] 用户验证失败: {auth_message}")
     else:
@@ -128,12 +126,14 @@ try:
 except Exception as e:
     print(f"  [FAIL] 添加用户测试异常: {e}")
     import traceback
+
     traceback.print_exc()
 
 # 测试7: 测试错误密码
 print("\n[TEST] 测试错误密码验证")
 try:
     from user_services.user_service import UserService
+
     user_service = UserService()
 
     allowed, message = user_service.authenticate_user("admin", "wrong_password")
@@ -141,7 +141,7 @@ try:
     if not allowed:
         print(f"  [OK] 错误密码验证失败（预期行为）: {message}")
     else:
-        print(f"  [FAIL] 错误密码验证不应该成功")
+        print("  [FAIL] 错误密码验证不应该成功")
 
 except Exception as e:
     print(f"  [FAIL] 错误密码测试异常: {e}")
@@ -150,6 +150,7 @@ except Exception as e:
 print("\n[TEST] 测试不存在的用户")
 try:
     from user_services.user_service import UserService
+
     user_service = UserService()
 
     allowed, message = user_service.authenticate_user("non_existent_user_12345", "password")
@@ -157,7 +158,7 @@ try:
     if not allowed:
         print(f"  [OK] 不存在的用户验证失败（预期行为）: {message}")
     else:
-        print(f"  [FAIL] 不存在的用户验证不应该成功")
+        print("  [FAIL] 不存在的用户验证不应该成功")
 
 except Exception as e:
     print(f"  [FAIL] 不存在的用户测试异常: {e}")

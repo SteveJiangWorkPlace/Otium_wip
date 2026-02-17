@@ -4,9 +4,9 @@
 集中管理所有环境变量、应用配置和常量。
 """
 
-import os
 import logging
-from typing import List, Optional
+import os
+
 from dotenv import load_dotenv
 
 # 加载环境变量
@@ -16,6 +16,7 @@ load_dotenv()
 # ==========================================
 # 应用配置
 # ==========================================
+
 
 class Settings:
     """应用配置类"""
@@ -29,14 +30,15 @@ class Settings:
     PORT: int = int(os.environ.get("PORT", "8000"))
 
     # CORS配置 - 更健壮地解析环境变量
-    CORS_ORIGINS: List[str] = []
+    CORS_ORIGINS: list[str] = []
     cors_origins_env = os.environ.get("CORS_ORIGINS", "")
 
     if cors_origins_env:
         # 支持逗号分隔的列表，同时清理每个项目
         import re
+
         # 使用正则表达式分割逗号，同时处理可能的空格
-        origins = re.split(r'\s*,\s*', cors_origins_env)
+        origins = re.split(r"\s*,\s*", cors_origins_env)
         for origin in origins:
             origin = origin.strip()
             # 去除可能的引号
@@ -50,7 +52,11 @@ class Settings:
 
     # 如果CORS_ORIGINS为空或未设置，使用默认值
     if not CORS_ORIGINS:
-        default_origins = ["http://localhost:3000", "http://localhost:8000", "https://otiumtrans.netlify.app"]
+        default_origins = [
+            "http://localhost:3000",
+            "http://localhost:8000",
+            "https://otiumtrans.netlify.app",
+        ]
         CORS_ORIGINS = default_origins
         logging.info(f"CORS_ORIGINS使用默认值: {CORS_ORIGINS}")
 
@@ -60,8 +66,7 @@ class Settings:
 
     # JWT配置
     SECRET_KEY: str = os.environ.get("JWT_SECRET_KEY") or os.environ.get(
-        "SECRET_KEY",
-        "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92"
+        "SECRET_KEY", "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92"
     )
     ALGORITHM: str = os.environ.get("ALGORITHM", "HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
@@ -94,13 +99,23 @@ class Settings:
 
     # 日志配置
     LOG_LEVEL: str = os.environ.get("LOG_LEVEL", "INFO").upper()
-    LOG_FILE: Optional[str] = os.environ.get("LOG_FILE")
+    LOG_FILE: str | None = os.environ.get("LOG_FILE")
     LOG_TO_CONSOLE: bool = os.environ.get("LOG_TO_CONSOLE", "True").lower() in ("true", "1", "yes")
 
     # 功能开关
-    ENABLE_AI_DETECTION: bool = os.environ.get("ENABLE_AI_DETECTION", "True").lower() in ("true", "1", "yes")
-    ENABLE_TEXT_REFINEMENT: bool = os.environ.get("ENABLE_TEXT_REFINEMENT", "True").lower() in ("true", "1", "yes")
-    ENABLE_TRANSLATION_DIRECTIVES: bool = os.environ.get("ENABLE_TRANSLATION_DIRECTIVES", "True").lower() in ("true", "1", "yes")
+    ENABLE_AI_DETECTION: bool = os.environ.get("ENABLE_AI_DETECTION", "True").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    ENABLE_TEXT_REFINEMENT: bool = os.environ.get("ENABLE_TEXT_REFINEMENT", "True").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    ENABLE_TRANSLATION_DIRECTIVES: bool = os.environ.get(
+        "ENABLE_TRANSLATION_DIRECTIVES", "True"
+    ).lower() in ("true", "1", "yes")
 
     # 邮件服务配置
     EMAIL_PROVIDER: str = os.environ.get("EMAIL_PROVIDER", "resend")  # resend, smtp
@@ -123,7 +138,9 @@ class Settings:
     VERIFICATION_CODE_TTL: int = int(os.environ.get("VERIFICATION_CODE_TTL", "600"))  # 10分钟
     RESET_TOKEN_TTL: int = int(os.environ.get("RESET_TOKEN_TTL", "86400"))  # 24小时
     MAX_VERIFICATION_ATTEMPTS: int = int(os.environ.get("MAX_VERIFICATION_ATTEMPTS", "3"))
-    EMAIL_VERIFICATION_REQUIRED: bool = os.environ.get("EMAIL_VERIFICATION_REQUIRED", "true").lower() in ("true", "1", "yes")
+    EMAIL_VERIFICATION_REQUIRED: bool = os.environ.get(
+        "EMAIL_VERIFICATION_REQUIRED", "true"
+    ).lower() in ("true", "1", "yes")
 
     # 前端URL配置（用于重置密码链接）
     FRONTEND_BASE_URL: str = os.environ.get("FRONTEND_BASE_URL", "http://localhost:3000")
@@ -191,6 +208,7 @@ settings = Settings()
 # 日志配置
 # ==========================================
 
+
 def setup_logging():
     """设置日志配置"""
     log_level_str = settings.LOG_LEVEL
@@ -203,7 +221,7 @@ def setup_logging():
     if settings.LOG_TO_CONSOLE:
         console_handler = logging.StreamHandler()
         console_handler.setLevel(log_level)
-        console_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        console_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
         console_handler.setFormatter(console_formatter)
         handlers.append(console_handler)
 
@@ -211,15 +229,15 @@ def setup_logging():
     if settings.LOG_FILE:
         file_handler = logging.FileHandler(settings.LOG_FILE)
         file_handler.setLevel(log_level)
-        file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        file_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
         file_handler.setFormatter(file_formatter)
         handlers.append(file_handler)
 
     # 基础配置
     logging.basicConfig(
         level=log_level,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        handlers=handlers if handlers else None
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        handlers=handlers if handlers else None,
     )
 
     logging.info(f"日志级别设置为: {log_level_str} ({log_level})")
@@ -231,18 +249,19 @@ def setup_logging():
 # 辅助函数
 # ==========================================
 
+
 def is_expired(expiry_date_str: str) -> bool:
     """检查日期是否已过期"""
     from datetime import datetime
 
     try:
         # 尝试标准格式
-        expiry_date = datetime.strptime(expiry_date_str, '%Y-%m-%d')
+        expiry_date = datetime.strptime(expiry_date_str, "%Y-%m-%d")
         return expiry_date.date() < datetime.now().date()
     except ValueError:
         try:
             # 尝试其他常见格式
-            for fmt in ['%Y/%m/%d', '%d-%m-%Y', '%d/%m/%Y', '%m-%d-%Y', '%m/%d/%Y']:
+            for fmt in ["%Y/%m/%d", "%d-%m-%Y", "%d/%m/%Y", "%m-%d-%Y", "%m/%d/%Y"]:
                 try:
                     expiry_date = datetime.strptime(expiry_date_str, fmt)
                     return expiry_date.date() < datetime.now().date()
@@ -282,24 +301,20 @@ SHORTCUT_ANNOTATIONS = {
     "sum": "summarize text",
     "tone": "adjust tone",
     "coh": "improve coherence",
-    "flu": "improve fluency"
+    "flu": "improve fluency",
 }
 
 # API端点常量
 API_PREFIX = "/api"
 
 # 默认用户配置
-DEFAULT_USER_CONFIG = {
-    "max_translations": 100,
-    "used_translations": 0,
-    "expiry_date": "2099-12-31"
-}
+DEFAULT_USER_CONFIG = {"max_translations": 100, "used_translations": 0, "expiry_date": "2099-12-31"}
 
 # 文本处理操作类型
 TEXT_OPERATIONS = {
     "error_check": "错误检查",
     "translate_us": "美式英语翻译",
-    "translate_uk": "英式英语翻译"
+    "translate_uk": "英式英语翻译",
 }
 
 # 版本类型

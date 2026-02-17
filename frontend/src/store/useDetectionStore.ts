@@ -23,11 +23,12 @@ export const useDetectionStore = create<DetectionState>()(
       setInputText: (text: string) => set({ inputText: text }),
       setDetectionResult: (result: AIDetectionResponse | null) => set({ detectionResult: result }),
       setShouldDetect: (should: boolean) => set({ shouldDetect: should }),
-      clear: () => set({
-        inputText: '',
-        detectionResult: null,
-        shouldDetect: false
-      }),
+      clear: () =>
+        set({
+          inputText: '',
+          detectionResult: null,
+          shouldDetect: false,
+        }),
     }),
     {
       name: 'detection-storage',

@@ -5,21 +5,17 @@
 保持相同的API接口，实现向后兼容。
 """
 
-import os
 import json
 import logging
 import threading
-from datetime import datetime, date
-from typing import Dict, List, Any, Optional, Tuple
+from datetime import date, datetime
+from typing import Any
 
-from sqlalchemy.orm import Session
 from sqlalchemy import func
+from sqlalchemy.orm import Session
 
-from config import settings, is_expired
-from models.database import (
-    get_db, User, UserUsage, TranslationRecord,
-    hash_password, verify_password, create_admin_user
-)
+from config import settings
+from models.database import TranslationRecord, User, UserUsage, hash_password, verify_password
 
 
 class UserService:
@@ -38,17 +34,19 @@ class UserService:
     def _ensure_admin_user(self):
         """确保管理员用户存在"""
         from models.database import ensure_admin_user_exists
+
         ensure_admin_user_exists()
 
     def _get_db_session(self) -> Session:
         """获取数据库会话（独立会话）"""
         from models.database import get_session_local
+
         SessionLocal = get_session_local()
         return SessionLocal()
 
-    def authenticate_user(self, username: str, password: Optional[str] = None) -> Tuple[bool, str]:
+    def authenticate_user(self, username: str, password: str | None = None) -> tuple[bool, str]:
         """验证用户（对应原is_user_allowed方法）"""
-        logging.info(f"=== 登录验证开始 ===")
+        logging.info("=== 登录验证开始 ===")
         logging.info(f"用户名: {username}")
         logging.info(f"输入密码: {'*****' if password else 'None'}")
 
@@ -68,10 +66,10 @@ class UserService:
 
             if password is not None:
                 if not verify_password(password, user.password_hash):
-                    logging.error(f"密码不匹配！")
+                    logging.error("密码不匹配！")
                     return False, "密码错误"
 
-            logging.info(f"密码验证通过！")
+            logging.info("密码验证通过！")
 
             # 检查账户有效性（仅检查是否被禁用）
             if not user.is_active:
@@ -85,12 +83,18 @@ class UserService:
         finally:
             db.close()
 
-    def record_usage(self, username: str, operation_type: str = "translation", text_length: Optional[int] = None, metadata: Optional[Dict] = None) -> int:
+    def record_usage(
+        self,
+        username: str,
+        operation_type: str = "translation",
+        text_length: int | None = None,
+        metadata: dict | None = None,
+    ) -> int:
         """记录一次使用（翻译、AI检测等）"""
         # 添加类型检查和转换
-        if hasattr(username, 'username'):
+        if hasattr(username, "username"):
             username = username.username
-        elif not isinstance(username, (str, int)):
+        elif not isinstance(username, str | int):
             username = str(username)
 
         # 使用线程锁确保原子操作
@@ -118,14 +122,20 @@ class UserService:
                     limit_type = "操作"
 
                 # 查询今日该操作类型的记录数
-                daily_count = db.query(TranslationRecord).filter(
-                    TranslationRecord.user_id == user.id,
-                    func.date(TranslationRecord.created_at) == today,
-                    TranslationRecord.operation_type == operation_type
-                ).count()
+                daily_count = (
+                    db.query(TranslationRecord)
+                    .filter(
+                        TranslationRecord.user_id == user.id,
+                        func.date(TranslationRecord.created_at) == today,
+                        TranslationRecord.operation_type == operation_type,
+                    )
+                    .count()
+                )
 
                 if daily_count >= daily_limit:
-                    logging.warning(f"用户 {username} 今日{limit_type}次数已达上限 ({daily_limit} 次)")
+                    logging.warning(
+                        f"用户 {username} 今日{limit_type}次数已达上限 ({daily_limit} 次)"
+                    )
                     raise ValueError(f"今日{limit_type}次数已达上限 ({daily_limit} 次)，请明天再试")
 
                 # 获取或创建使用记录
@@ -148,14 +158,16 @@ class UserService:
                     user_id=user.id,
                     operation_type=operation_type,
                     text_length=text_length,
-                    record_metadata=metadata_json
+                    record_metadata=metadata_json,
                 )
                 db.add(record)
 
                 db.commit()
 
                 new_count = usage.translations_count
-                logging.info(f"记录使用({operation_type}): 用户 {username}, 之前总次数: {previous_count}, 现在总次数: {new_count}")
+                logging.info(
+                    f"记录使用({operation_type}): 用户 {username}, 之前总次数: {previous_count}, 现在总次数: {new_count}"
+                )
                 logging.info(f"使用记录保存成功: 用户 {username}, 总使用次数: {new_count}")
 
                 # 不再计算和返回剩余次数，现在只使用每日限制
@@ -164,17 +176,19 @@ class UserService:
 
             except Exception as e:
                 db.rollback()
-                logging.error(f"保存使用记录失败，数据可能丢失！用户: {username}, 操作类型: {operation_type}, 错误: {str(e)}")
-                raise RuntimeError(f"无法保存使用记录: {str(e)}")
+                logging.error(
+                    f"保存使用记录失败，数据可能丢失！用户: {username}, 操作类型: {operation_type}, 错误: {str(e)}"
+                )
+                raise RuntimeError(f"无法保存使用记录: {str(e)}") from e
             finally:
                 db.close()
 
-    def get_user_info(self, username: str) -> Optional[Dict[str, Any]]:
+    def get_user_info(self, username: str) -> dict[str, Any] | None:
         """获取用户信息"""
         # 添加类型检查和转换
-        if hasattr(username, 'username'):
+        if hasattr(username, "username"):
             username = username.username
-        elif not isinstance(username, (str, int)):
+        elif not isinstance(username, str | int):
             username = str(username)
 
         db = self._get_db_session()
@@ -188,20 +202,30 @@ class UserService:
 
             # 获取今日使用统计
             today = datetime.utcnow().date()
-            daily_translation_used = db.query(TranslationRecord).filter(
-                TranslationRecord.user_id == user.id,
-                func.date(TranslationRecord.created_at) == today,
-                TranslationRecord.operation_type.in_(["translate_us", "translate_uk"])
-            ).count()
+            daily_translation_used = (
+                db.query(TranslationRecord)
+                .filter(
+                    TranslationRecord.user_id == user.id,
+                    func.date(TranslationRecord.created_at) == today,
+                    TranslationRecord.operation_type.in_(["translate_us", "translate_uk"]),
+                )
+                .count()
+            )
 
-            daily_ai_detection_used = db.query(TranslationRecord).filter(
-                TranslationRecord.user_id == user.id,
-                func.date(TranslationRecord.created_at) == today,
-                TranslationRecord.operation_type == "ai_detection"
-            ).count()
+            daily_ai_detection_used = (
+                db.query(TranslationRecord)
+                .filter(
+                    TranslationRecord.user_id == user.id,
+                    func.date(TranslationRecord.created_at) == today,
+                    TranslationRecord.operation_type == "ai_detection",
+                )
+                .count()
+            )
 
             logging.info(f"获取用户信息: {username}")
-            logging.info(f"今日使用: 翻译 {daily_translation_used}/{user.daily_translation_limit} 次, AI检测 {daily_ai_detection_used}/{user.daily_ai_detection_limit} 次")
+            logging.info(
+                f"今日使用: 翻译 {daily_translation_used}/{user.daily_translation_limit} 次, AI检测 {daily_ai_detection_used}/{user.daily_ai_detection_limit} 次"
+            )
 
             return {
                 "username": username,
@@ -212,13 +236,19 @@ class UserService:
                 "is_admin": user.is_admin,
                 "is_active": user.is_active,
                 "created_at": user.created_at.isoformat() if user.created_at else None,
-                "updated_at": user.updated_at.isoformat() if user.updated_at else None
+                "updated_at": user.updated_at.isoformat() if user.updated_at else None,
             }
 
         finally:
             db.close()
 
-    def update_user(self, username: str, password: Optional[str] = None, daily_translation_limit: Optional[int] = None, daily_ai_detection_limit: Optional[int] = None) -> Tuple[bool, str]:
+    def update_user(
+        self,
+        username: str,
+        password: str | None = None,
+        daily_translation_limit: int | None = None,
+        daily_ai_detection_limit: int | None = None,
+    ) -> tuple[bool, str]:
         """更新用户信息（密码和每日限制）"""
         db = self._get_db_session()
         try:
@@ -246,7 +276,13 @@ class UserService:
         finally:
             db.close()
 
-    def add_user(self, username: str, password: str, daily_translation_limit: int = 10, daily_ai_detection_limit: int = 10) -> Tuple[bool, str]:
+    def add_user(
+        self,
+        username: str,
+        password: str,
+        daily_translation_limit: int = 10,
+        daily_ai_detection_limit: int = 10,
+    ) -> tuple[bool, str]:
         """添加新用户"""
         db = self._get_db_session()
         try:
@@ -267,7 +303,7 @@ class UserService:
                 daily_translation_limit=daily_translation_limit,
                 daily_ai_detection_limit=daily_ai_detection_limit,
                 is_admin=False,
-                is_active=True
+                is_active=True,
             )
             db.add(new_user)
             db.flush()  # 获取用户ID
@@ -286,7 +322,7 @@ class UserService:
         finally:
             db.close()
 
-    def get_all_users(self) -> List[Dict[str, Any]]:
+    def get_all_users(self) -> list[dict[str, Any]]:
         """获取所有用户信息"""
         db = self._get_db_session()
         try:
@@ -303,7 +339,7 @@ class UserService:
         finally:
             db.close()
 
-    def get_user_usage_stats(self, username: str) -> Optional[Dict[str, Any]]:
+    def get_user_usage_stats(self, username: str) -> dict[str, Any] | None:
         """获取用户使用统计（扩展功能）"""
         db = self._get_db_session()
         try:
@@ -317,24 +353,30 @@ class UserService:
                 return {
                     "translations_count": 0,
                     "last_translation_at": None,
-                    "translation_records": []
+                    "translation_records": [],
                 }
 
             # 获取最近的翻译记录
-            records = db.query(TranslationRecord).filter(
-                TranslationRecord.user_id == user.id
-            ).order_by(TranslationRecord.created_at.desc()).limit(10).all()
+            records = (
+                db.query(TranslationRecord)
+                .filter(TranslationRecord.user_id == user.id)
+                .order_by(TranslationRecord.created_at.desc())
+                .limit(10)
+                .all()
+            )
 
             return {
                 "translations_count": usage.translations_count,
-                "last_translation_at": usage.last_translation_at.isoformat() if usage.last_translation_at else None,
-                "translation_records": [record.to_dict() for record in records]
+                "last_translation_at": (
+                    usage.last_translation_at.isoformat() if usage.last_translation_at else None
+                ),
+                "translation_records": [record.to_dict() for record in records],
             }
 
         finally:
             db.close()
 
-    def reset_user_usage(self, username: str) -> Tuple[bool, str]:
+    def reset_user_usage(self, username: str) -> tuple[bool, str]:
         """重置用户使用次数（管理员功能）"""
         db = self._get_db_session()
         try:
@@ -359,7 +401,7 @@ class UserService:
         finally:
             db.close()
 
-    def deactivate_user(self, username: str) -> Tuple[bool, str]:
+    def deactivate_user(self, username: str) -> tuple[bool, str]:
         """禁用用户"""
         db = self._get_db_session()
         try:
@@ -382,7 +424,7 @@ class UserService:
         finally:
             db.close()
 
-    def activate_user(self, username: str) -> Tuple[bool, str]:
+    def activate_user(self, username: str) -> tuple[bool, str]:
         """启用用户"""
         db = self._get_db_session()
         try:
@@ -402,7 +444,9 @@ class UserService:
         finally:
             db.close()
 
-    def register_user(self, username: str, email: str, password: str, email_verified: bool = False) -> Tuple[bool, str]:
+    def register_user(
+        self, username: str, email: str, password: str, email_verified: bool = False
+    ) -> tuple[bool, str]:
         """注册新用户
 
         Args:
@@ -455,7 +499,7 @@ class UserService:
                 daily_translation_limit=settings.DAILY_TRANSLATION_LIMIT,  # 使用默认配置
                 daily_ai_detection_limit=settings.DAILY_AI_DETECTION_LIMIT,  # 使用默认配置
                 is_admin=False,
-                is_active=True
+                is_active=True,
             )
             db.add(new_user)
             db.flush()  # 获取用户ID
@@ -475,7 +519,9 @@ class UserService:
         finally:
             db.close()
 
-    def update_user_email(self, username: str, email: str, email_verified: bool = False) -> Tuple[bool, str]:
+    def update_user_email(
+        self, username: str, email: str, email_verified: bool = False
+    ) -> tuple[bool, str]:
         """更新用户邮箱
 
         Args:
@@ -498,7 +544,9 @@ class UserService:
                 return False, "邮箱格式不正确"
 
             # 检查邮箱是否已被其他用户使用
-            existing_email = db.query(User).filter(User.email == email, User.username != username).first()
+            existing_email = (
+                db.query(User).filter(User.email == email, User.username != username).first()
+            )
             if existing_email:
                 return False, "邮箱已被其他用户使用"
 
@@ -516,7 +564,7 @@ class UserService:
         finally:
             db.close()
 
-    def verify_user_email(self, username: str) -> Tuple[bool, str]:
+    def verify_user_email(self, username: str) -> tuple[bool, str]:
         """验证用户邮箱（标记为已验证）
 
         Args:
@@ -548,7 +596,7 @@ class UserService:
         finally:
             db.close()
 
-    def request_password_reset(self, email: str) -> Tuple[bool, str, Optional[str]]:
+    def request_password_reset(self, email: str) -> tuple[bool, str, str | None]:
         """请求密码重置（验证邮箱存在性）
 
         Args:
@@ -577,7 +625,7 @@ class UserService:
         finally:
             db.close()
 
-    def reset_password(self, username: str, new_password: str) -> Tuple[bool, str]:
+    def reset_password(self, username: str, new_password: str) -> tuple[bool, str]:
         """重置用户密码
 
         Args:
@@ -615,7 +663,7 @@ class UserService:
         finally:
             db.close()
 
-    def get_user_by_email(self, email: str) -> Optional[Dict[str, Any]]:
+    def get_user_by_email(self, email: str) -> dict[str, Any] | None:
         """通过邮箱获取用户信息
 
         Args:
@@ -637,13 +685,13 @@ class UserService:
                 "email_verified": user.email_verified,
                 "is_admin": user.is_admin,
                 "is_active": user.is_active,
-                "created_at": user.created_at.isoformat() if user.created_at else None
+                "created_at": user.created_at.isoformat() if user.created_at else None,
             }
 
         finally:
             db.close()
 
-    def check_username_available(self, username: str) -> Tuple[bool, str]:
+    def check_username_available(self, username: str) -> tuple[bool, str]:
         """检查用户名是否可用
 
         Args:
@@ -660,7 +708,8 @@ class UserService:
 
         # 检查是否包含非法字符（仅允许字母、数字、下划线、连字符）
         import re
-        if not re.match(r'^[a-zA-Z0-9_-]+$', username):
+
+        if not re.match(r"^[a-zA-Z0-9_-]+$", username):
             return False, "用户名只能包含字母、数字、下划线和连字符"
 
         db = self._get_db_session()
@@ -674,7 +723,7 @@ class UserService:
         finally:
             db.close()
 
-    def check_email_available(self, email: str) -> Tuple[bool, str]:
+    def check_email_available(self, email: str) -> tuple[bool, str]:
         """检查邮箱是否可用
 
         Args:

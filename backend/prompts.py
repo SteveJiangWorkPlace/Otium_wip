@@ -22,29 +22,29 @@ Prompt构建模块（生产版本）
 
 import re
 import time
-from typing import List, Dict, Any, Optional
+from typing import Any
 
 # 导入原始函数（从备份文件）
 try:
     # 相对导入（当作为包的一部分时）
-    from .prompts_backup import (
-        SHORTCUT_ANNOTATIONS_ORIGINAL,
-        build_error_check_prompt_original,
-        build_academic_translate_prompt_original,
-        build_english_refine_prompt_original
-    )
     from .prompt_cache import prompt_cache_manager
     from .prompt_monitor import prompt_performance_monitor
+    from .prompts_backup import (
+        SHORTCUT_ANNOTATIONS_ORIGINAL,
+        build_academic_translate_prompt_original,
+        build_english_refine_prompt_original,
+        build_error_check_prompt_original,
+    )
 except ImportError:
     # 绝对导入（当直接运行时）
-    from prompts_backup import (
-        SHORTCUT_ANNOTATIONS_ORIGINAL,
-        build_error_check_prompt_original,
-        build_academic_translate_prompt_original,
-        build_english_refine_prompt_original
-    )
     from prompt_cache import prompt_cache_manager
     from prompt_monitor import prompt_performance_monitor
+    from prompts_backup import (
+        SHORTCUT_ANNOTATIONS_ORIGINAL,
+        build_academic_translate_prompt_original,
+        build_english_refine_prompt_original,
+        build_error_check_prompt_original,
+    )
 
 
 # ==========================================
@@ -123,7 +123,7 @@ SHORTCUT_ANNOTATIONS_MODIFIED = {
    - Add filler words: just, really, kind of, sort of
    - Occasionally use informal starters: "The thing is," "What I'm trying to say is,"
 
-The final text should be a natural blend of formal knowledge and a more personal voice, preserving the core ideas of the original. Aim for 40-70% replacement rate, don't change everything."""
+The final text should be a natural blend of formal knowledge and a more personal voice, preserving the core ideas of the original. Aim for 40-70% replacement rate, don't change everything.""",
 }
 
 
@@ -131,7 +131,10 @@ The final text should be a natural blend of formal knowledge and a more personal
 # 智能纠错提示词构建
 # ==========================================
 
-def build_error_check_prompt(chinese_text: str, template_version: str = DEFAULT_TEMPLATE_VERSION) -> str:
+
+def build_error_check_prompt(
+    chinese_text: str, template_version: str = DEFAULT_TEMPLATE_VERSION
+) -> str:
     """
     构建用于智能纠错的提示词（生产版本）
 
@@ -151,9 +154,7 @@ def build_error_check_prompt(chinese_text: str, template_version: str = DEFAULT_
     # 记录性能
     build_time = time.time() - start_time
     prompt_performance_monitor.record_function_call(
-        func_name="build_error_check_prompt",
-        build_time=build_time,
-        prompt_length=len(prompt)
+        func_name="build_error_check_prompt", build_time=build_time, prompt_length=len(prompt)
     )
 
     return prompt
@@ -163,12 +164,13 @@ def build_error_check_prompt(chinese_text: str, template_version: str = DEFAULT_
 # 学术翻译提示词构建
 # ==========================================
 
+
 def build_academic_translate_prompt(
     chinese_text: str,
     style: str = "US",
     version: str = "professional",
     template_version: str = TRANSLATION_TEMPLATE_VERSION,
-    use_cache: bool = True
+    use_cache: bool = True,
 ) -> str:
     """
     构建翻译提示词（生产版本）
@@ -189,10 +191,7 @@ def build_academic_translate_prompt(
     # 缓存检查
     if use_cache:
         cached_prompt = prompt_cache_manager.get(
-            text=chinese_text,
-            style=style,
-            version=version,
-            template_version=template_version
+            text=chinese_text, style=style, version=version, template_version=template_version
         )
 
         if cached_prompt is not None:
@@ -204,7 +203,7 @@ def build_academic_translate_prompt(
             prompt_performance_monitor.record_function_call(
                 func_name="build_academic_translate_prompt",
                 build_time=build_time,
-                prompt_length=len(cached_prompt)
+                prompt_length=len(cached_prompt),
             )
 
             return cached_prompt
@@ -229,7 +228,7 @@ def build_academic_translate_prompt(
             style=style,
             version=version,
             prompt=prompt,
-            template_version=template_version
+            template_version=template_version,
         )
 
     # 记录性能
@@ -237,7 +236,7 @@ def build_academic_translate_prompt(
     prompt_performance_monitor.record_function_call(
         func_name="build_academic_translate_prompt",
         build_time=build_time,
-        prompt_length=len(prompt)
+        prompt_length=len(prompt),
     )
 
     return prompt
@@ -246,6 +245,7 @@ def build_academic_translate_prompt(
 # ==========================================
 # 批注预处理函数
 # ==========================================
+
 
 def preprocess_annotations(text: str) -> str:
     """
@@ -259,7 +259,7 @@ def preprocess_annotations(text: str) -> str:
     """
     # 处理【】格式批注
     processed = text
-    for match in re.finditer(r'([^。！？.!?]+[。！？.!?]+)【([^】]*)】', processed):
+    for match in re.finditer(r"([^。！？.!?]+[。！？.!?]+)【([^】]*)】", processed):
         sentence = match.group(1)
         annotation = match.group(2)
         full_match = match.group(0)
@@ -267,7 +267,7 @@ def preprocess_annotations(text: str) -> str:
         processed = processed.replace(full_match, replacement)
 
     # 处理[]格式批注
-    for match in re.finditer(r'([^。！？.!?]+[。！？.!?]+)\[([^\]]*)\]', processed):
+    for match in re.finditer(r"([^。！？.!?]+[。！？.!?]+)\[([^\]]*)\]", processed):
         sentence = match.group(1)
         annotation = match.group(2)
         full_match = match.group(0)
@@ -281,11 +281,12 @@ def preprocess_annotations(text: str) -> str:
 # 英文精修提示词构建
 # ==========================================
 
+
 def build_english_refine_prompt(
     text_with_instructions: str,
     hidden_instructions: str = "",
-    annotations: Optional[List[Dict[str, Any]]] = None,
-    template_version: str = ENGLISH_REFINE_TEMPLATE_VERSION
+    annotations: list[dict[str, Any]] | None = None,
+    template_version: str = ENGLISH_REFINE_TEMPLATE_VERSION,
 ) -> str:
     """
     构建英文精修提示词（生产版本）
@@ -303,24 +304,25 @@ def build_english_refine_prompt(
     start_time = time.time()
 
     # 预处理文本
-    processed_text = preprocess_annotations(text_with_instructions)
+    preprocess_annotations(text_with_instructions)
 
     # 构建句子到批注的映射，用于提示词中的具体示例
     sentence_annotation_examples = ""
     if annotations and len(annotations) > 0:
         examples = []
-        for i, anno in enumerate(annotations[:3]):  # 最多使用前3个批注作为例子
-            sentence = anno['sentence'].strip()
-            instruction = anno['content'].strip()
-            examples.append(f"- 句子 \"{sentence}\" 有批注 \"{instruction}\"，只修改这个句子，其他句子保持不变")
+        for _i, anno in enumerate(annotations[:3]):  # 最多使用前3个批注作为例子
+            sentence = anno["sentence"].strip()
+            instruction = anno["content"].strip()
+            examples.append(
+                f'- 句子 "{sentence}" 有批注 "{instruction}"，只修改这个句子，其他句子保持不变'
+            )
 
         if examples:
             sentence_annotation_examples = "本文中的具体批注例子:\n" + "\n".join(examples)
 
     # 增强批注提示部分
-    annotation_notice = ""
     if annotations and len(annotations) > 0:
-        annotation_notice = f"""
+        f"""
 **CRITICAL INSTRUCTION - LOCAL ANNOTATIONS DETECTED**
 
 This text contains {len(annotations)} local instruction(s) marked with 【】 or [].
@@ -333,15 +335,8 @@ EXTREMELY IMPORTANT RULE:
 {sentence_annotation_examples}
 """
 
-    hidden_section = ""
     if hidden_instructions:
-        hidden_section = f"""
-**GLOBAL DIRECTIVES (APPLY TO ENTIRE DOCUMENT):**
-
-The following directives should be applied consistently throughout the ENTIRE document:
-
-{hidden_instructions}
-"""
+        pass
 
     # 根据模板版本选择模板
     # 生产版本和原始版本都使用原始函数
@@ -350,7 +345,7 @@ The following directives should be applied consistently throughout the ENTIRE do
         prompt = build_english_refine_prompt_original(
             text_with_instructions=text_with_instructions,
             hidden_instructions=hidden_instructions,
-            annotations=annotations
+            annotations=annotations,
         )
     else:
         # 其他版本（compact或ai_optimized）不再支持，回退到原始版本
@@ -358,15 +353,13 @@ The following directives should be applied consistently throughout the ENTIRE do
         prompt = build_english_refine_prompt_original(
             text_with_instructions=text_with_instructions,
             hidden_instructions=hidden_instructions,
-            annotations=annotations
+            annotations=annotations,
         )
 
     # 记录性能
     build_time = time.time() - start_time
     prompt_performance_monitor.record_function_call(
-        func_name="build_english_refine_prompt",
-        build_time=build_time,
-        prompt_length=len(prompt)
+        func_name="build_english_refine_prompt", build_time=build_time, prompt_length=len(prompt)
     )
 
     return prompt
@@ -376,7 +369,8 @@ The following directives should be applied consistently throughout the ENTIRE do
 # 快捷批注命令
 # ==========================================
 
-def get_shortcut_annotations(version: str = DEFAULT_ANNOTATIONS_VERSION) -> Dict[str, str]:
+
+def get_shortcut_annotations(version: str = DEFAULT_ANNOTATIONS_VERSION) -> dict[str, str]:
     """
     获取快捷批注命令
 
@@ -408,7 +402,8 @@ SHORTCUT_ANNOTATIONS = get_shortcut_annotations(DEFAULT_ANNOTATIONS_VERSION)
 # 工具函数
 # ==========================================
 
-def get_prompt_stats() -> Dict[str, Any]:
+
+def get_prompt_stats() -> dict[str, Any]:
     """
     获取提示词构建统计信息
 
@@ -418,7 +413,7 @@ def get_prompt_stats() -> Dict[str, Any]:
     return prompt_performance_monitor.get_report()
 
 
-def get_cache_stats() -> Dict[str, Any]:
+def get_cache_stats() -> dict[str, Any]:
     """
     获取缓存统计信息
 
@@ -442,7 +437,8 @@ def reset_prompt_monitor() -> None:
 # 测试函数（开发使用）
 # ==========================================
 
-def test_prompt_build_performance() -> Dict[str, Any]:
+
+def test_prompt_build_performance() -> dict[str, Any]:
     """
     测试提示词构建性能
 
@@ -471,18 +467,18 @@ def test_prompt_build_performance() -> Dict[str, Any]:
     results = {
         "error_check": {
             "time_ms": round(error_check_time * 1000, 2),
-            "length": len(error_check_prompt)
+            "length": len(error_check_prompt),
         },
         "translation_no_cache": {
             "time_ms": round(translation_time * 1000, 2),
-            "length": len(translation_prompt)
+            "length": len(translation_prompt),
         },
         "translation_with_cache": {
             "time_ms": round(translation_time_cached * 1000, 2),
-            "length": len(translation_prompt_cached)
+            "length": len(translation_prompt_cached),
         },
         "cache_stats": prompt_cache_manager.get_stats(),
-        "performance_stats": prompt_performance_monitor.get_report()
+        "performance_stats": prompt_performance_monitor.get_report(),
     }
 
     return results

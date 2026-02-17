@@ -5,14 +5,24 @@
 支持SQLite（开发）和PostgreSQL（生产）。
 """
 
-import os
 import logging
+import os
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Any
 
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, Date, DateTime, ForeignKey, Text
+from sqlalchemy import (
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    create_engine,
+)
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session, relationship
+from sqlalchemy.orm import Session, relationship, sessionmaker
 from sqlalchemy.sql import func
 
 from config import settings
@@ -51,7 +61,7 @@ def get_engine():
             _engine = create_engine(
                 database_url,
                 connect_args={"check_same_thread": False},  # SQLite需要这个参数
-                echo=settings.DEBUG  # 调试模式下显示SQL语句
+                echo=settings.DEBUG,  # 调试模式下显示SQL语句
             )
         else:
             # PostgreSQL配置
@@ -60,7 +70,7 @@ def get_engine():
                 pool_size=5,  # 连接池大小
                 max_overflow=10,  # 最大溢出连接数
                 pool_pre_ping=True,  # 连接前检查
-                echo=settings.DEBUG  # 调试模式下显示SQL语句
+                echo=settings.DEBUG,  # 调试模式下显示SQL语句
             )
 
     return _engine
@@ -98,13 +108,17 @@ def init_database():
 # 数据模型
 # ==========================================
 
+
 class User(Base):
     """用户表：用户认证和基本信息"""
+
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(255), unique=True, nullable=False, index=True)
-    email = Column(String(255), nullable=True, unique=True, index=True)  # 邮箱地址，可为空（现有用户无邮箱）
+    email = Column(
+        String(255), nullable=True, unique=True, index=True
+    )  # 邮箱地址，可为空（现有用户无邮箱）
     email_verified = Column(Boolean, default=False)  # 邮箱验证状态
     password_hash = Column(String(255), nullable=False)  # SHA256哈希
     expiry_date = Column(Date, nullable=False)
@@ -117,10 +131,14 @@ class User(Base):
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
     # 关系
-    usage = relationship("UserUsage", back_populates="user", uselist=False, cascade="all, delete-orphan")
-    translation_records = relationship("TranslationRecord", back_populates="user", cascade="all, delete-orphan")
+    usage = relationship(
+        "UserUsage", back_populates="user", uselist=False, cascade="all, delete-orphan"
+    )
+    translation_records = relationship(
+        "TranslationRecord", back_populates="user", cascade="all, delete-orphan"
+    )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """转换为字典格式（兼容现有API）"""
         return {
             "username": self.username,
@@ -133,16 +151,19 @@ class User(Base):
             "is_admin": self.is_admin,
             "is_active": self.is_active,
             "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
 
 class UserUsage(Base):
     """用户使用统计表"""
+
     __tablename__ = "user_usage"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
     translations_count = Column(Integer, default=0)
     last_translation_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=func.now())
@@ -151,23 +172,28 @@ class UserUsage(Base):
     # 关系
     user = relationship("User", back_populates="usage")
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """转换为字典格式（兼容现有API）"""
         return {
             "translations": self.translations_count,
-            "last_translation_at": self.last_translation_at.isoformat() if self.last_translation_at else None,
+            "last_translation_at": (
+                self.last_translation_at.isoformat() if self.last_translation_at else None
+            ),
             "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
 
 class TranslationRecord(Base):
     """翻译记录表（详细记录，用于扩展）"""
+
     __tablename__ = "translation_records"
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    operation_type = Column(String(50), nullable=False)  # error_check, translate_us, translate_uk, refine, detect_ai, chat
+    operation_type = Column(
+        String(50), nullable=False
+    )  # error_check, translate_us, translate_uk, refine, detect_ai, chat
     text_length = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=func.now())
     record_metadata = Column(Text, nullable=True)  # JSON字符串
@@ -175,7 +201,7 @@ class TranslationRecord(Base):
     # 关系
     user = relationship("User", back_populates="translation_records")
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """转换为字典格式"""
         return {
             "id": self.id,
@@ -183,7 +209,7 @@ class TranslationRecord(Base):
             "operation_type": self.operation_type,
             "text_length": self.text_length,
             "created_at": self.created_at.isoformat() if self.created_at else None,
-            "metadata": self.record_metadata
+            "metadata": self.record_metadata,
         }
 
 
@@ -191,10 +217,12 @@ class TranslationRecord(Base):
 # 数据库工具函数
 # ==========================================
 
+
 def hash_password(password: str) -> str:
     """使用SHA256哈希密码"""
     import hashlib
-    return hashlib.sha256(password.encode('utf-8')).hexdigest()
+
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
 
 def verify_password(password: str, password_hash: str) -> bool:
@@ -228,7 +256,7 @@ def create_admin_user(db: Session) -> User:
             daily_translation_limit=999,
             daily_ai_detection_limit=999,
             is_admin=True,
-            is_active=True
+            is_active=True,
         )
         db.add(admin_user)
         logging.info(f"创建管理员用户: {settings.ADMIN_USERNAME}")

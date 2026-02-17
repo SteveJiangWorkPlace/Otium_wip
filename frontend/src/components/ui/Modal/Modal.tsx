@@ -52,12 +52,7 @@ const Modal: React.FC<ModalProps> = ({
         <div className={styles.header}>
           {title && <h3 className={styles.title}>{title}</h3>}
           {onClose && (
-            <Button
-              variant="ghost"
-              size="small"
-              onClick={onClose}
-              className={styles.closeButton}
-            >
+            <Button variant="ghost" size="small" onClick={onClose} className={styles.closeButton}>
               <Icon name="close" size="sm" />
             </Button>
           )}

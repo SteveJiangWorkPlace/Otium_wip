@@ -11,19 +11,19 @@ Resend API集成测试脚本
 2. 运行：python test_resend_integration.py
 """
 
-import os
-import sys
 import logging
+import os
 
 # 设置日志
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+
 
 def test_resend_config():
     """测试Resend配置"""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Resend API集成测试")
-    print("="*70)
+    print("=" * 70)
 
     # 检查环境变量
     email_provider = os.environ.get("EMAIL_PROVIDER", "")
@@ -56,6 +56,7 @@ def test_resend_config():
     # 尝试导入Resend库
     try:
         import resend
+
         print("[OK] resend库导入成功")
     except ImportError as e:
         print(f"[错误] 无法导入resend库: {e}")
@@ -64,20 +65,22 @@ def test_resend_config():
 
     # 测试发送邮件（可选）
     test_send = input("\n是否发送测试邮件? (y/n): ").lower()
-    if test_send == 'y':
+    if test_send == "y":
         return test_resend_send_email(resend_api_key, resend_from)
 
     return True
+
 
 def test_resend_send_email(api_key: str, from_email: str):
     """测试发送邮件"""
     try:
         import resend
+
         resend.api_key = api_key
 
         # 发送测试邮件到发件人自己
         test_to = from_email
-        test_subject = f"Resend API测试邮件"
+        test_subject = "Resend API测试邮件"
         test_html = """
         <!DOCTYPE html>
         <html>
@@ -108,12 +111,7 @@ def test_resend_send_email(api_key: str, from_email: str):
         </html>
         """
 
-        params = {
-            "from": from_email,
-            "to": test_to,
-            "subject": test_subject,
-            "html": test_html
-        }
+        params = {"from": from_email, "to": test_to, "subject": test_subject, "html": test_html}
 
         print(f"\n发送测试邮件到: {test_to}")
         print(f"主题: {test_subject}")
@@ -128,18 +126,19 @@ def test_resend_send_email(api_key: str, from_email: str):
         print(f"[错误] 发送测试邮件失败: {e}")
         return False
 
+
 def main():
     """主函数"""
-    print("="*70)
+    print("=" * 70)
     print("Otium Resend API集成测试工具")
-    print("="*70)
+    print("=" * 70)
 
     try:
         success = test_resend_config()
 
-        print("\n" + "="*70)
+        print("\n" + "=" * 70)
         print("测试总结")
-        print("="*70)
+        print("=" * 70)
 
         if success:
             print("[成功] Resend API配置测试通过")
@@ -155,14 +154,16 @@ def main():
             print("3. 确保RESEND_FROM邮箱已在Resend验证")
             print("4. 检查网络连接（Resend API需要外网访问）")
 
-        print("\n" + "="*70)
+        print("\n" + "=" * 70)
 
     except KeyboardInterrupt:
         print("\n\n测试被用户中断")
     except Exception as e:
         print(f"\n[错误] 测试过程中发生异常: {e}")
         import traceback
+
         traceback.print_exc()
+
 
 if __name__ == "__main__":
     main()

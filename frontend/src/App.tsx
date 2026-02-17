@@ -127,29 +127,29 @@ const AdminLogin: React.FC = () => {
   };
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'var(--color-background)',
-    }}>
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'var(--color-background)',
+      }}
+    >
       <Card variant="elevated" padding="large" style={{ width: 400 }}>
-        <h3 style={{
-          textAlign: 'center',
-          color: 'var(--color-primary)',
-          fontSize: 'var(--font-size-xl)',
-          fontWeight: 'var(--font-weight-semibold)',
-          margin: '0 0 var(--spacing-6) 0'
-        }}>
+        <h3
+          style={{
+            textAlign: 'center',
+            color: 'var(--color-primary)',
+            fontSize: 'var(--font-size-xl)',
+            fontWeight: 'var(--font-weight-semibold)',
+            margin: '0 0 var(--spacing-6) 0',
+          }}
+        >
           管理员登录
         </h3>
         <Form onSubmit={handleSubmit}>
-          <FormItem
-            label="管理员密码"
-            required
-            error={error}
-          >
+          <FormItem label="管理员密码" required error={error}>
             <Input
               type="password"
               value={password}
@@ -162,12 +162,7 @@ const AdminLogin: React.FC = () => {
             />
           </FormItem>
           <div style={{ marginTop: 'var(--spacing-6)' }}>
-            <Button
-              variant="primary"
-              type="submit"
-              loading={loading}
-              fullWidth
-            >
+            <Button variant="primary" type="submit" loading={loading} fullWidth>
               登录
             </Button>
           </div>

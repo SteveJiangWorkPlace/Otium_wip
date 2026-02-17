@@ -1,10 +1,10 @@
-import React from 'react'
-import styles from './Card.module.css'
+import React from 'react';
+import styles from './Card.module.css';
 
 export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
-  variant?: 'elevated' | 'outlined' | 'filled' | 'ghost' | 'center'
-  padding?: 'none' | 'small' | 'medium' | 'large'
-  fullWidth?: boolean
+  variant?: 'elevated' | 'outlined' | 'filled' | 'ghost' | 'center';
+  padding?: 'none' | 'small' | 'medium' | 'large';
+  fullWidth?: boolean;
 }
 
 const Card: React.FC<CardProps> = ({
@@ -20,14 +20,16 @@ const Card: React.FC<CardProps> = ({
     styles[`variant-${variant}`],
     styles[`padding-${padding}`],
     fullWidth ? styles.fullWidth : '',
-    className
-  ].filter(Boolean).join(' ')
+    className,
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <div className={cardClasses} {...props}>
       {children}
     </div>
-  )
-}
+  );
+};
 
-export default Card
+export default Card;

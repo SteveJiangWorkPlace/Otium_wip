@@ -12,7 +12,7 @@ interface AuthState {
   isAdmin: boolean;
   token: string | null;
   userInfo: UserInfo | null;
-  
+
   setAuth: (token: string, userInfo?: UserInfo) => void;
   setAdminAuth: (token: string) => void;
   updateUserInfo: (userInfo: UserInfo) => void;
@@ -62,7 +62,7 @@ export const useAuthStore = create<AuthState>()(
           const aiChatStore = useAIChatStore.getState();
           const conversations = aiChatStore.conversations;
           if (conversations) {
-            Object.keys(conversations).forEach(page => {
+            Object.keys(conversations).forEach((page) => {
               aiChatStore.clearConversation(page);
             });
           }

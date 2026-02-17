@@ -1,11 +1,11 @@
-import React from 'react'
-import { Card, Button } from './ui'
-import styles from './DirectiveSelector.module.css'
+import React from 'react';
+import { Card, Button } from './ui';
+import styles from './DirectiveSelector.module.css';
 
 interface DirectiveSelectorProps {
-  selectedDirectives: string[]
-  onDirectivesChange: (directives: string[]) => void
-  disabled?: boolean
+  selectedDirectives: string[];
+  onDirectivesChange: (directives: string[]) => void;
+  disabled?: boolean;
 }
 
 const DIRECTIVES = [
@@ -16,17 +16,17 @@ const DIRECTIVES = [
   '灵活表达',
   '去AI词汇',
   '人性化处理',
-]
+];
 
 const DIRECTIVE_INFO = {
-  '主语修正': '修正主语结构以降低AI率',
-  '句式修正': '修正特定句式以降低AI率',
-  '符号修正': '确保引号规范使用',
-  '丰富句式': '混合使用不同长度的句子',
-  '灵活表达': '灵活使用标点和更自然的句子开头',
-  '去AI词汇': '识别并替换AI高频词汇和短语',
-  '人性化处理': '替换为更加人性化的表达',
-}
+  主语修正: '修正主语结构以降低AI率',
+  句式修正: '修正特定句式以降低AI率',
+  符号修正: '确保引号规范使用',
+  丰富句式: '混合使用不同长度的句子',
+  灵活表达: '灵活使用标点和更自然的句子开头',
+  去AI词汇: '识别并替换AI高频词汇和短语',
+  人性化处理: '替换为更加人性化的表达',
+};
 
 const DirectiveSelector: React.FC<DirectiveSelectorProps> = ({
   selectedDirectives,
@@ -35,20 +35,20 @@ const DirectiveSelector: React.FC<DirectiveSelectorProps> = ({
 }) => {
   const handleToggle = (directive: string) => {
     if (selectedDirectives.includes(directive)) {
-      onDirectivesChange(selectedDirectives.filter((d) => d !== directive))
+      onDirectivesChange(selectedDirectives.filter((d) => d !== directive));
     } else {
-      onDirectivesChange([...selectedDirectives, directive])
+      onDirectivesChange([...selectedDirectives, directive]);
     }
-  }
+  };
 
   const handleClearAll = () => {
-    onDirectivesChange([])
-  }
+    onDirectivesChange([]);
+  };
 
   const handleAIThreeAxes = () => {
-    const threeAxes = ['主语修正', '句式修正', '符号修正']
-    onDirectivesChange(threeAxes)
-  }
+    const threeAxes = ['主语修正', '句式修正', '符号修正'];
+    onDirectivesChange(threeAxes);
+  };
 
   return (
     <Card variant="ghost" padding="medium" className={styles.container}>
@@ -59,34 +59,37 @@ const DirectiveSelector: React.FC<DirectiveSelectorProps> = ({
         </div>
       </div>
 
-      <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-3)', lineHeight: 'var(--line-height-relaxed)' }}>
-        <div style={{ marginBottom: 'var(--spacing-1)' }}>• 如果AI率较高，初次修改建议选择"去AI三板斧"</div>
-        <div style={{ marginBottom: 'var(--spacing-1)' }}>• 如果修改后AI率仍不达标，可尝试选择其他指令继续优化</div>
-        <div style={{ marginBottom: 'var(--spacing-1)' }}>• 快捷指令为全局修改，如需局部修改，可在文本中使用【】符号添加批注指令</div>
+      <div
+        style={{
+          fontSize: 'var(--font-size-sm)',
+          color: 'var(--color-text-secondary)',
+          marginBottom: 'var(--spacing-3)',
+          lineHeight: 'var(--line-height-relaxed)',
+        }}
+      >
+        <div style={{ marginBottom: 'var(--spacing-1)' }}>
+          {'•'} 如果AI率较高，初次修改建议选择&quot;去AI三板斧&quot;
+        </div>
+        <div style={{ marginBottom: 'var(--spacing-1)' }}>
+          {'•'} 如果修改后AI率仍不达标，可尝试选择其他指令继续优化
+        </div>
+        <div style={{ marginBottom: 'var(--spacing-1)' }}>
+          • 快捷指令为全局修改，如需局部修改，可在文本中使用【】符号添加批注指令
+        </div>
       </div>
 
       <div className={styles.actions}>
-        <Button
-          variant="ghost"
-          size="small"
-          onClick={handleAIThreeAxes}
-          disabled={disabled}
-        >
+        <Button variant="ghost" size="small" onClick={handleAIThreeAxes} disabled={disabled}>
           去AI三板斧
         </Button>
-        <Button
-          variant="ghost"
-          size="small"
-          onClick={handleClearAll}
-          disabled={disabled}
-        >
+        <Button variant="ghost" size="small" onClick={handleClearAll} disabled={disabled}>
           清空
         </Button>
       </div>
 
       <div className={styles.directivesGrid}>
         {DIRECTIVES.map((directive) => {
-          const isSelected = selectedDirectives.includes(directive)
+          const isSelected = selectedDirectives.includes(directive);
           return (
             <div
               key={directive}
@@ -102,12 +105,11 @@ const DirectiveSelector: React.FC<DirectiveSelectorProps> = ({
                 </div>
               </div>
             </div>
-          )
+          );
         })}
       </div>
-
     </Card>
-  )
-}
+  );
+};
 
-export default DirectiveSelector
+export default DirectiveSelector;

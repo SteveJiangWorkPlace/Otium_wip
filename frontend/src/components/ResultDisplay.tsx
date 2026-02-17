@@ -1,17 +1,17 @@
-import React from 'react'
-import { Card, Button, Icon, Textarea } from './ui'
-import { AIDetectionResponse } from '../types'
-import styles from './ResultDisplay.module.css'
+import React from 'react';
+import { Card, Button, Icon, Textarea } from './ui';
+import { AIDetectionResponse } from '../types';
+import styles from './ResultDisplay.module.css';
 
 interface ResultDisplayProps {
-  resultType: 'error_check' | 'translation'
-  resultText: string
-  editableText: string
-  onEditableTextChange: (text: string) => void
-  refinedText: string
-  aiDetectionResult: AIDetectionResponse | null
-  selectedDirectives: string[]
-  onCopy?: () => void
+  resultType: 'error_check' | 'translation';
+  resultText: string;
+  editableText: string;
+  onEditableTextChange: (text: string) => void;
+  refinedText: string;
+  aiDetectionResult: AIDetectionResponse | null;
+  selectedDirectives: string[];
+  onCopy?: () => void;
 }
 
 const ResultDisplay: React.FC<ResultDisplayProps> = ({
@@ -27,37 +27,37 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({
   const getTitle = () => {
     switch (resultType) {
       case 'error_check':
-        return '智能纠错结果'
+        return '智能纠错结果';
       case 'translation':
-        return '翻译结果'
+        return '翻译结果';
       default:
-        return '处理结果'
+        return '处理结果';
     }
-  }
+  };
 
   const getHintText = () => {
     switch (resultType) {
       case 'error_check':
-        return '已检查错别字、漏字和重复字，请查看修改建议'
+        return '已检查错别字、漏字和重复字，请查看修改建议';
       case 'translation':
-        return '翻译完成，您可以编辑文本或应用修改指令'
+        return '翻译完成，您可以编辑文本或应用修改指令';
       default:
-        return ''
+        return '';
     }
-  }
+  };
 
   const renderHighlightedText = (text: string) => {
     const highlightedText = text.replace(
       /\*\*(.*?)\*\*/g,
       '<mark style="background-color: var(--color-black); color: var(--color-white); padding: 2px 4px; border-radius: 4px;">$1</mark>'
-    )
-    return { __html: highlightedText }
-  }
+    );
+    return { __html: highlightedText };
+  };
 
   const handleRefine = () => {
     // 这里应该调用API应用选定的指令进行文本优化
-    alert('文本优化功能暂未实现')
-  }
+    alert('文本优化功能暂未实现');
+  };
 
   return (
     <Card variant="elevated" padding="medium" className={styles.container}>
@@ -75,11 +75,7 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({
           <h4 className={styles.sectionTitle}>原始结果</h4>
           {onCopy && (
             <div className={styles.sectionActions}>
-              <Button
-                variant="ghost"
-                size="small"
-                onClick={onCopy}
-              >
+              <Button variant="ghost" size="small" onClick={onCopy}>
                 复制
               </Button>
             </div>
@@ -97,11 +93,7 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({
           <div className={styles.sectionHeader}>
             <h4 className={styles.sectionTitle}>可编辑文本</h4>
             <div className={styles.sectionActions}>
-              <Button
-                variant="ghost"
-                size="small"
-                onClick={() => onEditableTextChange(resultText)}
-              >
+              <Button variant="ghost" size="small" onClick={() => onEditableTextChange(resultText)}>
                 重置
               </Button>
             </div>
@@ -179,7 +171,7 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({
         </div>
       )}
     </Card>
-  )
-}
+  );
+};
 
-export default ResultDisplay
+export default ResultDisplay;

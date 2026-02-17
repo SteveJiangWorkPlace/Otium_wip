@@ -22,7 +22,7 @@ export const resetAllStores = () => {
     const aiChatStore = useAIChatStore.getState();
     const conversations = aiChatStore.conversations;
     if (conversations) {
-      Object.keys(conversations).forEach(page => {
+      Object.keys(conversations).forEach((page) => {
         aiChatStore.clearConversation(page);
       });
     }

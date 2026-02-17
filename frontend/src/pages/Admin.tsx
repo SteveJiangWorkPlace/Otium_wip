@@ -4,15 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import { apiClient } from '../api/client';
 import { UserInfo } from '../types';
-import {
-  Button,
-  Card,
-  Input,
-  Modal,
-  Form,
-  FormItem,
-  Icon,
-} from '../components/ui';
+import { Button, Card, Input, Modal, Form, FormItem, Icon } from '../components/ui';
 
 const Admin: React.FC = () => {
   const navigate = useNavigate();
@@ -127,19 +119,18 @@ const Admin: React.FC = () => {
   };
 
   const handleFormChange = (field: string, value: any) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [field]: value,
     }));
     // 清除该字段的错误
     if (formErrors[field]) {
-      setFormErrors(prev => ({
+      setFormErrors((prev) => ({
         ...prev,
         [field]: '',
       }));
     }
   };
-
 
   const columns = [
     {
@@ -152,9 +143,7 @@ const Admin: React.FC = () => {
       dataIndex: 'is_active',
       key: 'is_active',
       render: (value: boolean) => (
-        <span style={{ color: value ? '#52c41a' : '#ff4d4f' }}>
-          {value ? '激活' : '禁用'}
-        </span>
+        <span style={{ color: value ? '#52c41a' : '#ff4d4f' }}>{value ? '激活' : '禁用'}</span>
       ),
     },
     {
@@ -179,9 +168,7 @@ const Admin: React.FC = () => {
       title: '管理员',
       dataIndex: 'is_admin',
       key: 'is_admin',
-      render: (value: boolean) => (
-        <span>{value ? '是' : '否'}</span>
-      ),
+      render: (value: boolean) => <span>{value ? '是' : '否'}</span>,
     },
     {
       title: '操作',
@@ -200,34 +187,29 @@ const Admin: React.FC = () => {
   return (
     <div style={{ padding: '24px', maxWidth: 1200, margin: '0 auto', width: '100%' }}>
       <Card variant="elevated" padding="medium">
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 'var(--spacing-4)'
-        }}>
-          <h3 style={{
-            fontSize: 'var(--font-size-lg)',
-            fontWeight: 'var(--font-weight-semibold)',
-            color: 'var(--color-text-primary)',
-            margin: 0
-          }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 'var(--spacing-4)',
+          }}
+        >
+          <h3
+            style={{
+              fontSize: 'var(--font-size-lg)',
+              fontWeight: 'var(--font-weight-semibold)',
+              color: 'var(--color-text-primary)',
+              margin: 0,
+            }}
+          >
             用户列表
           </h3>
-          <Button
-            variant="primary"
-            onClick={handleAdd}
-            icon={<Icon name="add" size="sm" />}
-          >
+          <Button variant="primary" onClick={handleAdd} icon={<Icon name="add" size="sm" />}>
             添加用户
           </Button>
         </div>
-        <Table
-          columns={columns}
-          dataSource={users}
-          rowKey="username"
-          loading={loading}
-        />
+        <Table columns={columns} dataSource={users} rowKey="username" loading={loading} />
       </Card>
 
       <Modal
@@ -239,11 +221,7 @@ const Admin: React.FC = () => {
         cancelText="取消"
       >
         <Form layout="vertical">
-          <FormItem
-            label="用户名"
-            required
-            error={formErrors.username}
-          >
+          <FormItem label="用户名" required error={formErrors.username}>
             <Input
               name="username"
               value={formData.username}
@@ -268,36 +246,31 @@ const Admin: React.FC = () => {
             />
           </FormItem>
 
-          <FormItem
-            label="每日翻译限制"
-            required
-            error={formErrors.daily_translation_limit}
-          >
+          <FormItem label="每日翻译限制" required error={formErrors.daily_translation_limit}>
             <Input
               type="number"
               name="daily_translation_limit"
               value={formData.daily_translation_limit}
-              onChange={(e) => handleFormChange('daily_translation_limit', parseInt(e.target.value) || 0)}
+              onChange={(e) =>
+                handleFormChange('daily_translation_limit', parseInt(e.target.value) || 0)
+              }
               placeholder="请输入每日翻译限制"
               min="1"
             />
           </FormItem>
 
-          <FormItem
-            label="每日AI检测限制"
-            required
-            error={formErrors.daily_ai_detection_limit}
-          >
+          <FormItem label="每日AI检测限制" required error={formErrors.daily_ai_detection_limit}>
             <Input
               type="number"
               name="daily_ai_detection_limit"
               value={formData.daily_ai_detection_limit}
-              onChange={(e) => handleFormChange('daily_ai_detection_limit', parseInt(e.target.value) || 0)}
+              onChange={(e) =>
+                handleFormChange('daily_ai_detection_limit', parseInt(e.target.value) || 0)
+              }
               placeholder="请输入每日AI检测限制"
               min="1"
             />
           </FormItem>
-
         </Form>
       </Modal>
     </div>

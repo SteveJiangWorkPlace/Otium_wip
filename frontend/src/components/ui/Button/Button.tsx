@@ -1,17 +1,17 @@
-import React from 'react'
-import styles from './Button.module.css'
+import React from 'react';
+import styles from './Button.module.css';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger'
-export type ButtonSize = 'small' | 'medium' | 'large'
-export type ButtonIconPosition = 'left' | 'right'
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
+export type ButtonSize = 'small' | 'medium' | 'large';
+export type ButtonIconPosition = 'left' | 'right';
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: ButtonVariant
-  size?: ButtonSize
-  icon?: React.ReactNode
-  iconPosition?: ButtonIconPosition
-  loading?: boolean
-  fullWidth?: boolean
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  icon?: React.ReactNode;
+  iconPosition?: ButtonIconPosition;
+  loading?: boolean;
+  fullWidth?: boolean;
 }
 
 const Button: React.FC<ButtonProps> = ({
@@ -32,31 +32,24 @@ const Button: React.FC<ButtonProps> = ({
     styles[`size-${size}`],
     loading ? styles.loading : '',
     fullWidth ? styles.fullWidth : '',
-    className
-  ].filter(Boolean).join(' ')
+    className,
+  ]
+    .filter(Boolean)
+    .join(' ');
 
-  const isDisabled = disabled || loading
+  const isDisabled = disabled || loading;
 
   return (
-    <button
-      className={buttonClasses}
-      disabled={isDisabled}
-      aria-busy={loading}
-      {...props}
-    >
+    <button className={buttonClasses} disabled={isDisabled} aria-busy={loading} {...props}>
       {/* 移除了loading时的加载动画，只保留disabled状态 */}
 
-      {icon && iconPosition === 'left' && (
-        <span className={styles.iconLeft}>{icon}</span>
-      )}
+      {icon && iconPosition === 'left' && <span className={styles.iconLeft}>{icon}</span>}
 
       <span className={styles.content}>{children}</span>
 
-      {icon && iconPosition === 'right' && (
-        <span className={styles.iconRight}>{icon}</span>
-      )}
+      {icon && iconPosition === 'right' && <span className={styles.iconRight}>{icon}</span>}
     </button>
-  )
-}
+  );
+};
 
-export default Button
+export default Button;

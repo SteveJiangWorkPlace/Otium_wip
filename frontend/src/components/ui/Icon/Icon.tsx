@@ -1,13 +1,20 @@
-import React from 'react'
-import styles from './Icon.module.css'
+import React from 'react';
+import styles from './Icon.module.css';
 
-export type IconSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl'
-export type IconVariant = 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info'
+export type IconSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+export type IconVariant =
+  | 'default'
+  | 'primary'
+  | 'secondary'
+  | 'success'
+  | 'warning'
+  | 'error'
+  | 'info';
 
 export interface IconProps extends React.SVGProps<SVGSVGElement> {
-  size?: IconSize
-  variant?: IconVariant
-  className?: string
+  size?: IconSize;
+  variant?: IconVariant;
+  className?: string;
 }
 
 // Simple SVG icons for the document writing tools
@@ -151,14 +158,14 @@ const icons = {
       <path d="M12 5v14" />
       <path d="M5 12h14" />
     </svg>
-  )
-} as const
+  ),
+} as const;
 
-export type IconName = keyof typeof icons
-export type IconNameOrPath = IconName | `${string}.svg`
+export type IconName = keyof typeof icons;
+export type IconNameOrPath = IconName | `${string}.svg`;
 
 export interface NamedIconProps extends IconProps {
-  name: IconNameOrPath
+  name: IconNameOrPath;
 }
 
 const Icon: React.FC<NamedIconProps> = ({
@@ -168,12 +175,9 @@ const Icon: React.FC<NamedIconProps> = ({
   className = '',
   ...props
 }) => {
-  const iconClasses = [
-    styles.icon,
-    styles[`size-${size}`],
-    styles[`variant-${variant}`],
-    className
-  ].filter(Boolean).join(' ')
+  const iconClasses = [styles.icon, styles[`size-${size}`], styles[`variant-${variant}`], className]
+    .filter(Boolean)
+    .join(' ');
 
   // 如果是SVG路径，渲染img标签
   if (typeof name === 'string' && name.endsWith('.svg')) {
@@ -183,24 +187,24 @@ const Icon: React.FC<NamedIconProps> = ({
         alt=""
         className={iconClasses}
         aria-hidden="true"
-        {...props as React.ImgHTMLAttributes<HTMLImageElement>}
+        {...(props as React.ImgHTMLAttributes<HTMLImageElement>)}
       />
-    )
+    );
   }
 
   // 否则渲染内置图标
-  const iconSvg = icons[name as IconName]
+  const iconSvg = icons[name as IconName];
 
   if (!iconSvg) {
-    console.warn(`Icon "${name}" not found`)
-    return null
+    console.warn(`Icon "${name}" not found`);
+    return null;
   }
 
   return React.cloneElement(iconSvg, {
     className: iconClasses,
     'aria-hidden': 'true',
-    ...props
-  })
-}
+    ...props,
+  });
+};
 
-export default Icon
+export default Icon;

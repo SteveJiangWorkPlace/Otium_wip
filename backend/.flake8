@@ -1,0 +1,13 @@
+[flake8]
+max-line-length = 100
+extend-ignore = E203, W503, E501
+exclude = .git,__pycache__,build,dist,.venv,venv,migrations
+per-file-ignores =
+    __init__.py: F401
+    tests/*: S101
+    main.py: E402, F401
+    print_routes.py: E402
+    test_*.py: E402, F401
+    simple_test.py: E402
+    scripts/*.py: E402
+    services/email_service.py: E722

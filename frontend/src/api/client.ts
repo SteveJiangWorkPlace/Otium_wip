@@ -23,7 +23,10 @@ import type {
   StreamRefineTextChunk,
 } from '../types';
 
-console.log('API客户端模块加载 - 环境变量REACT_APP_API_BASE_URL:', process.env.REACT_APP_API_BASE_URL);
+console.log(
+  'API客户端模块加载 - 环境变量REACT_APP_API_BASE_URL:',
+  process.env.REACT_APP_API_BASE_URL
+);
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8001';
 console.log('API客户端 - 使用的基础URL:', API_BASE_URL);
@@ -43,9 +46,10 @@ axiosInstance.interceptors.request.use(
     console.log('请求拦截器执行 - 请求方法:', config.method);
 
     // 检查所有可能的 token 存储位置
-    const token = localStorage.getItem('token') ||
-                  localStorage.getItem('auth_token') ||
-                  localStorage.getItem('admin_token');
+    const token =
+      localStorage.getItem('token') ||
+      localStorage.getItem('auth_token') ||
+      localStorage.getItem('admin_token');
 
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -54,7 +58,10 @@ axiosInstance.interceptors.request.use(
     // 添加 API 密钥到请求头
     try {
       const apiKeysStr = localStorage.getItem('otium_api_keys');
-      console.log('请求拦截器 - 检查用户自定义API密钥 (otium_api_keys):', apiKeysStr ? '已设置' : '未设置（使用后端默认密钥）');
+      console.log(
+        '请求拦截器 - 检查用户自定义API密钥 (otium_api_keys):',
+        apiKeysStr ? '已设置' : '未设置（使用后端默认密钥）'
+      );
 
       // 调试：列出所有localStorage项
       console.log('请求拦截器 - localStorage所有键:', Object.keys(localStorage));
@@ -66,12 +73,19 @@ axiosInstance.interceptors.request.use(
           hasGptzeroApiKey: !!(apiKeys.gptzeroApiKey && apiKeys.gptzeroApiKey.trim()),
           geminiLength: apiKeys.geminiApiKey ? apiKeys.geminiApiKey.length : 0,
           gptzeroLength: apiKeys.gptzeroApiKey ? apiKeys.gptzeroApiKey.length : 0,
-          geminiKeyPreview: apiKeys.geminiApiKey ? `${apiKeys.geminiApiKey.substring(0, Math.min(5, apiKeys.geminiApiKey.length))}...` : '空',
-          gptzeroKeyPreview: apiKeys.gptzeroApiKey ? `${apiKeys.gptzeroApiKey.substring(0, Math.min(5, apiKeys.gptzeroApiKey.length))}...` : '空'
+          geminiKeyPreview: apiKeys.geminiApiKey
+            ? `${apiKeys.geminiApiKey.substring(0, Math.min(5, apiKeys.geminiApiKey.length))}...`
+            : '空',
+          gptzeroKeyPreview: apiKeys.gptzeroApiKey
+            ? `${apiKeys.gptzeroApiKey.substring(0, Math.min(5, apiKeys.gptzeroApiKey.length))}...`
+            : '空',
         });
 
         if (apiKeys.geminiApiKey && apiKeys.geminiApiKey.trim() !== '') {
-          const keyPrefix = apiKeys.geminiApiKey.substring(0, Math.min(8, apiKeys.geminiApiKey.length));
+          const keyPrefix = apiKeys.geminiApiKey.substring(
+            0,
+            Math.min(8, apiKeys.geminiApiKey.length)
+          );
           console.log('请求拦截器 - 设置X-Gemini-Api-Key头部，密钥前缀:', keyPrefix + '...');
           config.headers['X-Gemini-Api-Key'] = apiKeys.geminiApiKey;
           console.log('请求拦截器 - 已设置X-Gemini-Api-Key头部');
@@ -80,7 +94,10 @@ axiosInstance.interceptors.request.use(
         }
 
         if (apiKeys.gptzeroApiKey && apiKeys.gptzeroApiKey.trim() !== '') {
-          const keyPrefix = apiKeys.gptzeroApiKey.substring(0, Math.min(8, apiKeys.gptzeroApiKey.length));
+          const keyPrefix = apiKeys.gptzeroApiKey.substring(
+            0,
+            Math.min(8, apiKeys.gptzeroApiKey.length)
+          );
           console.log('请求拦截器 - 设置X-Gptzero-Api-Key头部，密钥前缀:', keyPrefix + '...');
           config.headers['X-Gptzero-Api-Key'] = apiKeys.gptzeroApiKey;
           console.log('请求拦截器 - 已设置X-Gptzero-Api-Key头部');
@@ -141,16 +158,26 @@ axiosInstance.interceptors.response.use(
 
       // 默认错误消息
       switch (status) {
-        case 400: return '请求参数错误';
-        case 401: return '未授权，请重新登录';
-        case 403: return '权限不足';
-        case 404: return '请求的资源不存在';
-        case 429: return '请求过于频繁，请稍后重试';
-        case 500: return '服务器内部错误';
-        case 502: return '网关错误';
-        case 503: return '服务不可用';
-        case 504: return '网关超时';
-        default: return `请求失败（状态码：${status}）`;
+        case 400:
+          return '请求参数错误';
+        case 401:
+          return '未授权，请重新登录';
+        case 403:
+          return '权限不足';
+        case 404:
+          return '请求的资源不存在';
+        case 429:
+          return '请求过于频繁，请稍后重试';
+        case 500:
+          return '服务器内部错误';
+        case 502:
+          return '网关错误';
+        case 503:
+          return '服务不可用';
+        case 504:
+          return '网关超时';
+        default:
+          return `请求失败（状态码：${status}）`;
       }
     };
 
@@ -171,11 +198,11 @@ axiosInstance.interceptors.response.use(
         // 标记重试计数
         const newConfig = {
           ...error.config,
-          _retryCount: retryCount + 1
+          _retryCount: retryCount + 1,
         };
 
         // 等待后重试
-        await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+        await new Promise((resolve) => setTimeout(resolve, retryAfter * 1000));
         return axiosInstance.request(newConfig);
       }
     }
@@ -207,7 +234,7 @@ axiosInstance.interceptors.response.use(
 // 将 apiClient 定义为普通对象，不使用默认导出
 export const apiClient = {
   // ==================== 用户认证 ====================
-  
+
   login: async (data: LoginRequest): Promise<LoginResponse> => {
     const response = await axiosInstance.post<LoginResponse>('/login', data);
     return response.data;
@@ -221,12 +248,20 @@ export const apiClient = {
   // ==================== 用户注册和密码重置 ====================
 
   sendVerificationCode: async (email: string): Promise<ApiResponse> => {
-    const response = await axiosInstance.post<ApiResponse>('/register/send-verification', { email });
+    const response = await axiosInstance.post<ApiResponse>('/register/send-verification', {
+      email,
+    });
     return response.data;
   },
 
-  verifyEmail: async (email: string, code: string): Promise<ApiResponse & { verification_token?: string }> => {
-    const response = await axiosInstance.post<ApiResponse & { verification_token?: string }>('/register/verify-email', { email, code });
+  verifyEmail: async (
+    email: string,
+    code: string
+  ): Promise<ApiResponse & { verification_token?: string }> => {
+    const response = await axiosInstance.post<ApiResponse & { verification_token?: string }>(
+      '/register/verify-email',
+      { email, code }
+    );
     return response.data;
   },
 
@@ -240,26 +275,40 @@ export const apiClient = {
     return response.data;
   },
 
-  register: async (username: string, email: string, password: string, verificationToken: string): Promise<LoginResponse> => {
+  register: async (
+    username: string,
+    email: string,
+    password: string,
+    verificationToken: string
+  ): Promise<LoginResponse> => {
     const response = await axiosInstance.post<LoginResponse>('/register', {
       username,
       email,
       password,
-      verification_token: verificationToken
+      verification_token: verificationToken,
     });
     return response.data;
   },
 
   requestPasswordReset: async (email: string): Promise<ApiResponse & { username?: string }> => {
-    const response = await axiosInstance.post<ApiResponse & { username?: string }>('/password/reset-request', { email });
+    const response = await axiosInstance.post<ApiResponse & { username?: string }>(
+      '/password/reset-request',
+      { email }
+    );
     return response.data;
   },
 
-  resetPassword: async (token: string, newPassword: string): Promise<ApiResponse & { username?: string }> => {
-    const response = await axiosInstance.post<ApiResponse & { username?: string }>('/password/reset', {
-      token,
-      new_password: newPassword
-    });
+  resetPassword: async (
+    token: string,
+    newPassword: string
+  ): Promise<ApiResponse & { username?: string }> => {
+    const response = await axiosInstance.post<ApiResponse & { username?: string }>(
+      '/password/reset',
+      {
+        token,
+        new_password: newPassword,
+      }
+    );
     return response.data;
   },
 
@@ -270,16 +319,20 @@ export const apiClient = {
     return response.data;
   },
 
-  translateStream: async function* (data: StreamTranslationRequest, options?: {
-    onProgress?: (chunk: StreamTranslationChunk) => void;
-    signal?: AbortSignal;
-  }) {
+  translateStream: async function* (
+    data: StreamTranslationRequest,
+    options?: {
+      onProgress?: (chunk: StreamTranslationChunk) => void;
+      signal?: AbortSignal;
+    }
+  ) {
     const { onProgress, signal } = options || {};
 
     // 获取认证token和API密钥
-    const token = localStorage.getItem('token') ||
-                  localStorage.getItem('auth_token') ||
-                  localStorage.getItem('admin_token');
+    const token =
+      localStorage.getItem('token') ||
+      localStorage.getItem('auth_token') ||
+      localStorage.getItem('admin_token');
 
     const apiKeysStr = localStorage.getItem('otium_api_keys');
     const apiKeys = apiKeysStr ? JSON.parse(apiKeysStr) : {};
@@ -349,16 +402,20 @@ export const apiClient = {
     }
   },
 
-  refineStream: async function* (data: StreamRefineTextRequest, options?: {
-    onProgress?: (chunk: StreamRefineTextChunk) => void;
-    signal?: AbortSignal;
-  }) {
+  refineStream: async function* (
+    data: StreamRefineTextRequest,
+    options?: {
+      onProgress?: (chunk: StreamRefineTextChunk) => void;
+      signal?: AbortSignal;
+    }
+  ) {
     const { onProgress, signal } = options || {};
 
     // 获取认证token和API密钥
-    const token = localStorage.getItem('token') ||
-                  localStorage.getItem('auth_token') ||
-                  localStorage.getItem('admin_token');
+    const token =
+      localStorage.getItem('token') ||
+      localStorage.getItem('auth_token') ||
+      localStorage.getItem('admin_token');
 
     const apiKeysStr = localStorage.getItem('otium_api_keys');
     const apiKeys = apiKeysStr ? JSON.parse(apiKeysStr) : {};
@@ -451,13 +508,24 @@ export const apiClient = {
     return response.data;
   },
 
-  addDirective: async (directive: Omit<TranslationDirective, 'id'>): Promise<ApiResponse<TranslationDirective>> => {
-    const response = await axiosInstance.post<ApiResponse<TranslationDirective>>('/admin/directives', directive);
+  addDirective: async (
+    directive: Omit<TranslationDirective, 'id'>
+  ): Promise<ApiResponse<TranslationDirective>> => {
+    const response = await axiosInstance.post<ApiResponse<TranslationDirective>>(
+      '/admin/directives',
+      directive
+    );
     return response.data;
   },
 
-  updateDirective: async (id: string, directive: Partial<TranslationDirective>): Promise<ApiResponse<TranslationDirective>> => {
-    const response = await axiosInstance.put<ApiResponse<TranslationDirective>>(`/admin/directives/${id}`, directive);
+  updateDirective: async (
+    id: string,
+    directive: Partial<TranslationDirective>
+  ): Promise<ApiResponse<TranslationDirective>> => {
+    const response = await axiosInstance.put<ApiResponse<TranslationDirective>>(
+      `/admin/directives/${id}`,
+      directive
+    );
     return response.data;
   },
 
@@ -492,7 +560,9 @@ export const apiClient = {
             return userInfo;
           }
         }
-      } catch (error) {}
+      } catch (error) {
+        console.error('获取用户信息失败:', error);
+      }
     }
 
     throw new Error('无法获取用户信息：所有端点尝试失败');

@@ -2,12 +2,15 @@
 """
 测试数据库连接
 """
-import sys
+
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from models.database import get_engine, get_session_local
 from sqlalchemy import text
+
+from models.database import get_engine, get_session_local
 
 try:
     engine = get_engine()
@@ -30,4 +33,5 @@ try:
 except Exception as e:
     print(f"数据库连接测试失败: {e}")
     import traceback
+
     traceback.print_exc()

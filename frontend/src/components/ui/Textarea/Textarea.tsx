@@ -1,13 +1,13 @@
-import React from 'react'
-import styles from './Textarea.module.css'
+import React from 'react';
+import styles from './Textarea.module.css';
 
 export interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
-  label?: string
-  error?: string
-  helperText?: string
-  fullWidth?: boolean
-  resize?: 'none' | 'vertical' | 'horizontal' | 'both'
-  rows?: number
+  label?: string;
+  error?: string;
+  helperText?: string;
+  fullWidth?: boolean;
+  resize?: 'none' | 'vertical' | 'horizontal' | 'both';
+  rows?: number;
 }
 
 const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
@@ -25,21 +25,22 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
     },
     ref
   ) => {
-    const textareaId = id || `textarea-${Math.random().toString(36).substr(2, 9)}`
-    const hasError = !!error
+    const textareaId = id || `textarea-${Math.random().toString(36).substr(2, 9)}`;
+    const hasError = !!error;
 
     const textareaClasses = [
       styles.textarea,
       hasError ? styles.error : '',
       styles[`resize-${resize}`],
       fullWidth ? styles.fullWidth : '',
-      className
-    ].filter(Boolean).join(' ')
+      className,
+    ]
+      .filter(Boolean)
+      .join(' ');
 
-    const wrapperClasses = [
-      styles.wrapper,
-      fullWidth ? styles.fullWidth : ''
-    ].filter(Boolean).join(' ')
+    const wrapperClasses = [styles.wrapper, fullWidth ? styles.fullWidth : '']
+      .filter(Boolean)
+      .join(' ');
 
     return (
       <div className={wrapperClasses}>
@@ -73,10 +74,10 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
           </div>
         )}
       </div>
-    )
+    );
   }
-)
+);
 
-Textarea.displayName = 'Textarea'
+Textarea.displayName = 'Textarea';
 
-export default Textarea
+export default Textarea;

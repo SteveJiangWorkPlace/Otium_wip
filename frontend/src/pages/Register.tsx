@@ -1,269 +1,269 @@
-import React, { useState, useEffect } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
-import { apiClient } from '../api/client'
-import { useAuthStore } from '../store/useAuthStore'
-import { Card, Input, Button, Icon } from '../components'
-import { resetAllStores } from '../utils/resetStores'
-import styles from './Register.module.css'
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { apiClient } from '../api/client';
+import { useAuthStore } from '../store/useAuthStore';
+import { Card, Input, Button, Icon } from '../components';
+import { resetAllStores } from '../utils/resetStores';
+import styles from './Register.module.css';
 
 const Register: React.FC = () => {
-  const navigate = useNavigate()
-  const setAuth = useAuthStore((state) => state.setAuth)
+  const navigate = useNavigate();
+  const setAuth = useAuthStore((state) => state.setAuth);
 
   // 注册流程步骤
-  const [step, setStep] = useState<'email' | 'verify' | 'complete'>('email')
+  const [step, setStep] = useState<'email' | 'verify' | 'complete'>('email');
 
   // 表单状态
-  const [email, setEmail] = useState('')
-  const [verificationCode, setVerificationCode] = useState('')
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
+  const [email, setEmail] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   // 验证令牌（后端返回）
-  const [verificationToken, setVerificationToken] = useState<string>('')
+  const [verificationToken, setVerificationToken] = useState<string>('');
 
   // 加载状态
-  const [loading, setLoading] = useState(false)
-  const [sendingCode, setSendingCode] = useState(false)
+  const [loading, setLoading] = useState(false);
+  const [sendingCode, setSendingCode] = useState(false);
 
   // 倒计时状态
-  const [countdown, setCountdown] = useState(0)
+  const [countdown, setCountdown] = useState(0);
 
   // 错误状态
-  const [emailError, setEmailError] = useState('')
-  const [codeError, setCodeError] = useState('')
-  const [usernameError, setUsernameError] = useState('')
-  const [passwordError, setPasswordError] = useState('')
-  const [confirmPasswordError, setConfirmPasswordError] = useState('')
-  const [formError, setFormError] = useState('')
+  const [emailError, setEmailError] = useState('');
+  const [codeError, setCodeError] = useState('');
+  const [usernameError, setUsernameError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [confirmPasswordError, setConfirmPasswordError] = useState('');
+  const [formError, setFormError] = useState('');
 
   // 用户名验证状态
-  const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null)
-  const [checkingUsername, setCheckingUsername] = useState(false)
+  const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
+  const [checkingUsername, setCheckingUsername] = useState(false);
 
   // 邮箱验证状态
-  const [checkingEmail, setCheckingEmail] = useState(false)
+  const [checkingEmail, setCheckingEmail] = useState(false);
 
   // 已认证用户重定向
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/')
+      navigate('/');
     }
-  }, [isAuthenticated, navigate])
+  }, [isAuthenticated, navigate]);
 
   // 倒计时效果
   useEffect(() => {
-    let timer: NodeJS.Timeout
+    let timer: NodeJS.Timeout;
     if (countdown > 0) {
-      timer = setTimeout(() => setCountdown(countdown - 1), 1000)
+      timer = setTimeout(() => setCountdown(countdown - 1), 1000);
     }
     return () => {
-      if (timer) clearTimeout(timer)
-    }
-  }, [countdown])
+      if (timer) clearTimeout(timer);
+    };
+  }, [countdown]);
 
   // 验证邮箱格式
   const validateEmail = (email: string): boolean => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    return emailRegex.test(email)
-  }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
 
   // 验证用户名格式
   const validateUsername = (username: string): boolean => {
     // 用户名格式：字母开头，允许字母、数字、下划线，3-20位
-    const usernameRegex = /^[a-zA-Z][a-zA-Z0-9_]{2,19}$/
-    return usernameRegex.test(username)
-  }
+    const usernameRegex = /^[a-zA-Z][a-zA-Z0-9_]{2,19}$/;
+    return usernameRegex.test(username);
+  };
 
   // 验证密码强度
   const validatePassword = (password: string): boolean => {
-    return password.length >= 6
-  }
+    return password.length >= 6;
+  };
 
   // 发送验证码
   const handleSendCode = async () => {
     if (!email.trim()) {
-      setEmailError('请输入邮箱地址')
-      return
+      setEmailError('请输入邮箱地址');
+      return;
     }
 
     if (!validateEmail(email)) {
-      setEmailError('请输入有效的邮箱地址')
-      return
+      setEmailError('请输入有效的邮箱地址');
+      return;
     }
 
-    setSendingCode(true)
-    setEmailError('')
-    setFormError('')
-    console.log('开始发送验证码，邮箱:', email)
+    setSendingCode(true);
+    setEmailError('');
+    setFormError('');
+    console.log('开始发送验证码，邮箱:', email);
 
     try {
       // 先检查邮箱是否可用
-      setCheckingEmail(true)
-      console.log('检查邮箱是否可用:', email)
-      const emailCheck = await apiClient.checkEmail(email)
-      console.log('邮箱检查结果:', emailCheck)
+      setCheckingEmail(true);
+      console.log('检查邮箱是否可用:', email);
+      const emailCheck = await apiClient.checkEmail(email);
+      console.log('邮箱检查结果:', emailCheck);
 
       if (!emailCheck.available) {
-        setEmailError('该邮箱已被注册')
-        setCheckingEmail(false)
-        setSendingCode(false)
-        return
+        setEmailError('该邮箱已被注册');
+        setCheckingEmail(false);
+        setSendingCode(false);
+        return;
       }
 
       // 发送验证码
-      console.log('发送验证码请求:', email)
-      const response = await apiClient.sendVerificationCode(email)
-      console.log('验证码发送响应:', response)
+      console.log('发送验证码请求:', email);
+      const response = await apiClient.sendVerificationCode(email);
+      console.log('验证码发送响应:', response);
       if (response.success) {
-        setFormError('')
-        setCountdown(60) // 60秒倒计时
-        setStep('verify')
+        setFormError('');
+        setCountdown(60); // 60秒倒计时
+        setStep('verify');
       } else {
-        setFormError(response.message || '发送验证码失败')
+        setFormError(response.message || '发送验证码失败');
       }
     } catch (error: any) {
-      console.error('发送验证码出错:', error)
+      console.error('发送验证码出错:', error);
       console.error('错误详情:', {
         message: error.message,
         response: error.response,
         status: error.response?.status,
-        data: error.response?.data
-      })
-      let errorMessage = '发送验证码失败，请稍后重试'
+        data: error.response?.data,
+      });
+      let errorMessage = '发送验证码失败，请稍后重试';
       if (error?.message) {
-        errorMessage = error.message
+        errorMessage = error.message;
       }
-      setFormError(errorMessage)
+      setFormError(errorMessage);
     } finally {
-      setSendingCode(false)
-      setCheckingEmail(false)
+      setSendingCode(false);
+      setCheckingEmail(false);
     }
-  }
+  };
 
   // 验证邮箱验证码
   const handleVerifyCode = async () => {
     if (!verificationCode.trim()) {
-      setCodeError('请输入验证码')
-      return
+      setCodeError('请输入验证码');
+      return;
     }
 
     if (verificationCode.length !== 6) {
-      setCodeError('验证码应为6位数字')
-      return
+      setCodeError('验证码应为6位数字');
+      return;
     }
 
-    setLoading(true)
-    setCodeError('')
-    setFormError('')
+    setLoading(true);
+    setCodeError('');
+    setFormError('');
 
     try {
-      const response = await apiClient.verifyEmail(email, verificationCode)
+      const response = await apiClient.verifyEmail(email, verificationCode);
       if (response.success && response.verification_token) {
-        setVerificationToken(response.verification_token)
-        setStep('complete')
-        setFormError('')
+        setVerificationToken(response.verification_token);
+        setStep('complete');
+        setFormError('');
       } else {
-        setFormError(response.message || '验证码错误或已过期')
+        setFormError(response.message || '验证码错误或已过期');
       }
     } catch (error: any) {
-      console.error('验证验证码出错:', error)
-      let errorMessage = '验证失败，请稍后重试'
+      console.error('验证验证码出错:', error);
+      let errorMessage = '验证失败，请稍后重试';
       if (error?.message) {
-        errorMessage = error.message
+        errorMessage = error.message;
       }
-      setFormError(errorMessage)
+      setFormError(errorMessage);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   // 检查用户名是否可用
   const handleCheckUsername = async () => {
     if (!username.trim()) {
-      setUsernameError('请输入用户名')
-      return
+      setUsernameError('请输入用户名');
+      return;
     }
 
     if (!validateUsername(username)) {
-      setUsernameError('用户名格式不正确（字母开头，3-20位，允许字母、数字、下划线）')
-      return
+      setUsernameError('用户名格式不正确（字母开头，3-20位，允许字母、数字、下划线）');
+      return;
     }
 
-    setCheckingUsername(true)
-    setUsernameError('')
-    setUsernameAvailable(null)
+    setCheckingUsername(true);
+    setUsernameError('');
+    setUsernameAvailable(null);
 
     try {
-      const response = await apiClient.checkUsername(username)
+      const response = await apiClient.checkUsername(username);
       if (response.available) {
-        setUsernameAvailable(true)
+        setUsernameAvailable(true);
       } else {
-        setUsernameAvailable(false)
-        setUsernameError(response.message || '用户名已被使用')
+        setUsernameAvailable(false);
+        setUsernameError(response.message || '用户名已被使用');
       }
     } catch (error: any) {
-      console.error('检查用户名出错:', error)
-      setUsernameError('检查用户名失败，请稍后重试')
+      console.error('检查用户名出错:', error);
+      setUsernameError('检查用户名失败，请稍后重试');
     } finally {
-      setCheckingUsername(false)
+      setCheckingUsername(false);
     }
-  }
+  };
 
   // 提交注册
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
 
     // 验证所有字段
-    let isValid = true
+    let isValid = true;
 
     if (!username.trim()) {
-      setUsernameError('请输入用户名')
-      isValid = false
+      setUsernameError('请输入用户名');
+      isValid = false;
     } else if (!validateUsername(username)) {
-      setUsernameError('用户名格式不正确（字母开头，3-20位，允许字母、数字、下划线）')
-      isValid = false
+      setUsernameError('用户名格式不正确（字母开头，3-20位，允许字母、数字、下划线）');
+      isValid = false;
     } else if (usernameAvailable === false) {
-      setUsernameError('用户名已被使用，请更换')
-      isValid = false
+      setUsernameError('用户名已被使用，请更换');
+      isValid = false;
     } else if (usernameAvailable === null) {
-      setUsernameError('请先检查用户名是否可用')
-      isValid = false
+      setUsernameError('请先检查用户名是否可用');
+      isValid = false;
     } else {
-      setUsernameError('')
+      setUsernameError('');
     }
 
     if (!password.trim()) {
-      setPasswordError('请输入密码')
-      isValid = false
+      setPasswordError('请输入密码');
+      isValid = false;
     } else if (!validatePassword(password)) {
-      setPasswordError('密码至少需要6位')
-      isValid = false
+      setPasswordError('密码至少需要6位');
+      isValid = false;
     } else {
-      setPasswordError('')
+      setPasswordError('');
     }
 
     if (!confirmPassword.trim()) {
-      setConfirmPasswordError('请确认密码')
-      isValid = false
+      setConfirmPasswordError('请确认密码');
+      isValid = false;
     } else if (password !== confirmPassword) {
-      setConfirmPasswordError('两次输入的密码不一致')
-      isValid = false
+      setConfirmPasswordError('两次输入的密码不一致');
+      isValid = false;
     } else {
-      setConfirmPasswordError('')
+      setConfirmPasswordError('');
     }
 
     if (!isValid) {
-      return
+      return;
     }
 
-    setLoading(true)
-    setFormError('')
+    setLoading(true);
+    setFormError('');
 
     try {
-      const response = await apiClient.register(username, email, password, verificationToken)
+      const response = await apiClient.register(username, email, password, verificationToken);
       if (response.success) {
         const userInfo = response.user_info || {
           username,
@@ -272,55 +272,51 @@ const Register: React.FC = () => {
           daily_translation_used: 0,
           daily_ai_detection_used: 0,
           is_admin: false,
-          is_active: true
-        }
-        const token = response.token
+          is_active: true,
+        };
+        const token = response.token;
 
-        setAuth(token, userInfo as any)
-        resetAllStores()
+        setAuth(token, userInfo as any);
+        resetAllStores();
 
         // 显示成功消息并跳转
-        setFormError('注册成功！正在跳转到首页...')
+        setFormError('注册成功！正在跳转到首页...');
         setTimeout(() => {
-          navigate('/')
-        }, 2000)
+          navigate('/');
+        }, 2000);
       } else {
-        setFormError(response.message || '注册失败')
+        setFormError(response.message || '注册失败');
       }
     } catch (error: any) {
-      console.error('注册过程出错:', error)
-      let errorMessage = '注册失败，请稍后重试'
+      console.error('注册过程出错:', error);
+      let errorMessage = '注册失败，请稍后重试';
       if (error?.message) {
-        errorMessage = error.message
+        errorMessage = error.message;
       }
-      setFormError(errorMessage)
+      setFormError(errorMessage);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   // 返回上一步
   const handleBack = () => {
     if (step === 'verify') {
-      setStep('email')
-      setVerificationCode('')
-      setCountdown(0)
+      setStep('email');
+      setVerificationCode('');
+      setCountdown(0);
     } else if (step === 'complete') {
-      setStep('verify')
+      setStep('verify');
     }
-    setFormError('')
-  }
+    setFormError('');
+  };
 
   return (
     <div className={styles.registerContainer}>
       <Card variant="center" padding="large" className={styles.registerCard}>
         <div className={styles.registerHeader}>
           <div className={styles.headerLeft}>
-            <img
-              src="/logopic.svg"
-              alt="Otium"
-              className={styles.logoImage}
-            />
+            <img src="/logopic.svg" alt="Otium" className={styles.logoImage} />
           </div>
           <div className={styles.headerDivider}></div>
           <div className={styles.headerRight}>
@@ -331,12 +327,16 @@ const Register: React.FC = () => {
 
         {/* 步骤指示器 */}
         <div className={styles.stepsContainer}>
-          <div className={`${styles.step} ${step === 'email' ? styles.active : ''} ${step === 'verify' || step === 'complete' ? styles.completed : ''}`}>
+          <div
+            className={`${styles.step} ${step === 'email' ? styles.active : ''} ${step === 'verify' || step === 'complete' ? styles.completed : ''}`}
+          >
             <div className={styles.stepNumber}>1</div>
             <div className={styles.stepLabel}>验证邮箱</div>
           </div>
           <div className={styles.stepLine}></div>
-          <div className={`${styles.step} ${step === 'verify' ? styles.active : ''} ${step === 'complete' ? styles.completed : ''}`}>
+          <div
+            className={`${styles.step} ${step === 'verify' ? styles.active : ''} ${step === 'complete' ? styles.completed : ''}`}
+          >
             <div className={styles.stepNumber}>2</div>
             <div className={styles.stepLabel}>输入验证码</div>
           </div>
@@ -348,8 +348,14 @@ const Register: React.FC = () => {
         </div>
 
         {formError && (
-          <div className={`${styles.message} ${formError.includes('成功') ? styles.successMessage : styles.errorMessage}`}>
-            <Icon name={formError.includes('成功') ? 'check' : 'close'} size="sm" variant={formError.includes('成功') ? 'success' : 'error'} />
+          <div
+            className={`${styles.message} ${formError.includes('成功') ? styles.successMessage : styles.errorMessage}`}
+          >
+            <Icon
+              name={formError.includes('成功') ? 'check' : 'close'}
+              size="sm"
+              variant={formError.includes('成功') ? 'success' : 'error'}
+            />
             <span>{formError}</span>
           </div>
         )}
@@ -364,9 +370,9 @@ const Register: React.FC = () => {
                 type="email"
                 value={email}
                 onChange={(e) => {
-                  setEmail(e.target.value)
-                  setEmailError('')
-                  setFormError('')
+                  setEmail(e.target.value);
+                  setEmailError('');
+                  setFormError('');
                 }}
                 error={emailError}
                 placeholder="请输入邮箱地址"
@@ -413,10 +419,10 @@ const Register: React.FC = () => {
                 type="text"
                 value={verificationCode}
                 onChange={(e) => {
-                  const value = e.target.value.replace(/\D/g, '') // 只允许数字
-                  setVerificationCode(value.slice(0, 6))
-                  setCodeError('')
-                  setFormError('')
+                  const value = e.target.value.replace(/\D/g, ''); // 只允许数字
+                  setVerificationCode(value.slice(0, 6));
+                  setCodeError('');
+                  setFormError('');
                 }}
                 error={codeError}
                 placeholder="请输入6位验证码"
@@ -441,20 +447,10 @@ const Register: React.FC = () => {
             </div>
 
             <div className={styles.buttonGroup}>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={handleBack}
-                disabled={loading}
-              >
+              <Button type="button" variant="secondary" onClick={handleBack} disabled={loading}>
                 返回
               </Button>
-              <Button
-                type="button"
-                variant="primary"
-                onClick={handleVerifyCode}
-                loading={loading}
-              >
+              <Button type="button" variant="primary" onClick={handleVerifyCode} loading={loading}>
                 {loading ? '验证中...' : '验证'}
               </Button>
             </div>
@@ -472,11 +468,11 @@ const Register: React.FC = () => {
                   type="text"
                   value={username}
                   onChange={(e) => {
-                    const value = e.target.value
-                    setUsername(value)
-                    setUsernameError('')
-                    setUsernameAvailable(null)
-                    setFormError('')
+                    const value = e.target.value;
+                    setUsername(value);
+                    setUsernameError('');
+                    setUsernameAvailable(null);
+                    setFormError('');
                   }}
                   onBlur={handleCheckUsername}
                   error={usernameError}
@@ -509,9 +505,9 @@ const Register: React.FC = () => {
                   type="password"
                   value={password}
                   onChange={(e) => {
-                    setPassword(e.target.value)
-                    setPasswordError('')
-                    setFormError('')
+                    setPassword(e.target.value);
+                    setPasswordError('');
+                    setFormError('');
                   }}
                   error={passwordError}
                   placeholder="请输入密码（至少6位）"
@@ -526,9 +522,9 @@ const Register: React.FC = () => {
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => {
-                    setConfirmPassword(e.target.value)
-                    setConfirmPasswordError('')
-                    setFormError('')
+                    setConfirmPassword(e.target.value);
+                    setConfirmPasswordError('');
+                    setFormError('');
                   }}
                   error={confirmPasswordError}
                   placeholder="请确认密码"
@@ -539,19 +535,10 @@ const Register: React.FC = () => {
               </div>
 
               <div className={styles.buttonGroup}>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={handleBack}
-                  disabled={loading}
-                >
+                <Button type="button" variant="secondary" onClick={handleBack} disabled={loading}>
                   返回
                 </Button>
-                <Button
-                  type="submit"
-                  variant="primary"
-                  loading={loading}
-                >
+                <Button type="submit" variant="primary" loading={loading}>
                   {loading ? '注册中...' : '完成注册'}
                 </Button>
               </div>
@@ -566,7 +553,7 @@ const Register: React.FC = () => {
         )}
       </Card>
     </div>
-  )
-}
+  );
+};
 
-export default Register
+export default Register;

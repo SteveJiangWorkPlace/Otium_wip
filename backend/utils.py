@@ -9,23 +9,22 @@
 - 辅助函数：安全哈希生成、批注处理等
 """
 
-import json
-import os
-import time
-import threading
-import logging
 import hashlib
+import json
+import logging
+import os
+import threading
+import time
 import uuid
-from datetime import datetime
 from collections import deque
-from typing import Dict, List, Any, Optional, Tuple
+from datetime import datetime
 
-from config import settings, is_expired
-
+from config import is_expired
 
 # ==========================================
 # 用户限制管理
 # ==========================================
+
 
 class UserLimitManager:
     """管理用户使用限制，包括时间和使用次数
@@ -38,7 +37,10 @@ class UserLimitManager:
         logging.warning("UserLimitManager 已弃用，请使用 services.user_service.UserService 替代")
 
         # 修复文件存储路径问题
-        self.usage_db_path = os.environ.get("USAGE_DB_PATH", os.path.join(os.path.dirname(os.path.abspath(__file__)), "usage_data.json"))
+        self.usage_db_path = os.environ.get(
+            "USAGE_DB_PATH",
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "usage_data.json"),
+        )
         self.allowed_users = {}
         self.load_allowed_users()
         # 线程锁，防止同一进程内的并发访问
@@ -62,17 +64,21 @@ class UserLimitManager:
 
                 # 验证日期格式是否正确
                 try:
-                    datetime.strptime(expiry_date, '%Y-%m-%d')
+                    datetime.strptime(expiry_date, "%Y-%m-%d")
                 except ValueError:
                     # 如果日期格式不正确，记录警告并使用默认值
-                    logging.warning(f"用户 {username} 的过期日期格式不正确: {expiry_date}，设置为默认值")
+                    logging.warning(
+                        f"用户 {username} 的过期日期格式不正确: {expiry_date}，设置为默认值"
+                    )
                     expiry_date = "2099-12-31"
 
                 # 将用户信息添加到 allowed_users 字典中
                 self.allowed_users[username] = {
                     "expiry_date": expiry_date,
-                    "max_translations": data.get("max_translations", 1000),  # 默认翻译次数限制为 1000
-                    "password": data.get("password", "")  # 默认密码为空字符串
+                    "max_translations": data.get(
+                        "max_translations", 1000
+                    ),  # 默认翻译次数限制为 1000
+                    "password": data.get("password", ""),  # 默认密码为空字符串
                 }
         except Exception as e:
             # 如果解析过程中出现任何错误，记录警告并使用默认配置
@@ -81,13 +87,13 @@ class UserLimitManager:
                 "test": {
                     "expiry_date": "2099-12-31",
                     "max_translations": 10,
-                    "password": "test123"
+                    "password": "test123",
                 },
                 "test_user": {
                     "expiry_date": "2026-12-31",
                     "max_translations": 1000,
-                    "password": "test123"
-                }
+                    "password": "test123",
+                },
             }
 
         # 自动添加管理员用户（使用环境变量或默认值）
@@ -99,7 +105,7 @@ class UserLimitManager:
             self.allowed_users[admin_username] = {
                 "expiry_date": "2099-12-31",
                 "max_translations": 99999,  # 管理员有非常大的翻译次数限制
-                "password": admin_password
+                "password": admin_password,
             }
             logging.info(f"自动添加管理员用户: {admin_username}")
         else:
@@ -114,7 +120,7 @@ class UserLimitManager:
         try:
             if os.path.exists(self.usage_db_path):
                 logging.info(f"从文件加载使用数据: {self.usage_db_path}")
-                with open(self.usage_db_path, 'r', encoding='utf-8') as f:
+                with open(self.usage_db_path, encoding="utf-8") as f:
                     data = json.load(f)
                     logging.info(f"成功加载 {len(data)} 个用户的使用数据")
                     return data
@@ -135,7 +141,7 @@ class UserLimitManager:
                 logging.info(f"确保目录存在: {dir_path}")
 
             logging.info(f"正在保存使用数据到: {self.usage_db_path}")
-            with open(self.usage_db_path, 'w', encoding='utf-8') as f:
+            with open(self.usage_db_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
             logging.info(f"使用数据保存成功，包含 {len(data)} 个用户的使用记录")
             return True
@@ -162,7 +168,7 @@ class UserLimitManager:
                         os.makedirs(dir_path, exist_ok=True)
 
                     # 写入临时文件
-                    with open(temp_file, 'w', encoding='utf-8') as f:
+                    with open(temp_file, "w", encoding="utf-8") as f:
                         json.dump(data, f, ensure_ascii=False, indent=2)
 
                     # 原子性重命名（POSIX和Windows都保证原子性）
@@ -175,23 +181,23 @@ class UserLimitManager:
                     os.close(lock_fd)
                     try:
                         os.unlink(lock_file)
-                    except:
+                    except Exception:
                         pass
 
-            except (OSError, IOError) as e:
+            except OSError:
                 # 锁文件已存在，表示其他进程正在操作
                 if attempt < max_retries - 1:
                     logging.debug(f"等待文件锁，重试 {attempt + 1}/{max_retries}")
                     time.sleep(retry_delay)
                 else:
-                    logging.warning(f"无法获取文件锁，使用线程锁保护的单进程保存")
+                    logging.warning("无法获取文件锁，使用线程锁保护的单进程保存")
                     # 降级方案：使用线程锁保护的标准保存
                     with self._lock:
                         self.save_usage_data(data)
                     return
             except Exception as e:
                 logging.error(f"原子保存失败: {str(e)}", exc_info=True)
-                raise RuntimeError(f"原子保存失败: {str(e)}")
+                raise RuntimeError(f"原子保存失败: {str(e)}") from e
 
     def is_user_allowed(self, username, password=None):
         """检查用户是否被允许使用"""
@@ -201,7 +207,7 @@ class UserLimitManager:
             logging.info(f"管理员用户 {username} 跳过所有限制检查")
             return True, "管理员验证通过"
 
-        logging.info(f"=== 登录验证开始 ===")
+        logging.info("=== 登录验证开始 ===")
         logging.info(f"用户名: {username}")
         logging.info(f"输入密码: {'*****' if password else 'None'}")
         logging.info(f"所有用户: {list(self.allowed_users.keys())}")
@@ -214,13 +220,15 @@ class UserLimitManager:
         logging.info(f"用户数据: {user_data}")
 
         if password is not None and user_data.get("password", "") != password:
-            logging.error(f"密码不匹配！输入: '{password}', 存储: '{user_data.get('password', '')}'")
+            logging.error(
+                f"密码不匹配！输入: '{password}', 存储: '{user_data.get('password', '')}'"
+            )
             return False, "密码错误"
 
-        logging.info(f"密码验证通过！")
+        logging.info("密码验证通过！")
 
         # 检查账户有效期
-        expiry_date_str = user_data.get('expiry_date', '2099-12-31')
+        expiry_date_str = user_data.get("expiry_date", "2099-12-31")
         logging.info(f"检查账户有效期: {expiry_date_str}")
 
         if is_expired(expiry_date_str):
@@ -242,9 +250,9 @@ class UserLimitManager:
     def record_translation(self, username):
         """记录一次翻译使用，使用线程锁确保原子性"""
         # 添加类型检查和转换
-        if hasattr(username, 'username'):
+        if hasattr(username, "username"):
             username = username.username
-        elif not isinstance(username, (str, int)):
+        elif not isinstance(username, str | int):
             username = str(username)
 
         # 检查用户是否存在
@@ -263,15 +271,19 @@ class UserLimitManager:
             usage_data[username]["translations"] += 1
             new_count = usage_data[username]["translations"]
 
-            logging.info(f"记录翻译使用: 用户 {username}, 之前次数: {previous_count}, 现在次数: {new_count}")
+            logging.info(
+                f"记录翻译使用: 用户 {username}, 之前次数: {previous_count}, 现在次数: {new_count}"
+            )
 
             # 保存使用数据，失败时抛出异常
             try:
                 self._atomic_save_usage_data(usage_data)
                 logging.info(f"翻译使用记录保存成功: 用户 {username}, 总使用次数: {new_count}")
             except Exception as e:
-                logging.error(f"保存翻译使用记录失败，数据可能丢失！用户: {username}, 次数: {new_count}, 错误: {str(e)}")
-                raise RuntimeError(f"无法保存翻译使用记录: {str(e)}")
+                logging.error(
+                    f"保存翻译使用记录失败，数据可能丢失！用户: {username}, 次数: {new_count}, 错误: {str(e)}"
+                )
+                raise RuntimeError(f"无法保存翻译使用记录: {str(e)}") from e
 
             max_translations = self.allowed_users[username]["max_translations"]
             remaining = max_translations - new_count
@@ -282,9 +294,9 @@ class UserLimitManager:
     def get_user_info(self, username):
         """获取用户信息"""
         # 添加类型检查和转换
-        if hasattr(username, 'username'):
+        if hasattr(username, "username"):
             username = username.username
-        elif not isinstance(username, (str, int)):
+        elif not isinstance(username, str | int):
             username = str(username)
 
         if username not in self.allowed_users:
@@ -297,17 +309,25 @@ class UserLimitManager:
         max_translations = user_data["max_translations"]
         remaining = max_translations - used_translations
 
-        logging.info(f"获取用户信息: {username}, 已使用 {used_translations}/{max_translations} 次翻译, 剩余 {remaining} 次")
+        logging.info(
+            f"获取用户信息: {username}, 已使用 {used_translations}/{max_translations} 次翻译, 剩余 {remaining} 次"
+        )
 
         return {
             "username": username,
             "expiry_date": user_data["expiry_date"],
             "max_translations": max_translations,
             "used_translations": used_translations,
-            "remaining_translations": remaining
+            "remaining_translations": remaining,
         }
 
-    def update_user(self, username: str, expiry_date: str = None, max_translations: int = None, password: str = None):
+    def update_user(
+        self,
+        username: str,
+        expiry_date: str = None,
+        max_translations: int = None,
+        password: str = None,
+    ):
         """更新用户信息"""
         if username not in self.allowed_users:
             return False, "用户不存在"
@@ -331,7 +351,7 @@ class UserLimitManager:
         self.allowed_users[username] = {
             "expiry_date": expiry_date,
             "max_translations": max_translations,
-            "password": password
+            "password": password,
         }
 
         return True, ""
@@ -339,7 +359,7 @@ class UserLimitManager:
     def get_all_users(self):
         """获取所有用户信息"""
         users = []
-        usage_data = self.load_usage_data()
+        self.load_usage_data()
 
         for username in self.allowed_users:
             user_info = self.get_user_info(username)
@@ -353,6 +373,7 @@ class UserLimitManager:
 # 速率限制器（按用户）
 # ==========================================
 
+
 class RateLimiter:
     """速率限制器 - 按用户控制API调用频率"""
 
@@ -364,9 +385,9 @@ class RateLimiter:
     def is_allowed(self, user_id):
         """检查是否允许调用"""
         # 添加类型检查和转换
-        if hasattr(user_id, 'username'):
+        if hasattr(user_id, "username"):
             user_id = user_id.username
-        elif not isinstance(user_id, (str, int)):
+        elif not isinstance(user_id, str | int):
             user_id = str(user_id)
 
         current_time = time.time()
@@ -391,9 +412,9 @@ class RateLimiter:
     def reset(self, user_id: str):
         """重置指定用户的限制器"""
         # 添加类型检查和转换
-        if hasattr(user_id, 'username'):
+        if hasattr(user_id, "username"):
             user_id = user_id.username
-        elif not isinstance(user_id, (str, int)):
+        elif not isinstance(user_id, str | int):
             user_id = str(user_id)
 
         if user_id in self.calls:
@@ -403,6 +424,7 @@ class RateLimiter:
 # ==========================================
 # 文本验证器
 # ==========================================
+
 
 class TextValidator:
     """文本验证器"""
@@ -431,25 +453,20 @@ class TextValidator:
     @staticmethod
     def validate_for_gemini(text):
         return TextValidator._validate_base(
-            text,
-            TextValidator.GEMINI_MIN_CHARS,
-            TextValidator.GEMINI_MAX_CHARS,
-            "Gemini API"
+            text, TextValidator.GEMINI_MIN_CHARS, TextValidator.GEMINI_MAX_CHARS, "Gemini API"
         )
 
     @staticmethod
     def validate_for_gptzero(text):
         return TextValidator._validate_base(
-            text,
-            TextValidator.GPTZERO_MIN_CHARS,
-            TextValidator.GPTZERO_MAX_CHARS,
-            "GPTZero API"
+            text, TextValidator.GPTZERO_MIN_CHARS, TextValidator.GPTZERO_MAX_CHARS, "GPTZero API"
         )
 
 
 # ==========================================
 # 缓存管理（模拟Streamlit缓存）
 # ==========================================
+
 
 class CacheManager:
     """简单的内存缓存管理器"""
@@ -476,10 +493,7 @@ class CacheManager:
             oldest_key = min(self.cache.keys(), key=lambda k: self.cache[k]["timestamp"])
             del self.cache[oldest_key]
 
-        self.cache[key] = {
-            "value": value,
-            "timestamp": time.time()
-        }
+        self.cache[key] = {"value": value, "timestamp": time.time()}
 
     def clear(self):
         """清空缓存"""
@@ -490,11 +504,12 @@ class CacheManager:
 # 辅助函数
 # ==========================================
 
+
 def generate_safe_hash(text: str, length: int = 12) -> str:
     """生成安全的文本哈希值"""
     try:
         # 使用SHA256生成哈希
-        hash_obj = hashlib.sha256(text.encode('utf-8'))
+        hash_obj = hashlib.sha256(text.encode("utf-8"))
         # 返回指定长度的十六进制字符串（前length个字符）
         return hash_obj.hexdigest()[:length]
     except Exception as e:
@@ -510,26 +525,28 @@ def contains_annotation(text: str) -> bool:
 
     # 检查是否有[[...]]格式的批注
     import re
-    pattern = r'\[\[([^\]]+)\]\]'
+
+    pattern = r"\[\[([^\]]+)\]\]"
     return bool(re.search(pattern, text))
 
 
-def extract_annotations(text: str) -> Tuple[str, List[str]]:
+def extract_annotations(text: str) -> tuple[str, list[str]]:
     """从文本中提取批注标记"""
     if not text:
         return text, []
 
     import re
-    pattern = r'\[\[([^\]]+)\]\]'
+
+    pattern = r"\[\[([^\]]+)\]\]"
 
     # 查找所有批注
     annotations = re.findall(pattern, text)
 
     # 移除批注标记，只保留纯文本
-    clean_text = re.sub(pattern, '', text)
+    clean_text = re.sub(pattern, "", text)
 
     # 清理多余的空白
-    clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+    clean_text = re.sub(r"\s+", " ", clean_text).strip()
 
     return clean_text, annotations
 

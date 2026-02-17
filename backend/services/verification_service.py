@@ -7,15 +7,12 @@
 - 邮箱验证状态令牌 (purpose: "verified")
 """
 
+import logging
 import random
 import string
-import time
-import logging
-from typing import Optional, Tuple
 
 from config import settings
 from utils import CacheManager
-
 
 logger = logging.getLogger(__name__)
 
@@ -26,22 +23,13 @@ class VerificationService:
     def __init__(self):
         """初始化验证服务"""
         # 验证码缓存：10分钟TTL，最多1000条
-        self.verification_cache = CacheManager(
-            ttl=settings.VERIFICATION_CODE_TTL,
-            max_entries=1000
-        )
+        self.verification_cache = CacheManager(ttl=settings.VERIFICATION_CODE_TTL, max_entries=1000)
 
         # 重置令牌缓存：24小时TTL，最多1000条
-        self.reset_token_cache = CacheManager(
-            ttl=settings.RESET_TOKEN_TTL,
-            max_entries=1000
-        )
+        self.reset_token_cache = CacheManager(ttl=settings.RESET_TOKEN_TTL, max_entries=1000)
 
         # 已验证令牌缓存：30分钟TTL，最多1000条（用于注册流程中的邮箱验证状态）
-        self.verified_cache = CacheManager(
-            ttl=1800,  # 30分钟
-            max_entries=1000
-        )
+        self.verified_cache = CacheManager(ttl=1800, max_entries=1000)  # 30分钟
 
         logger.info("验证服务初始化完成")
 
@@ -54,7 +42,7 @@ class VerificationService:
         Returns:
             str: 数字验证码
         """
-        return ''.join(random.choices(string.digits, k=length))
+        return "".join(random.choices(string.digits, k=length))
 
     def generate_alphanumeric_code(self, length: int = 8) -> str:
         """生成字母数字验证码（用于令牌）
@@ -66,7 +54,7 @@ class VerificationService:
             str: 字母数字验证码
         """
         chars = string.ascii_letters + string.digits
-        return ''.join(random.choices(chars, k=length))
+        return "".join(random.choices(chars, k=length))
 
     def store_verification_code(self, email: str, code: str) -> None:
         """存储验证码到缓存
@@ -79,7 +67,7 @@ class VerificationService:
         self.verification_cache.set(key, code)
         logger.debug(f"存储验证码: {email} -> {code}")
 
-    def verify_code(self, email: str, code: str) -> Tuple[bool, str]:
+    def verify_code(self, email: str, code: str) -> tuple[bool, str]:
         """验证验证码
 
         Args:
@@ -114,7 +102,7 @@ class VerificationService:
         self.reset_token_cache.set(key, email)
         logger.debug(f"存储重置令牌: {email} -> {token}")
 
-    def verify_reset_token(self, token: str) -> Tuple[bool, Optional[str]]:
+    def verify_reset_token(self, token: str) -> tuple[bool, str | None]:
         """验证重置令牌
 
         Args:
@@ -132,7 +120,7 @@ class VerificationService:
         logger.debug(f"重置令牌验证成功: {token} -> {email}")
         return True, email
 
-    def consume_reset_token(self, token: str) -> Optional[str]:
+    def consume_reset_token(self, token: str) -> str | None:
         """使用并删除重置令牌（一次性使用）
 
         Args:
@@ -163,7 +151,7 @@ class VerificationService:
         self.verified_cache.set(key, email)
         logger.debug(f"存储已验证令牌: {email} -> {token}")
 
-    def verify_verified_token(self, token: str) -> Tuple[bool, Optional[str]]:
+    def verify_verified_token(self, token: str) -> tuple[bool, str | None]:
         """验证已验证令牌
 
         Args:
@@ -181,7 +169,7 @@ class VerificationService:
         logger.debug(f"已验证令牌验证成功: {token} -> {email}")
         return True, email
 
-    def consume_verified_token(self, token: str) -> Optional[str]:
+    def consume_verified_token(self, token: str) -> str | None:
         """使用并删除已验证令牌（一次性使用）
 
         Args:
@@ -246,7 +234,6 @@ class VerificationService:
         """
         # 简单的速率限制：同一邮箱10分钟内最多发送3次
         if purpose == "verify":
-            key = f"rate_limit:verify:{email}"
             # 这里可以扩展为更复杂的速率限制逻辑
             # 目前返回False表示无限制
             return False

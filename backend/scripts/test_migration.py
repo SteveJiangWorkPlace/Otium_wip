@@ -5,25 +5,21 @@
 测试UserService的功能，确保与原有UserLimitManager兼容。
 """
 
-import os
-import sys
 import logging
+import sys
 from pathlib import Path
 
 # 添加项目根目录到Python路径
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from models.database import init_database, get_session_local, User, UserUsage
+from models.database import User, get_session_local, init_database
 from user_services.user_service import UserService
 
 
 def setup_logging():
     """设置日志"""
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
 def test_user_service():
@@ -42,10 +38,7 @@ def test_user_service():
     # 测试1: 添加用户
     logging.info("\n测试1: 添加用户")
     success, message = user_service.add_user(
-        username="test_user1",
-        password="test123",
-        expiry_date="2026-12-31",
-        max_translations=100
+        username="test_user1", password="test123", expiry_date="2026-12-31", max_translations=100
     )
     logging.info(f"添加用户结果: {success}, {message}")
 
@@ -61,15 +54,15 @@ def test_user_service():
 
     # 测试4: 记录翻译使用
     logging.info("\n测试4: 记录翻译使用")
-    remaining = user_service.record_translation("test_user1", operation_type="test", text_length=100)
+    remaining = user_service.record_translation(
+        "test_user1", operation_type="test", text_length=100
+    )
     logging.info(f"剩余翻译次数: {remaining}")
 
     # 测试5: 更新用户信息
     logging.info("\n测试5: 更新用户信息")
     success, message = user_service.update_user(
-        username="test_user1",
-        max_translations=200,
-        expiry_date="2027-12-31"
+        username="test_user1", max_translations=200, expiry_date="2027-12-31"
     )
     logging.info(f"更新用户结果: {success}, {message}")
 
@@ -83,7 +76,9 @@ def test_user_service():
     all_users = user_service.get_all_users()
     logging.info(f"所有用户数量: {len(all_users)}")
     for user in all_users:
-        logging.info(f"  - {user['username']}: {user['remaining_translations']}/{user['max_translations']}")
+        logging.info(
+            f"  - {user['username']}: {user['remaining_translations']}/{user['max_translations']}"
+        )
 
     # 测试8: 验证错误密码
     logging.info("\n测试8: 验证错误密码")
@@ -98,6 +93,7 @@ def test_user_service():
     # 测试10: 检查管理员用户
     logging.info("\n测试10: 检查管理员用户")
     from config import settings
+
     admin_info = user_service.get_user_info(settings.ADMIN_USERNAME)
     if admin_info:
         logging.info(f"管理员用户存在: {admin_info['username']}")
@@ -127,7 +123,9 @@ def test_database_models():
         logging.info(f"数据库中的用户数量: {len(users)}")
 
         for user in users:
-            logging.info(f"用户: {user.username}, 过期日期: {user.expiry_date}, 管理员: {user.is_admin}")
+            logging.info(
+                f"用户: {user.username}, 过期日期: {user.expiry_date}, 管理员: {user.is_admin}"
+            )
 
             # 测试使用记录
             if user.usage:
@@ -135,9 +133,10 @@ def test_database_models():
 
         # 测试密码哈希
         from models.database import hash_password, verify_password
+
         test_password = "test_password"
         hashed = hash_password(test_password)
-        logging.info(f"\n密码哈希测试:")
+        logging.info("\n密码哈希测试:")
         logging.info(f"  原始密码: {test_password}")
         logging.info(f"  哈希值: {hashed}")
         logging.info(f"  验证结果: {verify_password(test_password, hashed)}")
@@ -192,7 +191,7 @@ def main():
 
         # 询问是否清理测试数据
         response = input("\n是否清理测试数据？(y/n): ")
-        if response.lower() == 'y':
+        if response.lower() == "y":
             cleanup_test_data()
         else:
             logging.info("保留测试数据")

@@ -128,7 +128,6 @@
   display: inline-block;
 }
 
-
 .messageContent {
   padding: var(--spacing-md) var(--spacing-3);
   font-size: var(--font-size-base);
@@ -260,7 +259,6 @@
   z-index: 2;
 }
 
-
 .sendButton:hover {
   background-color: var(--color-gray-300);
 }
@@ -304,7 +302,9 @@
 }
 
 @keyframes dotBounce {
-  0%, 60%, 100% {
+  0%,
+  60%,
+  100% {
     transform: translateY(0);
   }
   30% {

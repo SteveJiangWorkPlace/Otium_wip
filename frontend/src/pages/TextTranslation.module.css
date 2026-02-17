@@ -13,7 +13,6 @@
   gap: var(--spacing-3);
 }
 
-
 .inputCard {
   width: 100%;
 }
@@ -107,7 +106,6 @@
   padding: var(--spacing-1);
 }
 
-
 .inputFooter {
   margin-top: var(--spacing-4);
 }
@@ -182,7 +180,9 @@
 }
 
 @keyframes dotPulse {
-  0%, 60%, 100% {
+  0%,
+  60%,
+  100% {
     opacity: 0;
   }
   30% {
@@ -288,7 +288,6 @@
   border-left: 1px solid transparent;
 }
 
-
 /* 响应式设计 */
 @media (max-width: 768px) {
   .translationContainer {
@@ -339,7 +338,8 @@
     gap: var(--spacing-3);
   }
 
-  .leftButtonGroup, .rightButtonGroup {
+  .leftButtonGroup,
+  .rightButtonGroup {
     justify-content: center;
     width: 100%;
   }
@@ -377,7 +377,6 @@
   .aiPanelContainer.expanded {
     transform: translateX(0);
   }
-
 }
 
 /* 流式翻译进度卡片样式 */

@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """测试Gemini API密钥是否有效"""
 
-import google.genai
 import logging
 
+import google.genai
+
 logging.basicConfig(level=logging.INFO)
+
 
 def test_gemini_api_key(api_key: str, model: str = "gemini-3-pro-preview"):
     """测试Gemini API密钥"""
@@ -16,20 +18,19 @@ def test_gemini_api_key(api_key: str, model: str = "gemini-3-pro-preview"):
 
         # 简单测试
         response = client.models.generate_content(
-            model=model,
-            contents="Hello, say hi back in one word."
+            model=model, contents="Hello, say hi back in one word."
         )
 
         # 提取响应
         text = ""
-        if hasattr(response, 'text'):
+        if hasattr(response, "text"):
             text = response.text
-        elif hasattr(response, 'candidates') and response.candidates:
+        elif hasattr(response, "candidates") and response.candidates:
             candidate = response.candidates[0]
-            if hasattr(candidate, 'content') and candidate.content:
-                if hasattr(candidate.content, 'parts') and candidate.content.parts:
+            if hasattr(candidate, "content") and candidate.content:
+                if hasattr(candidate.content, "parts") and candidate.content.parts:
                     text = candidate.content.parts[0].text
-                elif hasattr(candidate.content, 'text'):
+                elif hasattr(candidate.content, "text"):
                     text = candidate.content.text
 
         print(f"成功! 响应: {text}")
@@ -38,6 +39,7 @@ def test_gemini_api_key(api_key: str, model: str = "gemini-3-pro-preview"):
     except Exception as e:
         print(f"错误: {type(e).__name__}: {str(e)}")
         return False
+
 
 if __name__ == "__main__":
     api_key = "AIzaSyALdYcSfEHkBIWYBCvmuGpGtOsuuUDF9xU"

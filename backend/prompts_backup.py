@@ -10,7 +10,7 @@
 """
 
 import re
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 
 def build_error_check_prompt_original(chinese_text: str) -> str:
@@ -31,9 +31,15 @@ def build_error_check_prompt_original(chinese_text: str) -> str:
 """
 
 
-def build_academic_translate_prompt_original(chinese_text: str, style: str = "US", version: str = "professional") -> str:
+def build_academic_translate_prompt_original(
+    chinese_text: str, style: str = "US", version: str = "professional"
+) -> str:
     """原始学术翻译提示词构建函数"""
-    spelling_rule = "American Spelling (Color, Honor, Analyze)" if style == "US" else "British Spelling (Colour, Honour, Analyse)"
+    spelling_rule = (
+        "American Spelling (Color, Honor, Analyze)"
+        if style == "US"
+        else "British Spelling (Colour, Honour, Analyse)"
+    )
 
     if version == "basic":
         sentence_structure_guideline = """**Sentence Structure (Basic Rule)**: Strictly avoid using the "comma + verb-ing" structure (e.g., ", revealing trends"). Instead, use relative clauses (e.g., ", which revealed..."), coordination (e.g., "and revealed..."), or start new sentences where appropriate for better flow."""
@@ -70,7 +76,7 @@ def preprocess_annotations_original(text: str) -> str:
     """原始批注预处理函数"""
     # 处理【】格式批注
     processed = text
-    for match in re.finditer(r'([^。！？.!?]+[。！？.!?]+)【([^】]*)】', processed):
+    for match in re.finditer(r"([^。！？.!?]+[。！？.!?]+)【([^】]*)】", processed):
         sentence = match.group(1)
         annotation = match.group(2)
         full_match = match.group(0)
@@ -78,7 +84,7 @@ def preprocess_annotations_original(text: str) -> str:
         processed = processed.replace(full_match, replacement)
 
     # 处理[]格式批注
-    for match in re.finditer(r'([^。！？.!?]+[。！？.!?]+)\[([^\]]*)\]', processed):
+    for match in re.finditer(r"([^。！？.!?]+[。！？.!?]+)\[([^\]]*)\]", processed):
         sentence = match.group(1)
         annotation = match.group(2)
         full_match = match.group(0)
@@ -91,7 +97,7 @@ def preprocess_annotations_original(text: str) -> str:
 def build_english_refine_prompt_original(
     text_with_instructions: str,
     hidden_instructions: str = "",
-    annotations: Optional[List[Dict[str, Any]]] = None
+    annotations: Optional[List[Dict[str, Any]]] = None,
 ) -> str:
     """原始英文精修提示词构建函数"""
     # 使用改进的预处理函数
@@ -102,9 +108,11 @@ def build_english_refine_prompt_original(
     if annotations and len(annotations) > 0:
         examples = []
         for i, anno in enumerate(annotations[:3]):  # 最多使用前3个批注作为例子
-            sentence = anno['sentence'].strip()
-            instruction = anno['content'].strip()
-            examples.append(f"- 句子 \"{sentence}\" 有批注 \"{instruction}\"，只修改这个句子，其他句子保持不变")
+            sentence = anno["sentence"].strip()
+            instruction = anno["content"].strip()
+            examples.append(
+                f'- 句子 "{sentence}" 有批注 "{instruction}"，只修改这个句子，其他句子保持不变'
+            )
 
         if examples:
             sentence_annotation_examples = "本文中的具体批注例子:\n" + "\n".join(examples)
@@ -195,8 +203,8 @@ SHORTCUT_ANNOTATIONS_ORIGINAL = {
     "符号修正": "检查所有引号内容，确保逗号和句号放在闭合的引号之外。例如，将'Smith stated that \"this is important,\"'改为'Smith stated that \"this is important\",''",
     "丰富句式": "识别句子长度过于一致的段落，调整为混合使用短句(5-10词)、中等句(15-20词)和长句(25-30词)",
     "同义替换": "识别并替换过于学术化或AI风格的词汇，使用更简洁自然的同义词。例如，将'utilize'改为'use'，将'conceptualize'改为'think about'",
-    "去AI词汇": "通过以下规则润色英文文本：\n严格避免使用副词+形容词以及副词+动词的组合\n严格避免将动词ing形式作名词用法\n将 \"This [动词]...\" 的独立句，改为由 \"which\" 连接的非限定性定语从句\n使用分号（;）连接两个语法各自独立、但后者是前者思想的直接延续或解释的句子，以增强逻辑流动性\n同时严格避免使用以下表达方式和词汇短语：\n1.    用master或其衍生词代表掌握某项技能的意思\n2.    主句 + , + -ing形式的伴随状语句式\n3.    my goal is to\n4.    hone\n5.    permit\n6.    deep comprehension\n7.    look forward to\n8.    address\n9.    command\n10.    drawn to\n11.    delve into\n12.    demonstrate（不要高频出现）\n13.    draw\n14.    drawn to\n15.    privilege\n16.    testament\n17.    commitment\n18.    tenure\n19.    thereby\n20.    thereby + doing\n21.    cultivate\n22.    Building on this\n23.    Building on this foundation\n24.    intend to",
-    "人性化处理": "Revise the English text to make it sound more like a thoughtful but less confident human wrote it. You will achieve this by performing the following actions on a random selection of targets (do not change everything, aim for a 40-70% replacement rate):\n1. Reduce Formality and Confidence: Identify strong, confident, or goal-oriented phrases and replace them with more personal, uncertain, or hopeful alternatives.\n•    Find: I will, I plan to, I aim to, my objective is to\n•    Replace with: I hope to, I would like to, I'm thinking about trying to, I want to see if I can, it might be cool to\n•    Find: This will establish, This will demonstrate, This analysis reveals\n•    Replace with: This could help show, Maybe this will point to, I feel like this shows, What I get from this is\n2. Simplify Academic and Professional Vocabulary: Find standard academic or overly formal words and replace them with simpler, more common or colloquial equivalents.\n•    Find: utilize, employ\n•    Replace with: use, make use of\n•    Find: examine, investigate, analyze\n•    Replace with: look into, check out, figure out, get a handle on\n•    Find: furthermore, moreover, additionally\n•    Replace with: also, on top of that, and another thing is\n•    Find: consequently, therefore, thus\n•    Replace with: so, because of that, which is why\n•    Find: methodology, framework\n•    Replace with: approach, way of doing things, setup, basic idea\n•    Find: necessitates, requires\n•    Replace with: needs, means I have to\n•    Find: a pursuit of this scope\n•    Replace with: doing something this big, this kind of project\n3. Inject Colloquial Elements:\n•    Introduce conversational filler words like just, really, kind of, sort of.\n•    Use contractions (it is -> it's, I will -> I'll, I would -> I'd).\n•    Occasionally use informal sentence starters like \"The thing is,\" or \"What I'm trying to say is,\".\nCrucial Rule: The final text should be a mixture. It should not be completely informal. The desired effect is that of a person who knows the formal language but whose natural, less certain voice is breaking through. Preserve the core ideas of the original text."
+    "去AI词汇": '通过以下规则润色英文文本：\n严格避免使用副词+形容词以及副词+动词的组合\n严格避免将动词ing形式作名词用法\n将 "This [动词]..." 的独立句，改为由 "which" 连接的非限定性定语从句\n使用分号（;）连接两个语法各自独立、但后者是前者思想的直接延续或解释的句子，以增强逻辑流动性\n同时严格避免使用以下表达方式和词汇短语：\n1.    用master或其衍生词代表掌握某项技能的意思\n2.    主句 + , + -ing形式的伴随状语句式\n3.    my goal is to\n4.    hone\n5.    permit\n6.    deep comprehension\n7.    look forward to\n8.    address\n9.    command\n10.    drawn to\n11.    delve into\n12.    demonstrate（不要高频出现）\n13.    draw\n14.    drawn to\n15.    privilege\n16.    testament\n17.    commitment\n18.    tenure\n19.    thereby\n20.    thereby + doing\n21.    cultivate\n22.    Building on this\n23.    Building on this foundation\n24.    intend to',
+    "人性化处理": "Revise the English text to make it sound more like a thoughtful but less confident human wrote it. You will achieve this by performing the following actions on a random selection of targets (do not change everything, aim for a 40-70% replacement rate):\n1. Reduce Formality and Confidence: Identify strong, confident, or goal-oriented phrases and replace them with more personal, uncertain, or hopeful alternatives.\n•    Find: I will, I plan to, I aim to, my objective is to\n•    Replace with: I hope to, I would like to, I'm thinking about trying to, I want to see if I can, it might be cool to\n•    Find: This will establish, This will demonstrate, This analysis reveals\n•    Replace with: This could help show, Maybe this will point to, I feel like this shows, What I get from this is\n2. Simplify Academic and Professional Vocabulary: Find standard academic or overly formal words and replace them with simpler, more common or colloquial equivalents.\n•    Find: utilize, employ\n•    Replace with: use, make use of\n•    Find: examine, investigate, analyze\n•    Replace with: look into, check out, figure out, get a handle on\n•    Find: furthermore, moreover, additionally\n•    Replace with: also, on top of that, and another thing is\n•    Find: consequently, therefore, thus\n•    Replace with: so, because of that, which is why\n•    Find: methodology, framework\n•    Replace with: approach, way of doing things, setup, basic idea\n•    Find: necessitates, requires\n•    Replace with: needs, means I have to\n•    Find: a pursuit of this scope\n•    Replace with: doing something this big, this kind of project\n3. Inject Colloquial Elements:\n•    Introduce conversational filler words like just, really, kind of, sort of.\n•    Use contractions (it is -> it's, I will -> I'll, I would -> I'd).\n•    Occasionally use informal sentence starters like \"The thing is,\" or \"What I'm trying to say is,\".\nCrucial Rule: The final text should be a mixture. It should not be completely informal. The desired effect is that of a person who knows the formal language but whose natural, less certain voice is breaking through. Preserve the core ideas of the original text.",
 }
 
 
@@ -207,5 +215,5 @@ def get_all_original_functions():
         "build_academic_translate_prompt": build_academic_translate_prompt_original,
         "preprocess_annotations": preprocess_annotations_original,
         "build_english_refine_prompt": build_english_refine_prompt_original,
-        "SHORTCUT_ANNOTATIONS": SHORTCUT_ANNOTATIONS_ORIGINAL
+        "SHORTCUT_ANNOTATIONS": SHORTCUT_ANNOTATIONS_ORIGINAL,
     }

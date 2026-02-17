@@ -60,6 +60,9 @@ logs/
 !OPTIMIZATION_GUIDE.md
 !MANUAL_STARTUP.md
 
+# 风险评估报告文件（临时文件，不提交到版本控制）
+风险评估_*.md
+
 # Backup files
 *~
 *.bak

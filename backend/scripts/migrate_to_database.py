@@ -10,11 +10,11 @@
 4. 创建原始文件备份
 """
 
-import os
-import sys
 import json
 import logging
+import os
 import shutil
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -23,19 +23,15 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from config import settings
-from models.database import init_database, get_session_local, User, UserUsage, hash_password
-from user_services.user_service import UserService
+from models.database import User, UserUsage, get_session_local, hash_password, init_database
 
 
 def setup_logging():
     """设置日志"""
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.StreamHandler(),
-            logging.FileHandler('migration.log')
-        ]
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        handlers=[logging.StreamHandler(), logging.FileHandler("migration.log")],
     )
 
 
@@ -77,7 +73,7 @@ def load_usage_data_from_json() -> dict:
         return {}
 
     try:
-        with open(usage_file, 'r', encoding='utf-8') as f:
+        with open(usage_file, encoding="utf-8") as f:
             usage_data = json.load(f)
         logging.info(f"从JSON文件加载了 {len(usage_data)} 个用户的使用数据")
         return usage_data
@@ -119,7 +115,7 @@ def migrate_users(db_session, users_data: dict, usage_data: dict):
                 expiry_date=expiry_date,
                 max_translations=max_translations,
                 is_admin=False,
-                is_active=True
+                is_active=True,
             )
             db_session.add(user)
             db_session.flush()  # 获取用户ID
@@ -128,14 +124,13 @@ def migrate_users(db_session, users_data: dict, usage_data: dict):
             user_usage = usage_data.get(username, {})
             translations_count = user_usage.get("translations", 0)
 
-            usage = UserUsage(
-                user_id=user.id,
-                translations_count=translations_count
-            )
+            usage = UserUsage(user_id=user.id, translations_count=translations_count)
             db_session.add(usage)
 
             migrated_count += 1
-            logging.info(f"迁移用户: {username}, 过期日期: {expiry_date}, 最大翻译: {max_translations}, 已使用: {translations_count}")
+            logging.info(
+                f"迁移用户: {username}, 过期日期: {expiry_date}, 最大翻译: {max_translations}, 已使用: {translations_count}"
+            )
 
         except Exception as e:
             error_count += 1
@@ -159,7 +154,9 @@ def verify_migration(db_session, users_data: dict, usage_data: dict) -> bool:
     expected_max = original_users_count + 1  # 加上管理员
 
     if not (expected_min <= db_users_count <= expected_max):
-        logging.error(f"用户数量验证失败: 数据库有 {db_users_count} 个用户，原始有 {original_users_count} 个用户")
+        logging.error(
+            f"用户数量验证失败: 数据库有 {db_users_count} 个用户，原始有 {original_users_count} 个用户"
+        )
         return False
 
     logging.info(f"用户数量验证通过: 数据库有 {db_users_count} 个用户")
@@ -176,7 +173,9 @@ def verify_migration(db_session, users_data: dict, usage_data: dict) -> bool:
         db_expiry = user.expiry_date.strftime("%Y-%m-%d")
 
         if original_expiry != db_expiry:
-            logging.warning(f"用户 {username} 过期日期不匹配: 原始={original_expiry}, 数据库={db_expiry}")
+            logging.warning(
+                f"用户 {username} 过期日期不匹配: 原始={original_expiry}, 数据库={db_expiry}"
+            )
 
         # 验证使用数据
         usage = user.usage
@@ -184,7 +183,9 @@ def verify_migration(db_session, users_data: dict, usage_data: dict) -> bool:
         db_usage = usage.translations_count if usage else 0
 
         if original_usage != db_usage:
-            logging.warning(f"用户 {username} 使用次数不匹配: 原始={original_usage}, 数据库={db_usage}")
+            logging.warning(
+                f"用户 {username} 使用次数不匹配: 原始={original_usage}, 数据库={db_usage}"
+            )
 
     logging.info("迁移验证完成")
     return True
@@ -225,7 +226,9 @@ def main():
     db_session = SessionLocal()
 
     try:
-        migrated_count, skipped_count, error_count = migrate_users(db_session, users_data, usage_data)
+        migrated_count, skipped_count, error_count = migrate_users(
+            db_session, users_data, usage_data
+        )
         logging.info(f"迁移完成: 成功={migrated_count}, 跳过={skipped_count}, 错误={error_count}")
 
         # 5. 验证迁移

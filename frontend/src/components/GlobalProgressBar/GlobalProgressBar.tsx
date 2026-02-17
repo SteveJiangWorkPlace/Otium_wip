@@ -2,15 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { useGlobalProgressStore } from '../../store/useGlobalProgressStore';
 import styles from './GlobalProgressBar.module.css';
 
-
 // 幽默文案库（放在组件外部避免重复创建）
 // 任务类型映射
 const TASK_TYPE_MAP: Record<string, string> = {
-  'correction': '智能纠错',
-  'translation': '文本翻译',
+  correction: '智能纠错',
+  translation: '文本翻译',
   'ai-detection': 'AI检测',
-  'modification': '文本修改',
-  'general': '通用任务'
+  modification: '文本修改',
+  general: '通用任务',
 };
 
 const HUMOROUS_MESSAGES = {
@@ -24,7 +23,7 @@ const HUMOROUS_MESSAGES = {
     '空闲状态，等待召唤',
     '我在，但我在发呆',
     '休息一下，马上回来',
-    '宇宙和平，无事发生'
+    '宇宙和平，无事发生',
   ],
   working: [
     'Otium正在疯狂思考',
@@ -36,7 +35,7 @@ const HUMOROUS_MESSAGES = {
     '智能处理中，请耐心等待',
     '正在为你加班加点',
     '努力工作的Otium',
-    '计算中，请勿断电'
+    '计算中，请勿断电',
   ],
   completed: [
     '任务完成，收工！',
@@ -48,7 +47,7 @@ const HUMOROUS_MESSAGES = {
     '处理结束，请查收',
     '搞定收工，真简单',
     '任务完成，轻轻松松',
-    '处理完毕，毫无压力'
+    '处理完毕，毫无压力',
   ],
   error: [
     '哎呀，出了点小状况',
@@ -60,8 +59,8 @@ const HUMOROUS_MESSAGES = {
     '遇到了未知的敌人',
     '程序说它今天心情不好',
     '需要一点魔法修复',
-    '遇到了小小的挑战'
-  ]
+    '遇到了小小的挑战',
+  ],
 };
 
 const GlobalProgressBar: React.FC = () => {
@@ -106,15 +105,18 @@ const GlobalProgressBar: React.FC = () => {
   // 检查15分钟超时
   useEffect(() => {
     if (completionTime) {
-      const timeoutId = setTimeout(() => {
-        // 15分钟（900000毫秒）后清除最后完成的任务状态
-        const elapsed = Date.now() - completionTime;
-        if (elapsed >= 15 * 60 * 1000) {
-          setCompletionTime(null);
-          // 清除最后完成的任务状态，让组件显示空闲状态
-          useGlobalProgressStore.getState().clearProgress();
-        }
-      }, 15 * 60 * 1000);
+      const timeoutId = setTimeout(
+        () => {
+          // 15分钟（900000毫秒）后清除最后完成的任务状态
+          const elapsed = Date.now() - completionTime;
+          if (elapsed >= 15 * 60 * 1000) {
+            setCompletionTime(null);
+            // 清除最后完成的任务状态，让组件显示空闲状态
+            useGlobalProgressStore.getState().clearProgress();
+          }
+        },
+        15 * 60 * 1000
+      );
 
       return () => clearTimeout(timeoutId);
     }
@@ -194,11 +196,7 @@ const GlobalProgressBar: React.FC = () => {
     <div className={styles.progressBarContainer}>
       {/* 图标容器 */}
       <div className={styles.iconContainer}>
-        <img
-          src={currentIconPath}
-          alt="状态图标"
-          className={styles.statusIcon}
-        />
+        <img src={currentIconPath} alt="状态图标" className={styles.statusIcon} />
       </div>
 
       {/* 进度条内容 */}

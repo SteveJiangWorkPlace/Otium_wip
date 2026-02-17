@@ -10,22 +10,21 @@ SMTP连接测试脚本
 2. 在Render环境测试：设置好环境变量后运行
 """
 
-import os
-import sys
-import smtplib
 import logging
+import os
+import smtplib
 from datetime import datetime
 
 # 设置日志
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
 def test_smtp_connection():
     """测试SMTP连接"""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("SMTP连接测试")
-    print("="*70)
+    print("=" * 70)
 
     # 从环境变量读取配置
     smtp_host = os.environ.get("SMTP_HOST", "smtp.qq.com")
@@ -65,9 +64,9 @@ def test_smtp_connection():
         print("\n[警告] SMTP_FROM 未设置，将使用SMTP_USERNAME")
         smtp_from = smtp_username
 
-    print("\n" + "-"*70)
+    print("\n" + "-" * 70)
     print("测试1: 基础连接测试")
-    print("-"*70)
+    print("-" * 70)
 
     smtp = None
     try:
@@ -90,19 +89,19 @@ def test_smtp_connection():
         smtp.login(smtp_username, smtp_password)
         print("[成功] 登录成功")
 
-        print("\n" + "-"*70)
+        print("\n" + "-" * 70)
         print("测试2: 发送测试邮件")
-        print("-"*70)
+        print("-" * 70)
 
         # 创建测试邮件
-        from email.mime.text import MIMEText
         from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
 
         test_subject = f"Otium SMTP测试 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         test_body = f"""
         这是一封测试邮件，用于验证Otium应用的邮件服务配置。
 
-        发送时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+        发送时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
         SMTP服务器: {smtp_host}:{smtp_port}
         发件人: {smtp_from}
 
@@ -110,21 +109,21 @@ def test_smtp_connection():
         """
 
         # 发送给自己
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = test_subject
-        msg['From'] = smtp_from
-        msg['To'] = smtp_from  # 发送给自己
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = test_subject
+        msg["From"] = smtp_from
+        msg["To"] = smtp_from  # 发送给自己
 
-        text_part = MIMEText(test_body, 'plain', 'utf-8')
+        text_part = MIMEText(test_body, "plain", "utf-8")
         msg.attach(text_part)
 
         print(f"发送测试邮件到: {smtp_from}")
         smtp.send_message(msg)
         print("[成功] 测试邮件发送完成")
 
-        print("\n" + "-"*70)
+        print("\n" + "-" * 70)
         print("测试总结")
-        print("-"*70)
+        print("-" * 70)
         print("[成功] 所有SMTP测试通过！")
         print(f"  • 成功连接到 {smtp_host}:{smtp_port}")
         print(f"  • 成功登录账号 {smtp_username}")
@@ -186,6 +185,7 @@ def test_smtp_connection():
     except Exception as e:
         print(f"[错误] 未知错误: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -194,15 +194,15 @@ def test_smtp_connection():
             try:
                 smtp.quit()
                 print("[信息] 已关闭SMTP连接")
-            except:
+            except Exception:
                 pass
 
 
 def check_render_environment():
     """检查Render环境配置"""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Render环境检查")
-    print("="*70)
+    print("=" * 70)
 
     is_render = os.environ.get("RENDER", "").lower() == "true"
     print(f"是否在Render环境: {is_render}")
@@ -214,7 +214,7 @@ def check_render_environment():
         "SMTP_USERNAME",
         "SMTP_PASSWORD",
         "SMTP_FROM",
-        "SMTP_TIMEOUT"
+        "SMTP_TIMEOUT",
     ]
 
     print("\n环境变量检查:")
@@ -255,9 +255,9 @@ def check_render_environment():
 
 def qq_email_specific_checks():
     """QQ邮箱特定检查"""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("QQ邮箱配置检查")
-    print("="*70)
+    print("=" * 70)
 
     smtp_host = os.environ.get("SMTP_HOST", "")
     smtp_port = os.environ.get("SMTP_PORT", "")
@@ -298,15 +298,15 @@ def qq_email_specific_checks():
 
 def main():
     """主函数"""
-    print("="*70)
+    print("=" * 70)
     print("Otium 邮件服务诊断工具")
-    print("="*70)
+    print("=" * 70)
 
     # 检查Render环境
     if not check_render_environment():
         print("\n[警告] 环境变量不完整，SMTP测试可能失败")
         response = input("\n是否继续测试SMTP连接? (y/n): ")
-        if response.lower() != 'y':
+        if response.lower() != "y":
             return
 
     # QQ邮箱特定检查
@@ -316,9 +316,9 @@ def main():
     success = test_smtp_connection()
 
     # 总结
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("诊断总结")
-    print("="*70)
+    print("=" * 70)
 
     if success:
         print("[成功] 邮件服务配置正确")
@@ -337,7 +337,7 @@ def main():
         print("   - Mailgun")
         print("   - AWS SES")
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
 
 
 if __name__ == "__main__":
@@ -348,4 +348,5 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n[错误] 测试过程中发生异常: {e}")
         import traceback
+
         traceback.print_exc()

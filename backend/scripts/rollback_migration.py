@@ -6,11 +6,10 @@
 用于紧急回滚到文件系统存储。
 """
 
-import os
-import sys
 import json
 import logging
-import shutil
+import os
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -19,31 +18,28 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from config import settings
-from models.database import get_session_local, User, UserUsage
+from models.database import User, get_session_local
 
 
 def setup_logging():
     """设置日志"""
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.StreamHandler(),
-            logging.FileHandler('rollback.log')
-        ]
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        handlers=[logging.StreamHandler(), logging.FileHandler("rollback.log")],
     )
 
 
 def export_users_to_json(db_session) -> dict:
     """从数据库导出用户数据到JSON格式"""
-    users = db_session.query(User).filter(User.is_admin == False).all()  # 排除管理员
+    users = db_session.query(User).filter(User.is_admin is False).all()  # 排除管理员
     users_data = {}
 
     for user in users:
         users_data[user.username] = {
             "expiry_date": user.expiry_date.strftime("%Y-%m-%d"),
             "max_translations": user.max_translations,
-            "password": "[HASHED]"  # 密码已哈希，无法恢复明文
+            "password": "[HASHED]",  # 密码已哈希，无法恢复明文
         }
 
     logging.info(f"导出了 {len(users_data)} 个用户数据")
@@ -59,9 +55,7 @@ def export_usage_to_json(db_session) -> dict:
     for user in users:
         usage = user.usage
         if usage:
-            usage_data[user.username] = {
-                "translations": usage.translations_count
-            }
+            usage_data[user.username] = {"translations": usage.translations_count}
 
     logging.info(f"导出了 {len(usage_data)} 个用户的使用数据")
     return usage_data
@@ -72,17 +66,15 @@ def restore_original_files(users_data: dict, usage_data: dict) -> bool:
     try:
         # 恢复使用数据文件
         usage_file = settings.USAGE_DB_PATH
-        with open(usage_file, 'w', encoding='utf-8') as f:
+        with open(usage_file, "w", encoding="utf-8") as f:
             json.dump(usage_data, f, ensure_ascii=False, indent=2)
         logging.info(f"恢复使用数据文件: {usage_file}")
 
         # 创建环境变量示例文件
-        env_example = {
-            "ALLOWED_USERS": json.dumps(users_data, ensure_ascii=False)
-        }
+        {"ALLOWED_USERS": json.dumps(users_data, ensure_ascii=False)}
 
         env_file = "restored_env_vars.txt"
-        with open(env_file, 'w', encoding='utf-8') as f:
+        with open(env_file, "w", encoding="utf-8") as f:
             f.write("# 恢复的环境变量值\n")
             f.write("# 复制以下内容到环境变量 ALLOWED_USERS\n\n")
             f.write(f"ALLOWED_USERS={json.dumps(users_data, ensure_ascii=False)}\n")
@@ -107,7 +99,7 @@ def main():
     if not os.path.exists("migration_complete.txt"):
         logging.warning("未找到迁移完成标记，可能未进行迁移或标记已删除")
         response = input("是否继续回滚？(y/n): ")
-        if response.lower() != 'y':
+        if response.lower() != "y":
             logging.info("用户取消回滚")
             return False
 
@@ -126,13 +118,9 @@ def main():
         usage_data = export_usage_to_json(db_session)
 
         # 保存数据库备份
-        backup_data = {
-            "timestamp": timestamp,
-            "users": users_data,
-            "usage": usage_data
-        }
+        backup_data = {"timestamp": timestamp, "users": users_data, "usage": usage_data}
 
-        with open(db_backup_file, 'w', encoding='utf-8') as f:
+        with open(db_backup_file, "w", encoding="utf-8") as f:
             json.dump(backup_data, f, ensure_ascii=False, indent=2)
 
         logging.info(f"数据库备份保存到: {db_backup_file}")

@@ -3,8 +3,9 @@
 打印FastAPI应用的所有路由
 """
 
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from main import app

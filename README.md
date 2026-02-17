@@ -441,6 +441,62 @@ Otium_wip/
 - 后端：遵循 PEP 8 Python 代码规范
 - 提交消息：使用约定式提交（Conventional Commits）
 
+## 代码质量工具
+
+项目配置了完整的代码质量工具链，确保代码风格一致和高质量。
+
+### 前端工具
+- **ESLint**：JavaScript/TypeScript代码检查，配置在 `.eslintrc.js`
+- **Prettier**：代码格式化工具，配置在 `.prettierrc`
+- **Husky**：Git钩子管理，配置在 `.husky/`
+- **lint-staged**：提交前代码检查，配置在 `.lintstagedrc`
+
+#### 前端常用命令
+```bash
+cd frontend
+npm run lint          # 检查代码规范
+npm run lint:fix      # 自动修复ESLint问题
+npm run format:check  # 检查Prettier格式化
+npm run format        # 自动格式化代码
+```
+
+### 后端工具
+- **Black**：Python代码格式化，配置在 `pyproject.toml`
+- **isort**：Python导入排序，配置在 `pyproject.toml`
+- **Flake8**：Python代码风格检查，配置在 `.flake8`
+- **Ruff**：快速的Python代码检查和格式化，配置在 `pyproject.toml`
+- **Mypy**：Python类型检查，配置在 `pyproject.toml`
+- **pre-commit**：预提交钩子框架，配置在 `.pre-commit-config.yaml`
+
+#### 后端常用命令
+```bash
+cd backend
+# 运行完整质量检查
+python run_quality_checks.py
+
+# 自动修复代码问题
+python fix_code_quality.py
+
+# 格式化代码
+python -m black .
+python -m isort .
+
+# 安装pre-commit钩子
+pip install pre-commit
+pre-commit install
+```
+
+### Git钩子
+项目已配置Git钩子，在提交时自动运行代码检查：
+1. **前端**：提交时自动运行lint-staged，检查并修复代码格式
+2. **后端**：可安装pre-commit钩子自动检查
+
+### 开发工作流建议
+1. 开发前运行 `npm install` 或 `pip install -r requirements.txt` 安装依赖
+2. 开发过程中定期运行代码检查
+3. 提交前运行完整质量检查
+4. 使用Git钩子确保代码质量
+
 ## 许可证
 
 本项目采用 MIT 许可证。详见 [LICENSE](./LICENSE) 文件。

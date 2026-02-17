@@ -1,13 +1,13 @@
-import React from 'react'
-import styles from './Input.module.css'
+import React from 'react';
+import styles from './Input.module.css';
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
-  label?: string
-  error?: string
-  helperText?: string
-  fullWidth?: boolean
-  startIcon?: React.ReactNode
-  endIcon?: React.ReactNode
+  label?: string;
+  error?: string;
+  helperText?: string;
+  fullWidth?: boolean;
+  startIcon?: React.ReactNode;
+  endIcon?: React.ReactNode;
 }
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
@@ -25,8 +25,8 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     },
     ref
   ) => {
-    const inputId = id || `input-${Math.random().toString(36).substr(2, 9)}`
-    const hasError = !!error
+    const inputId = id || `input-${Math.random().toString(36).substr(2, 9)}`;
+    const hasError = !!error;
 
     const inputClasses = [
       styles.input,
@@ -34,13 +34,14 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       startIcon ? styles.withStartIcon : '',
       endIcon ? styles.withEndIcon : '',
       fullWidth ? styles.fullWidth : '',
-      className
-    ].filter(Boolean).join(' ')
+      className,
+    ]
+      .filter(Boolean)
+      .join(' ');
 
-    const wrapperClasses = [
-      styles.wrapper,
-      fullWidth ? styles.fullWidth : ''
-    ].filter(Boolean).join(' ')
+    const wrapperClasses = [styles.wrapper, fullWidth ? styles.fullWidth : '']
+      .filter(Boolean)
+      .join(' ');
 
     return (
       <div className={wrapperClasses}>
@@ -87,10 +88,10 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           </div>
         )}
       </div>
-    )
+    );
   }
-)
+);
 
-Input.displayName = 'Input'
+Input.displayName = 'Input';
 
-export default Input
+export default Input;

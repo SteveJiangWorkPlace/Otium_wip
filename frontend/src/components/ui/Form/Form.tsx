@@ -24,12 +24,7 @@ interface FormContextValue {
 
 const FormContext = createContext<FormContextValue>({ layout: 'vertical' });
 
-const Form: React.FC<FormProps> = ({
-  children,
-  layout = 'vertical',
-  onSubmit,
-  className = '',
-}) => {
+const Form: React.FC<FormProps> = ({ children, layout = 'vertical', onSubmit, className = '' }) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (onSubmit) {
@@ -39,10 +34,7 @@ const Form: React.FC<FormProps> = ({
 
   return (
     <FormContext.Provider value={{ layout }}>
-      <form
-        className={`${styles.form} ${className}`}
-        onSubmit={handleSubmit}
-      >
+      <form className={`${styles.form} ${className}`} onSubmit={handleSubmit}>
         {children}
       </form>
     </FormContext.Provider>

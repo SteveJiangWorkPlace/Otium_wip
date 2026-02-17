@@ -1,80 +1,87 @@
-from fastapi import FastAPI, HTTPException, Depends, status, Request
-from fastapi.responses import StreamingResponse
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.security import OAuth2PasswordBearer
-from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Set, Any
-from jose import JWTError, jwt
-import google.genai
-from sqlalchemy import text
-# 导入类型用于类型提示
-from google.genai import types
-import google.genai.errors
-# import google.api_core.exceptions
-# from google.api_core.exceptions import ServiceUnavailable, DeadlineExceeded, InvalidArgument, PermissionDenied
-# 这些异常现在由 google.genai.errors 提供
-import requests
-import json
+import hashlib
 import logging
 import os
 import time
-import re
-import platform
-import threading
-from datetime import datetime
-from collections import deque
-from functools import wraps
-from dotenv import load_dotenv
-import os
-import hashlib
-import uuid
 import warnings
+from datetime import datetime
 
-# 过滤Pydantic的ArbitraryTypeWarning警告
-warnings.filterwarnings("ignore", category=UserWarning, module="pydantic._internal._generate_schema")
-warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
+# import google.api_core.exceptions
+# from google.api_core.exceptions import ServiceUnavailable, DeadlineExceeded, InvalidArgument, PermissionDenied
+# 这些异常现在由 google.genai.errors 提供
+from dotenv import load_dotenv
+from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer, OAuth2PasswordBearer
 
-# 配置日志
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# 导入类型用于类型提示
+from jose import jwt
+from sqlalchemy import text
 
 # 导入自定义模块
 from api_services import (
-    generate_gemini_content_with_fallback,
-    generate_gemini_content_stream,
-    split_into_sentences,
+    chat_with_gemini,
     check_gptzero,
-    generate_safe_hash_for_cache,
     extract_annotations_with_context,
-    contains_annotation_marker,
-    chat_with_gemini
+    generate_gemini_content_stream,
+    generate_gemini_content_with_fallback,
+    generate_safe_hash_for_cache,
+)
+from config import settings
+from exceptions import api_error_handler
+from models.database import get_session_local, init_database
+from prompts import (
+    SHORTCUT_ANNOTATIONS,
+    build_academic_translate_prompt,
+    build_english_refine_prompt,
+    build_error_check_prompt,
+)
+from schemas import (
+    AddUserRequest,
+    AdminLoginRequest,
+    AIChatRequest,
+    AIChatResponse,
+    AIDetectionRequest,
+    CheckEmailResponse,
+    CheckTextRequest,
+    CheckUsernameResponse,
+    ErrorResponse,
+    LoginRequest,
+    PasswordResetRequest,
+    PasswordResetResponse,
+    RefineTextRequest,
+    RegisterRequest,
+    ResetPasswordRequest,
+    SendVerificationRequest,
+    StreamRefineTextChunk,
+    StreamRefineTextRequest,
+    StreamTranslationChunk,
+    StreamTranslationRequest,
+    UpdateUserRequest,
+    VerificationResponse,
+    VerifyEmailRequest,
 )
 from services.email_service import email_service
 from services.verification_service import verification_service
-from exceptions import APIError, GeminiAPIError, GPTZeroAPIError, RateLimitError, ValidationError, api_error_handler
-from utils import RateLimiter, TextValidator, CacheManager
 from user_services.user_service import UserService
-from models.database import init_database, get_session_local
-from schemas import (
-    LoginRequest, CheckTextRequest, RefineTextRequest, AIDetectionRequest,
-    UserInfo, UserInfoWithEmail, AdminLoginRequest, UpdateUserRequest, AddUserRequest, ErrorResponse,
-    AIChatRequest, AIChatResponse, StreamTranslationRequest, StreamTranslationChunk,
-    StreamRefineTextRequest, StreamRefineTextChunk,
-    SendVerificationRequest, VerifyEmailRequest, RegisterRequest,
-    PasswordResetRequest, ResetPasswordRequest, CheckUsernameRequest,
-    VerificationResponse, CheckUsernameResponse, CheckEmailResponse, PasswordResetResponse
+from utils import CacheManager, RateLimiter, TextValidator
+
+# 过滤Pydantic的ArbitraryTypeWarning警告
+
+
+warnings.filterwarnings(
+    "ignore", category=UserWarning, module="pydantic._internal._generate_schema"
 )
-from config import settings, is_expired
-from prompts import (
-    build_error_check_prompt,
-    build_academic_translate_prompt,
-    build_english_refine_prompt,
-    SHORTCUT_ANNOTATIONS,
-    preprocess_annotations
+warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
+
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
 # 加载环境变量
 load_dotenv()
+
 
 def run_migrations_if_needed():
     """运行数据库迁移（如果可用）"""
@@ -114,12 +121,14 @@ def run_migrations_if_needed():
     logging.info("运行email列检查后备方案...")
     ensure_email_column_exists()
 
+
 def ensure_email_column_exists():
     """确保users表有email列（迁移失败时的后备方案）"""
     logging.info("开始检查users表email列...")
     try:
-        from models.database import get_engine
         from sqlalchemy import inspect, text
+
+        from models.database import get_engine
 
         engine = get_engine()
         logging.info(f"获取数据库引擎: {engine.url}")
@@ -129,16 +138,16 @@ def ensure_email_column_exists():
         table_names = inspector.get_table_names()
         logging.info(f"数据库中的表: {table_names}")
 
-        if 'users' not in table_names:
+        if "users" not in table_names:
             logging.warning("users表不存在，可能尚未创建")
             return
 
         # 检查users表是否存在email列
-        columns = inspector.get_columns('users')
-        column_names = [col['name'] for col in columns]
+        columns = inspector.get_columns("users")
+        column_names = [col["name"] for col in columns]
         logging.info(f"users表的列: {column_names}")
 
-        if 'email' in column_names:
+        if "email" in column_names:
             logging.info("email列已存在")
             return
 
@@ -146,14 +155,17 @@ def ensure_email_column_exists():
 
         # 根据数据库类型执行ALTER TABLE
         from config import settings
+
         logging.info(f"数据库类型: {settings.DATABASE_TYPE}")
 
-        if settings.DATABASE_TYPE == 'postgresql':
+        if settings.DATABASE_TYPE == "postgresql":
             # PostgreSQL
             logging.info("为PostgreSQL添加email列...")
             with engine.connect() as conn:
                 conn.execute(text("ALTER TABLE users ADD COLUMN email VARCHAR(255)"))
-                conn.execute(text("ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT false"))
+                conn.execute(
+                    text("ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT false")
+                )
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_users_email ON users(email)"))
                 conn.commit()
                 logging.info("PostgreSQL ALTER TABLE执行成功")
@@ -172,19 +184,20 @@ def ensure_email_column_exists():
         logging.error(f"添加email列失败: {e}", exc_info=True)
         # 不抛出异常，应用继续运行
 
+
 # 日志配置
 log_level_str = os.environ.get("LOG_LEVEL", "INFO").upper()
 log_level = getattr(logging, log_level_str, logging.INFO)
-logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=log_level, format="%(asctime)s - %(levelname)s - %(message)s")
 logging.info(f"日志级别设置为: {log_level_str} ({log_level})")
 
 logger = logging.getLogger(__name__)
 
-    
+
 app = FastAPI(title="Just Trans API", version="1.0.0")
 
 # 在应用初始化时添加环境变量检查日志
-logging.info(f"应用启动，环境变量检查:")
+logging.info("应用启动，环境变量检查:")
 logging.info(f"ADMIN_USERNAME 是否设置: {bool(os.environ.get('ADMIN_USERNAME'))}")
 logging.info(f"ADMIN_PASSWORD 是否设置: {bool(os.environ.get('ADMIN_PASSWORD'))}")
 logging.info(f"ADMIN_USERNAME 值: {os.environ.get('ADMIN_USERNAME', 'admin')}")
@@ -206,7 +219,9 @@ hardcoded_origins = [
 # 合并settings.CORS_ORIGINS和硬编码源
 all_allowed_origins = list(set(hardcoded_origins + settings.CORS_ORIGINS))
 logging.info(f"合并后的允许源列表: {all_allowed_origins}")
-logging.info(f"前端URL 'https://otiumtrans.netlify.app' 在允许源中: {'https://otiumtrans.netlify.app' in all_allowed_origins}")
+logging.info(
+    f"前端URL 'https://otiumtrans.netlify.app' 在允许源中: {'https://otiumtrans.netlify.app' in all_allowed_origins}"
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -229,24 +244,23 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/login")
 
 # JWT 配置
 # 优先从JWT_SECRET_KEY环境变量读取，其次从SECRET_KEY读取，最后使用默认值（向后兼容）
-SECRET_KEY = os.environ.get("JWT_SECRET_KEY") or os.environ.get("SECRET_KEY", "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92")
+SECRET_KEY = os.environ.get("JWT_SECRET_KEY") or os.environ.get(
+    "SECRET_KEY", "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92"
+)
 ALGORITHM = "HS256"
 
 # 检查SECRET_KEY是否为默认值，如果是则记录警告
 DEFAULT_SECRET_KEY = "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92"
 if SECRET_KEY == DEFAULT_SECRET_KEY:
-    logging.warning("⚠️ SECRET_KEY使用的是默认值！在生产环境中应设置JWT_SECRET_KEY或SECRET_KEY环境变量来增强安全性")
+    logging.warning(
+        "⚠️ SECRET_KEY使用的是默认值！在生产环境中应设置JWT_SECRET_KEY或SECRET_KEY环境变量来增强安全性"
+    )
 
 # ==========================================
-# 统一错误响应模型
+# 统一错误响应模型（已从schemas.py导入）
 # ==========================================
 
-class ErrorResponse(BaseModel):
-    """统一错误响应模型"""
-    success: bool = False
-    error_code: str
-    message: str
-    details: Optional[Dict[str, Any]] = None
+# ErrorResponse类已从schemas.py导入
 
 # ==========================================
 # 全局实例
@@ -269,6 +283,7 @@ except Exception as e:
     logging.error(f"用户服务初始化失败: {e}")
     # 创建一个简单的用户服务回退
     from user_services.user_service import UserService
+
     user_service = UserService()
     logging.warning("使用回退用户服务，功能可能受限")
 # 从环境变量读取速率限制配置，默认为每分钟5次
@@ -287,21 +302,16 @@ ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
 logger.info("API密钥配置：优先使用环境变量，其次使用请求头中的用户输入")
 
 
-
-
-
-
-
-
-
 # ==========================================
 # 认证依赖
 # ==========================================
+
 
 # 1. 先在 get_current_user 函数外面定义这个"无敌类"
 class UserObject(dict):
     def __getattr__(self, name):
         return self.get(name)
+
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     # 2. 调试 Token 逻辑
@@ -327,11 +337,13 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         return UserObject(username=username, role=role)
     except Exception as e:
         logging.error(f"Token 验证失败: {str(e)}", exc_info=True)
-        raise credentials_exception
+        raise credentials_exception from e
+
 
 # ==========================================
 # API 路由
 # ==========================================
+
 
 @app.post("/api/login")
 # @api_error_handler
@@ -357,7 +369,7 @@ async def login(data: LoginRequest):
                 "used_translations": 0,
                 "remaining_translations": 99999,
                 "is_admin": True,
-                "is_active": True
+                "is_active": True,
             }
         else:
             # 确保角色信息正确
@@ -369,7 +381,7 @@ async def login(data: LoginRequest):
             "access_token": access_token,
             "token_type": "bearer",
             "user": user_info,
-            "message": ""
+            "message": "",
         }
 
     # 如果不是管理员，检查是否是允许的普通用户
@@ -393,7 +405,7 @@ async def login(data: LoginRequest):
                 "used_translations": 0,
                 "remaining_translations": 100,
                 "is_admin": False,
-                "is_active": True
+                "is_active": True,
             }
         else:
             # 添加角色信息到用户信息
@@ -405,7 +417,7 @@ async def login(data: LoginRequest):
             "access_token": access_token,
             "token_type": "bearer",
             "user": user_info,
-            "message": ""
+            "message": "",
         }
     else:
         logging.error(f"登录失败: {message}")
@@ -414,13 +426,15 @@ async def login(data: LoginRequest):
             detail=ErrorResponse(
                 error_code="AUTHENTICATION_FAILED",
                 message="用户名或密码错误",
-                details={"username": data.username}
-            ).dict()
+                details={"username": data.username},
+            ).dict(),
         )
+
 
 # ==========================================
 # 用户注册和密码重置API
 # ==========================================
+
 
 @app.post("/api/register/send-verification")
 @api_error_handler
@@ -438,8 +452,8 @@ async def send_verification_code(request: SendVerificationRequest):
             detail=ErrorResponse(
                 error_code="INVALID_EMAIL",
                 message="邮箱格式不正确",
-                details={"email": request.email}
-            ).dict()
+                details={"email": request.email},
+            ).dict(),
         )
 
     # 检查速率限制
@@ -449,8 +463,8 @@ async def send_verification_code(request: SendVerificationRequest):
             detail=ErrorResponse(
                 error_code="RATE_LIMIT_EXCEEDED",
                 message="验证码发送过于频繁，请稍后再试",
-                details={"email": request.email}
-            ).dict()
+                details={"email": request.email},
+            ).dict(),
         )
 
     # 检查邮箱是否已被注册
@@ -461,8 +475,8 @@ async def send_verification_code(request: SendVerificationRequest):
             detail=ErrorResponse(
                 error_code="EMAIL_ALREADY_REGISTERED",
                 message="该邮箱已被注册",
-                details={"email": request.email}
-            ).dict()
+                details={"email": request.email},
+            ).dict(),
         )
 
     # 生成验证码
@@ -480,15 +494,11 @@ async def send_verification_code(request: SendVerificationRequest):
         logger.error(f"验证码邮件发送失败: {request.email}")
         # 仍然返回成功，但提示用户检查邮箱或联系管理员
         return VerificationResponse(
-            success=True,
-            message="验证码已生成，如果未收到邮件请检查邮箱或联系管理员"
+            success=True, message="验证码已生成，如果未收到邮件请检查邮箱或联系管理员"
         )
 
     logger.info(f"验证码发送成功: {request.email}")
-    return VerificationResponse(
-        success=True,
-        message="验证码已发送到您的邮箱，请查收"
-    )
+    return VerificationResponse(success=True, message="验证码已发送到您的邮箱，请查收")
 
 
 @app.post("/api/register/verify-email")
@@ -509,8 +519,8 @@ async def verify_email_code(request: VerifyEmailRequest):
             detail=ErrorResponse(
                 error_code="INVALID_VERIFICATION_CODE",
                 message=error_message,
-                details={"email": request.email}
-            ).dict()
+                details={"email": request.email},
+            ).dict(),
         )
 
     # 验证成功，生成临时令牌（用于后续注册）
@@ -519,9 +529,7 @@ async def verify_email_code(request: VerifyEmailRequest):
 
     logger.info(f"邮箱验证成功: {request.email}")
     return VerificationResponse(
-        success=True,
-        message="邮箱验证成功",
-        verification_token=verification_token
+        success=True, message="邮箱验证成功", verification_token=verification_token
     )
 
 
@@ -536,10 +544,7 @@ async def check_username_available(username: str):
 
     is_available, message = user_service.check_username_available(username)
 
-    return CheckUsernameResponse(
-        available=is_available,
-        message=message
-    )
+    return CheckUsernameResponse(available=is_available, message=message)
 
 
 @app.post("/api/register")
@@ -560,8 +565,8 @@ async def register_user(request: RegisterRequest):
             detail=ErrorResponse(
                 error_code="INVALID_VERIFICATION_TOKEN",
                 message="邮箱验证已过期或无效，请重新验证邮箱",
-                details={"email": request.email}
-            ).dict()
+                details={"email": request.email},
+            ).dict(),
         )
 
     # 验证用户名可用性
@@ -572,8 +577,8 @@ async def register_user(request: RegisterRequest):
             detail=ErrorResponse(
                 error_code="USERNAME_UNAVAILABLE",
                 message=username_message,
-                details={"username": request.username}
-            ).dict()
+                details={"username": request.username},
+            ).dict(),
         )
 
     # 验证邮箱可用性
@@ -584,8 +589,8 @@ async def register_user(request: RegisterRequest):
             detail=ErrorResponse(
                 error_code="EMAIL_UNAVAILABLE",
                 message=email_message,
-                details={"email": request.email}
-            ).dict()
+                details={"email": request.email},
+            ).dict(),
         )
 
     # 注册用户（邮箱已验证）
@@ -593,7 +598,7 @@ async def register_user(request: RegisterRequest):
         username=request.username,
         email=request.email,
         password=request.password,
-        email_verified=True  # 邮箱已验证
+        email_verified=True,  # 邮箱已验证
     )
 
     if not success:
@@ -602,11 +607,8 @@ async def register_user(request: RegisterRequest):
             detail=ErrorResponse(
                 error_code="REGISTRATION_FAILED",
                 message=error_message,
-                details={
-                    "username": request.username,
-                    "email": request.email
-                }
-            ).dict()
+                details={"username": request.username, "email": request.email},
+            ).dict(),
         )
 
     # 发送欢迎邮件（异步或后台任务）
@@ -621,10 +623,7 @@ async def register_user(request: RegisterRequest):
     if not allowed:
         # 注册成功但自动登录失败，返回成功但需要用户手动登录
         logger.warning(f"注册成功但自动登录失败: {request.username}, {auth_message}")
-        return VerificationResponse(
-            success=True,
-            message="注册成功，请使用用户名和密码登录"
-        )
+        return VerificationResponse(success=True, message="注册成功，请使用用户名和密码登录")
 
     # 创建JWT令牌
     token_data = {"sub": request.username, "role": "user"}
@@ -642,7 +641,7 @@ async def register_user(request: RegisterRequest):
         "access_token": access_token,
         "token_type": "bearer",
         "user": user_info,
-        "message": "注册成功"
+        "message": "注册成功",
     }
 
 
@@ -659,8 +658,8 @@ async def request_password_reset(request: PasswordResetRequest):
             detail=ErrorResponse(
                 error_code="INVALID_EMAIL",
                 message="邮箱格式不正确",
-                details={"email": request.email}
-            ).dict()
+                details={"email": request.email},
+            ).dict(),
         )
 
     # 检查邮箱是否存在
@@ -670,8 +669,7 @@ async def request_password_reset(request: PasswordResetRequest):
         # 即使邮箱不存在，也返回成功（防止邮箱枚举攻击）
         logger.info(f"密码重置请求处理: {request.email} - {error_message}")
         return PasswordResetResponse(
-            success=True,
-            message="如果邮箱已注册，重置链接将发送到您的邮箱"
+            success=True, message="如果邮箱已注册，重置链接将发送到您的邮箱"
         )
 
     # 生成重置令牌
@@ -687,14 +685,12 @@ async def request_password_reset(request: PasswordResetRequest):
         return PasswordResetResponse(
             success=True,
             message="重置请求已处理，如果未收到邮件请检查邮箱或联系管理员",
-            username=username
+            username=username,
         )
 
     logger.info(f"密码重置邮件发送成功: {request.email}")
     return PasswordResetResponse(
-        success=True,
-        message="密码重置链接已发送到您的邮箱，请查收",
-        username=username
+        success=True, message="密码重置链接已发送到您的邮箱，请查收", username=username
     )
 
 
@@ -702,7 +698,7 @@ async def request_password_reset(request: PasswordResetRequest):
 @api_error_handler
 async def reset_password(request: ResetPasswordRequest):
     """重置密码（使用重置令牌）"""
-    logger.info(f"重置密码请求")
+    logger.info("重置密码请求")
 
     # 验证重置令牌
     email = verification_service.consume_reset_token(request.token)
@@ -713,8 +709,8 @@ async def reset_password(request: ResetPasswordRequest):
             detail=ErrorResponse(
                 error_code="INVALID_RESET_TOKEN",
                 message="重置链接已过期或无效，请重新申请",
-                details={}
-            ).dict()
+                details={},
+            ).dict(),
         )
 
     # 获取用户名
@@ -723,10 +719,8 @@ async def reset_password(request: ResetPasswordRequest):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=ErrorResponse(
-                error_code="USER_NOT_FOUND",
-                message="用户不存在",
-                details={"email": email}
-            ).dict()
+                error_code="USER_NOT_FOUND", message="用户不存在", details={"email": email}
+            ).dict(),
         )
 
     username = user_info["username"]
@@ -740,15 +734,13 @@ async def reset_password(request: ResetPasswordRequest):
             detail=ErrorResponse(
                 error_code="PASSWORD_RESET_FAILED",
                 message=error_message,
-                details={"username": username}
-            ).dict()
+                details={"username": username},
+            ).dict(),
         )
 
     logger.info(f"密码重置成功: {username}")
     return PasswordResetResponse(
-        success=True,
-        message="密码重置成功，请使用新密码登录",
-        username=username
+        success=True, message="密码重置成功，请使用新密码登录", username=username
     )
 
 
@@ -763,43 +755,38 @@ async def check_email_available(email: str):
 
     # 验证邮箱格式
     if "@" not in email or "." not in email:
-        return CheckEmailResponse(
-            available=False,
-            message="邮箱格式不正确"
-        )
+        return CheckEmailResponse(available=False, message="邮箱格式不正确")
 
     email_available, message = user_service.check_email_available(email)
 
-    return CheckEmailResponse(
-        available=email_available,
-        message=message
-    )
+    return CheckEmailResponse(available=email_available, message=message)
 
 
 @app.get("/api/user/info")
 @api_error_handler
 async def get_user_info(user: UserObject = Depends(get_current_user)):
     """获取用户信息"""
-    username = user.username if hasattr(user, 'username') else str(user)
+    username = user.username if hasattr(user, "username") else str(user)
     user_info = user_service.get_user_info(username)
     if not user_info:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=ErrorResponse(
-                error_code="USER_NOT_FOUND",
-                message="用户不存在",
-                details={"username": username}
-            ).dict()
+                error_code="USER_NOT_FOUND", message="用户不存在", details={"username": username}
+            ).dict(),
         )
     return user_info
 
+
 @app.post("/api/text/check")
 @api_error_handler
-async def check_text(http_request: Request, request: CheckTextRequest, user: UserObject = Depends(get_current_user)):
+async def check_text(
+    http_request: Request, request: CheckTextRequest, user: UserObject = Depends(get_current_user)
+):
     """文本检查（纠错或翻译）"""
 
     # 提取用户名
-    username = user.username if hasattr(user, 'username') else str(user)
+    username = user.username if hasattr(user, "username") else str(user)
 
     # 速率限制检查
     allowed, wait_time = rate_limiter.is_allowed(username)
@@ -809,10 +796,10 @@ async def check_text(http_request: Request, request: CheckTextRequest, user: Use
             detail=ErrorResponse(
                 error_code="RATE_LIMIT_EXCEEDED",
                 message=f"请求过于频繁，请等待 {wait_time} 秒",
-                details={"wait_time": wait_time, "username": username}
-            ).dict()
+                details={"wait_time": wait_time, "username": username},
+            ).dict(),
         )
-    
+
     # 文本验证
     is_valid, message = TextValidator.validate_for_gemini(request.text)
     if not is_valid:
@@ -821,19 +808,19 @@ async def check_text(http_request: Request, request: CheckTextRequest, user: Use
             detail=ErrorResponse(
                 error_code="TEXT_VALIDATION_ERROR",
                 message=message,
-                details={"text_length": len(request.text)}
-            ).dict()
+                details={"text_length": len(request.text)},
+            ).dict(),
         )
-    
+
     # 生成缓存键
     cache_key = generate_safe_hash_for_cache(request.text, f"{request.operation}_{request.version}")
-    
+
     # 检查缓存
     cached_result = gemini_cache.get(cache_key)
     if cached_result:
         logging.info(f"使用缓存结果: {cache_key}")
         return cached_result
-    
+
     # 根据操作类型构建prompt
     if request.operation == "error_check":
         prompt = build_error_check_prompt(request.text)
@@ -847,8 +834,8 @@ async def check_text(http_request: Request, request: CheckTextRequest, user: Use
             detail=ErrorResponse(
                 error_code="UNSUPPORTED_OPERATION",
                 message="不支持的操作类型",
-                details={"operation": request.operation}
-            ).dict()
+                details={"operation": request.operation},
+            ).dict(),
         )
 
     # 获取API密钥（优先从环境变量获取，其次从请求头获取）
@@ -866,7 +853,9 @@ async def check_text(http_request: Request, request: CheckTextRequest, user: Use
 
     # 调试日志：记录API密钥信息
     if gemini_api_key:
-        key_prefix = gemini_api_key[:8] if len(gemini_api_key) > 8 else gemini_api_key[:len(gemini_api_key)]
+        key_prefix = (
+            gemini_api_key[:8] if len(gemini_api_key) > 8 else gemini_api_key[: len(gemini_api_key)]
+        )
         logging.info(f"从{source}获取到Gemini API密钥，前缀: {key_prefix}...")
     else:
         logging.warning(f"Gemini API密钥未提供：{source}中未找到")
@@ -882,17 +871,16 @@ async def check_text(http_request: Request, request: CheckTextRequest, user: Use
             detail=ErrorResponse(
                 error_code="GEMINI_API_KEY_MISSING",
                 message="需要提供Gemini API密钥（可通过环境变量GEMINI_API_KEY或侧边栏输入设置）",
-                details={"service": "Gemini"}
-            ).dict()
+                details={"service": "Gemini"},
+            ).dict(),
         )
-
 
     # 调用 Gemini API，文本相关功能使用 gemini-2.5-flash 作为主模型
     result = generate_gemini_content_with_fallback(
         prompt,
         api_key=gemini_api_key,
         primary_model="gemini-2.5-flash",
-        fallback_model="gemini-2.5-pro"
+        fallback_model="gemini-2.5-pro",
     )
 
     if not result["success"]:
@@ -903,20 +891,22 @@ async def check_text(http_request: Request, request: CheckTextRequest, user: Use
             detail=ErrorResponse(
                 error_code="GEMINI_API_ERROR",
                 message=error_message,
-                details={"error_type": error_type}
-            ).dict()
+                details={"error_type": error_type},
+            ).dict(),
         )
 
     response_data = {
         "success": True,
         "text": result["text"],
-        "model_used": result.get("model_used", "unknown")
+        "model_used": result.get("model_used", "unknown"),
     }
-    
+
     # 如果是翻译操作，记录翻译次数
     if request.operation in ["translate_us", "translate_uk"]:
         try:
-            remaining = user_service.record_usage(username, operation_type=request.operation, text_length=len(request.text))
+            remaining = user_service.record_usage(
+                username, operation_type=request.operation, text_length=len(request.text)
+            )
             response_data["remaining_translations"] = remaining
         except ValueError as e:
             # 用户不存在或其他验证错误
@@ -926,9 +916,9 @@ async def check_text(http_request: Request, request: CheckTextRequest, user: Use
                 detail=ErrorResponse(
                     error_code="USER_VALIDATION_ERROR",
                     message=str(e),
-                    details={"username": username, "exception_type": "ValueError"}
-                ).dict()
-            )
+                    details={"username": username, "exception_type": "ValueError"},
+                ).dict(),
+            ) from e
         except RuntimeError as e:
             # 数据保存失败
             logging.error(f"保存翻译记录失败: {str(e)}")
@@ -937,9 +927,9 @@ async def check_text(http_request: Request, request: CheckTextRequest, user: Use
                 detail=ErrorResponse(
                     error_code="DATA_SAVE_ERROR",
                     message="系统错误：无法保存翻译记录",
-                    details={"original_error": str(e), "exception_type": "RuntimeError"}
-                ).dict()
-            )
+                    details={"original_error": str(e), "exception_type": "RuntimeError"},
+                ).dict(),
+            ) from e
         except Exception as e:
             # 其他未知错误
             logging.error(f"记录翻译次数时发生未知错误: {str(e)}", exc_info=True)
@@ -948,13 +938,13 @@ async def check_text(http_request: Request, request: CheckTextRequest, user: Use
                 detail=ErrorResponse(
                     error_code="INTERNAL_SERVER_ERROR",
                     message="系统内部错误",
-                    details={"original_error": str(e), "exception_type": e.__class__.__name__}
-                ).dict()
-            )
-    
+                    details={"original_error": str(e), "exception_type": e.__class__.__name__},
+                ).dict(),
+            ) from e
+
     # 缓存结果
     gemini_cache.set(cache_key, response_data)
-    
+
     return response_data
 
 
@@ -963,14 +953,14 @@ async def check_text(http_request: Request, request: CheckTextRequest, user: Use
 async def translate_stream(
     http_request: Request,
     request: StreamTranslationRequest,
-    user: UserObject = Depends(get_current_user)
+    user: UserObject = Depends(get_current_user),
 ):
     """流式翻译端点
 
     使用 Server-Sent Events (SSE) 返回流式翻译结果
     """
     # 提取用户名
-    username = user.username if hasattr(user, 'username') else str(user)
+    username = user.username if hasattr(user, "username") else str(user)
 
     # 速率限制检查
     allowed, wait_time = rate_limiter.is_allowed(username)
@@ -980,8 +970,8 @@ async def translate_stream(
             detail=ErrorResponse(
                 error_code="RATE_LIMIT_EXCEEDED",
                 message=f"请求过于频繁，请等待 {wait_time} 秒",
-                details={"wait_time": wait_time, "username": username}
-            ).dict()
+                details={"wait_time": wait_time, "username": username},
+            ).dict(),
         )
 
     # 文本验证
@@ -992,8 +982,8 @@ async def translate_stream(
             detail=ErrorResponse(
                 error_code="TEXT_VALIDATION_ERROR",
                 message=message,
-                details={"text_length": len(request.text)}
-            ).dict()
+                details={"text_length": len(request.text)},
+            ).dict(),
         )
 
     # 检查操作类型
@@ -1003,12 +993,12 @@ async def translate_stream(
             detail=ErrorResponse(
                 error_code="UNSUPPORTED_OPERATION",
                 message="流式翻译仅支持 translate_us 和 translate_uk 操作",
-                details={"operation": request.operation}
-            ).dict()
+                details={"operation": request.operation},
+            ).dict(),
         )
 
     # 生成缓存键（流式翻译不适用缓存，但保留逻辑用于统计）
-    cache_key = generate_safe_hash_for_cache(request.text, f"{request.operation}_{request.version}")
+    generate_safe_hash_for_cache(request.text, f"{request.operation}_{request.version}")
 
     # 根据操作类型构建prompt
     style = "US" if request.operation == "translate_us" else "UK"
@@ -1016,16 +1006,18 @@ async def translate_stream(
 
     # 获取API密钥（优先从环境变量获取，其次从请求头获取）
     gemini_api_key = None
-    source = "环境变量"
 
     # 从环境变量获取Gemini API密钥
     gemini_api_key = os.environ.get("GEMINI_API_KEY")
-    logging.info(f"translate_stream函数: 从环境变量获取GEMINI_API_KEY: {gemini_api_key is not None}")
+    logging.info(
+        f"translate_stream函数: 从环境变量获取GEMINI_API_KEY: {gemini_api_key is not None}"
+    )
     if not gemini_api_key:
         # 从请求头获取
         gemini_api_key = http_request.headers.get("X-Gemini-Api-Key")
-        source = "请求头"
-        logging.info(f"translate_stream函数: 从请求头获取X-Gemini-Api-Key: {gemini_api_key is not None}")
+        logging.info(
+            f"translate_stream函数: 从请求头获取X-Gemini-Api-Key: {gemini_api_key is not None}"
+        )
 
     # 检查API密钥是否存在
     if not gemini_api_key:
@@ -1035,8 +1027,8 @@ async def translate_stream(
             detail=ErrorResponse(
                 error_code="GEMINI_API_KEY_MISSING",
                 message="需要提供Gemini API密钥（可通过环境变量GEMINI_API_KEY或侧边栏输入设置）",
-                details={"service": "Gemini"}
-            ).dict()
+                details={"service": "Gemini"},
+            ).dict(),
         )
 
     async def stream_generator():
@@ -1047,7 +1039,7 @@ async def translate_stream(
                 prompt=prompt,
                 api_key=gemini_api_key,
                 primary_model="gemini-2.5-flash",
-                fallback_model="gemini-2.5-pro"
+                fallback_model="gemini-2.5-pro",
             )
 
             # 处理流式响应
@@ -1062,15 +1054,15 @@ async def translate_stream(
         except Exception as e:
             logging.error(f"流式翻译异常: {str(e)}", exc_info=True)
             error_chunk = StreamTranslationChunk(
-                type="error",
-                error=f"流式翻译异常: {str(e)}",
-                error_type="stream_error"
+                type="error", error=f"流式翻译异常: {str(e)}", error_type="stream_error"
             )
             yield f"data: {error_chunk.json()}\n\n"
 
     # 记录使用情况（异步，不阻塞流式响应）
     try:
-        remaining = user_service.record_usage(username, operation_type=request.operation, text_length=len(request.text))
+        remaining = user_service.record_usage(
+            username, operation_type=request.operation, text_length=len(request.text)
+        )
         logging.info(f"用户 {username} 流式翻译使用记录，剩余次数: {remaining}")
     except Exception as e:
         logging.error(f"记录流式翻译使用失败: {str(e)}")
@@ -1083,8 +1075,8 @@ async def translate_stream(
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "X-Accel-Buffering": "no"  # 禁用Nginx缓冲
-        }
+            "X-Accel-Buffering": "no",  # 禁用Nginx缓冲
+        },
     )
 
 
@@ -1093,14 +1085,14 @@ async def translate_stream(
 async def refine_stream(
     http_request: Request,
     request: StreamRefineTextRequest,
-    user: UserObject = Depends(get_current_user)
+    user: UserObject = Depends(get_current_user),
 ):
     """流式文本修改端点
 
     使用 Server-Sent Events (SSE) 返回流式修改结果
     """
     # 提取用户名
-    username = user.username if hasattr(user, 'username') else str(user)
+    username = user.username if hasattr(user, "username") else str(user)
 
     # 速率限制检查
     allowed, wait_time = rate_limiter.is_allowed(username)
@@ -1110,8 +1102,8 @@ async def refine_stream(
             detail=ErrorResponse(
                 error_code="RATE_LIMIT_EXCEEDED",
                 message=f"请求过于频繁，请等待 {wait_time} 秒",
-                details={"wait_time": wait_time, "username": username}
-            ).dict()
+                details={"wait_time": wait_time, "username": username},
+            ).dict(),
         )
 
     # 文本验证
@@ -1122,8 +1114,8 @@ async def refine_stream(
             detail=ErrorResponse(
                 error_code="TEXT_VALIDATION_ERROR",
                 message=message,
-                details={"text_length": len(request.text)}
-            ).dict()
+                details={"text_length": len(request.text)},
+            ).dict(),
         )
 
     # 构建隐藏指令
@@ -1140,7 +1132,7 @@ async def refine_stream(
         logging.info(f"检测到 {len(annotations)} 个局部批注")
         # 记录更详细的批注信息，便于调试
         for i, anno in enumerate(annotations):
-            logging.info(f"批注 {i+1}: 句子='{anno['sentence']}', 内容='{anno['content']}'")
+            logging.info(f"批注 {i + 1}: 句子='{anno['sentence']}', 内容='{anno['content']}'")
 
     # 构建prompt
     prompt = build_english_refine_prompt(request.text, hidden_instructions, annotations)
@@ -1150,7 +1142,6 @@ async def refine_stream(
 
     # 获取API密钥（优先从环境变量获取，其次从请求头获取）
     gemini_api_key = None
-    source = "环境变量"
 
     # 从环境变量获取Gemini API密钥
     gemini_api_key = os.environ.get("GEMINI_API_KEY")
@@ -1158,8 +1149,9 @@ async def refine_stream(
     if not gemini_api_key:
         # 从请求头获取
         gemini_api_key = http_request.headers.get("X-Gemini-Api-Key")
-        source = "请求头"
-        logging.info(f"refine_stream函数: 从请求头获取X-Gemini-Api-Key: {gemini_api_key is not None}")
+        logging.info(
+            f"refine_stream函数: 从请求头获取X-Gemini-Api-Key: {gemini_api_key is not None}"
+        )
 
     # 检查API密钥是否存在
     if not gemini_api_key:
@@ -1169,8 +1161,8 @@ async def refine_stream(
             detail=ErrorResponse(
                 error_code="GEMINI_API_KEY_MISSING",
                 message="需要提供Gemini API密钥（可通过环境变量GEMINI_API_KEY或侧边栏输入设置）",
-                details={"service": "Gemini"}
-            ).dict()
+                details={"service": "Gemini"},
+            ).dict(),
         )
 
     async def stream_generator():
@@ -1181,7 +1173,7 @@ async def refine_stream(
                 prompt=prompt,
                 api_key=gemini_api_key,
                 primary_model="gemini-2.5-flash",
-                fallback_model="gemini-2.5-pro"
+                fallback_model="gemini-2.5-pro",
             )
 
             # 处理流式响应
@@ -1196,9 +1188,7 @@ async def refine_stream(
         except Exception as e:
             logging.error(f"流式文本修改异常: {str(e)}", exc_info=True)
             error_chunk = StreamRefineTextChunk(
-                type="error",
-                error=f"流式文本修改异常: {str(e)}",
-                error_type="stream_error"
+                type="error", error=f"流式文本修改异常: {str(e)}", error_type="stream_error"
             )
             yield f"data: {error_chunk.json()}\n\n"
 
@@ -1209,18 +1199,20 @@ async def refine_stream(
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "X-Accel-Buffering": "no"  # 禁用Nginx缓冲
-        }
+            "X-Accel-Buffering": "no",  # 禁用Nginx缓冲
+        },
     )
 
 
 @app.post("/api/text/refine")
 @api_error_handler
-async def refine_text(http_request: Request, request: RefineTextRequest, user: UserObject = Depends(get_current_user)):
+async def refine_text(
+    http_request: Request, request: RefineTextRequest, user: UserObject = Depends(get_current_user)
+):
     """英文精修"""
-    
+
     # 提取用户名
-    username = user.username if hasattr(user, 'username') else str(user)
+    username = user.username if hasattr(user, "username") else str(user)
 
     # 速率限制检查
     allowed, wait_time = rate_limiter.is_allowed(username)
@@ -1230,35 +1222,35 @@ async def refine_text(http_request: Request, request: RefineTextRequest, user: U
             detail=ErrorResponse(
                 error_code="RATE_LIMIT_EXCEEDED",
                 message=f"请求过于频繁，请等待 {wait_time} 秒",
-                details={"wait_time": wait_time, "username": username}
-            ).dict()
+                details={"wait_time": wait_time, "username": username},
+            ).dict(),
         )
-    
+
     # 构建隐藏指令
     hidden_prompts = []
     for directive in request.directives:
         if directive in SHORTCUT_ANNOTATIONS:
             hidden_prompts.append(f"- {SHORTCUT_ANNOTATIONS[directive]}")
-    
+
     hidden_instructions = "\n".join(hidden_prompts)
-    
+
     # 提取批注信息
     annotations = extract_annotations_with_context(request.text)
     if annotations:
         logging.info(f"检测到 {len(annotations)} 个局部批注")
         # 记录更详细的批注信息，便于调试
         for i, anno in enumerate(annotations):
-            logging.info(f"批注 {i+1}: 句子='{anno['sentence']}', 内容='{anno['content']}'")
-    
+            logging.info(f"批注 {i + 1}: 句子='{anno['sentence']}', 内容='{anno['content']}'")
+
     # 构建prompt
     prompt = build_english_refine_prompt(request.text, hidden_instructions, annotations)
-    
+
     # 记录完整的prompt用于调试
     logging.info(f"完整的提示词: {prompt}")
-    
+
     # 生成缓存键
     cache_key = generate_safe_hash_for_cache(request.text, "_".join(request.directives))
-    
+
     # 检查缓存
     cached_result = gemini_cache.get(cache_key)
     if cached_result:
@@ -1278,7 +1270,9 @@ async def refine_text(http_request: Request, request: RefineTextRequest, user: U
 
     # 调试日志：记录API密钥信息
     if gemini_api_key:
-        key_prefix = gemini_api_key[:8] if len(gemini_api_key) > 8 else gemini_api_key[:len(gemini_api_key)]
+        key_prefix = (
+            gemini_api_key[:8] if len(gemini_api_key) > 8 else gemini_api_key[: len(gemini_api_key)]
+        )
         logging.info(f"从{source}获取到Gemini API密钥，前缀: {key_prefix}...")
     else:
         logging.warning(f"Gemini API密钥未提供：{source}中未找到")
@@ -1294,17 +1288,16 @@ async def refine_text(http_request: Request, request: RefineTextRequest, user: U
             detail=ErrorResponse(
                 error_code="GEMINI_API_KEY_MISSING",
                 message="需要提供Gemini API密钥（可通过环境变量GEMINI_API_KEY或侧边栏输入设置）",
-                details={"service": "Gemini"}
-            ).dict()
+                details={"service": "Gemini"},
+            ).dict(),
         )
-
 
     # 调用 Gemini API，文本相关功能使用 gemini-2.5-flash 作为主模型
     result = generate_gemini_content_with_fallback(
         prompt,
         api_key=gemini_api_key,
         primary_model="gemini-2.5-flash",
-        fallback_model="gemini-2.5-pro"
+        fallback_model="gemini-2.5-pro",
     )
 
     if not result["success"]:
@@ -1315,31 +1308,33 @@ async def refine_text(http_request: Request, request: RefineTextRequest, user: U
             detail=ErrorResponse(
                 error_code="GEMINI_API_ERROR",
                 message=error_message,
-                details={"error_type": error_type}
-            ).dict()
+                details={"error_type": error_type},
+            ).dict(),
         )
 
     response_data = {
         "success": True,
         "text": result["text"],
         "model_used": result.get("model_used", "unknown"),
-        "annotations_processed": len(annotations) if annotations else 0
+        "annotations_processed": len(annotations) if annotations else 0,
     }
-
 
     # 缓存结果
     gemini_cache.set(cache_key, response_data)
 
     return response_data
 
+
 @app.post("/api/text/detect-ai")
 @api_error_handler
-async def detect_ai(http_request: Request, request: AIDetectionRequest, user: UserObject = Depends(get_current_user)):
+async def detect_ai(
+    http_request: Request, request: AIDetectionRequest, user: UserObject = Depends(get_current_user)
+):
     """AI内容检测"""
-    
+
     # 提取用户名
-    username = user.username if hasattr(user, 'username') else str(user)
-    
+    username = user.username if hasattr(user, "username") else str(user)
+
     # 优先从环境变量读取GPTZero API密钥
     gptzero_api_key = None
     source = "环境变量"
@@ -1362,7 +1357,7 @@ async def detect_ai(http_request: Request, request: AIDetectionRequest, user: Us
                 "x-gptzero-api-key",
                 "X-GPTZERO-API-KEY",
                 "gptzero-api-key",
-                "Gptzero-Api-Key"
+                "Gptzero-Api-Key",
             ]
             for header_name in possible_headers:
                 value = http_request.headers.get(header_name)
@@ -1383,12 +1378,14 @@ async def detect_ai(http_request: Request, request: AIDetectionRequest, user: Us
             detail=ErrorResponse(
                 error_code="GPTZERO_API_KEY_MISSING",
                 message="需要提供GPTZero API密钥（可通过环境变量GPTZERO_API_KEY或请求头X-Gptzero-Api-Key提供）",
-                details={"service": "GPTZero"}
-            ).dict()
+                details={"service": "GPTZero"},
+            ).dict(),
         )
 
     # 调试日志：记录API密钥信息
-    key_prefix = gptzero_api_key[:8] if len(gptzero_api_key) > 8 else gptzero_api_key[:len(gptzero_api_key)]
+    key_prefix = (
+        gptzero_api_key[:8] if len(gptzero_api_key) > 8 else gptzero_api_key[: len(gptzero_api_key)]
+    )
     logging.info(f"从{source}获取到GPTZero API密钥，前缀: {key_prefix}...")
 
     # 使用获取到的API密钥
@@ -1404,7 +1401,7 @@ async def detect_ai(http_request: Request, request: AIDetectionRequest, user: Us
         return cached_result
 
     result = check_gptzero(request.text, final_gptzero_api_key)
-    
+
     if not result["success"]:
         error_message = result.get("message", "检测失败")
         raise HTTPException(
@@ -1412,16 +1409,18 @@ async def detect_ai(http_request: Request, request: AIDetectionRequest, user: Us
             detail=ErrorResponse(
                 error_code="GPTZERO_API_ERROR",
                 message=error_message,
-                details={"service": "GPTZero"}
-            ).dict()
+                details={"service": "GPTZero"},
+            ).dict(),
         )
-    
+
     # 缓存结果
     gptzero_cache.set(cache_key, result)
 
     # 记录AI检测使用
     try:
-        user_service.record_usage(username, operation_type="ai_detection", text_length=len(request.text))
+        user_service.record_usage(
+            username, operation_type="ai_detection", text_length=len(request.text)
+        )
     except Exception as e:
         logging.warning(f"记录AI检测使用失败，但不影响返回结果: {str(e)}")
 
@@ -1431,14 +1430,12 @@ async def detect_ai(http_request: Request, request: AIDetectionRequest, user: Us
 @app.post("/api/chat")
 @api_error_handler
 async def chat_endpoint(
-    http_request: Request,
-    request: AIChatRequest,
-    user: UserObject = Depends(get_current_user)
+    http_request: Request, request: AIChatRequest, user: UserObject = Depends(get_current_user)
 ):
     """AI聊天对话"""
 
     # 提取用户名
-    username = user.username if hasattr(user, 'username') else str(user)
+    username = user.username if hasattr(user, "username") else str(user)
 
     # 速率限制检查
     allowed, wait_time = rate_limiter.is_allowed(username)
@@ -1448,8 +1445,8 @@ async def chat_endpoint(
             detail=ErrorResponse(
                 error_code="RATE_LIMIT_EXCEEDED",
                 message=f"请求过于频繁，请等待{wait_time}秒",
-                details={"wait_time": wait_time}
-            ).dict()
+                details={"wait_time": wait_time},
+            ).dict(),
         )
 
     # 检查用户限制
@@ -1458,19 +1455,14 @@ async def chat_endpoint(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=ErrorResponse(
-                error_code="USER_NOT_FOUND",
-                message="用户不存在",
-                details={"username": username}
-            ).dict()
+                error_code="USER_NOT_FOUND", message="用户不存在", details={"username": username}
+            ).dict(),
         )
 
     # 转换消息格式为chat_with_gemini所需的格式
     messages = []
     for msg in request.messages:
-        messages.append({
-            "role": msg.role,
-            "content": msg.content
-        })
+        messages.append({"role": msg.role, "content": msg.content})
 
     # 获取API密钥（优先从环境变量获取，其次从请求头获取）
     api_key = None
@@ -1491,10 +1483,8 @@ async def chat_endpoint(
             detail=ErrorResponse(
                 error_code="API_KEY_MISSING",
                 message="未提供Gemini API密钥",
-                details={
-                    "hint": "请在侧边栏输入Gemini API密钥，或设置GEMINI_API_KEY环境变量"
-                }
-            ).dict()
+                details={"hint": "请在侧边栏输入Gemini API密钥，或设置GEMINI_API_KEY环境变量"},
+            ).dict(),
         )
 
     logging.info(f"使用{source}的Gemini API密钥进行聊天，用户: {username}")
@@ -1508,7 +1498,7 @@ async def chat_endpoint(
                 success=True,
                 text=result.get("text", ""),
                 session_id=request.session_id,
-                model_used=result.get("model_used", "unknown")
+                model_used=result.get("model_used", "unknown"),
             )
         else:
             return AIChatResponse(
@@ -1516,7 +1506,7 @@ async def chat_endpoint(
                 text="",
                 session_id=request.session_id,
                 model_used=result.get("model_used", "unknown"),
-                error=result.get("error", "未知错误")
+                error=result.get("error", "未知错误"),
             )
 
     except Exception as e:
@@ -1526,9 +1516,9 @@ async def chat_endpoint(
             detail=ErrorResponse(
                 error_code="CHAT_PROCESSING_FAILED",
                 message="聊天请求处理失败",
-                details={"error": str(e)}
-            ).dict()
-        )
+                details={"error": str(e)},
+            ).dict(),
+        ) from e
 
 
 @app.get("/api/health")
@@ -1543,8 +1533,8 @@ async def health_check():
             "checks": {
                 "app": "ok",
                 "database": "unknown",
-                "external_apis": "not_checked"  # 不检查外部API以避免启动失败
-            }
+                "external_apis": "not_checked",  # 不检查外部API以避免启动失败
+            },
         }
 
         # 可选：简单数据库连接检查（不阻塞）
@@ -1566,23 +1556,21 @@ async def health_check():
             "status": "unhealthy",
             "timestamp": datetime.now().isoformat(),
             "error": str(e)[:100],
-            "checks": {
-                "app": "error",
-                "database": "unknown",
-                "external_apis": "unknown"
-            }
+            "checks": {"app": "error", "database": "unknown", "external_apis": "unknown"},
         }
+
 
 # ==========================================
 # 提示词性能监控API
 # ==========================================
 
+
 @app.get("/api/debug/prompt-metrics")
 @api_error_handler
 async def get_prompt_metrics():
     """获取提示词性能指标"""
-    from .prompt_monitor import prompt_performance_monitor
     from .prompt_cache import prompt_cache_manager
+    from .prompt_monitor import prompt_performance_monitor
 
     return {
         "timestamp": datetime.now().isoformat(),
@@ -1592,8 +1580,8 @@ async def get_prompt_metrics():
             "default_template_version": "compact",
             "cache_enabled": True,
             "cache_ttl_seconds": 3600,
-            "cache_max_entries": 1000
-        }
+            "cache_max_entries": 1000,
+        },
     }
 
 
@@ -1602,13 +1590,10 @@ async def get_prompt_metrics():
 async def clear_prompt_cache():
     """清空提示词缓存"""
     from .prompt_cache import prompt_cache_manager
+
     prompt_cache_manager.clear()
 
-    return {
-        "success": True,
-        "message": "提示词缓存已清空",
-        "timestamp": datetime.now().isoformat()
-    }
+    return {"success": True, "message": "提示词缓存已清空", "timestamp": datetime.now().isoformat()}
 
 
 @app.post("/api/debug/prompt-metrics/reset")
@@ -1616,12 +1601,13 @@ async def clear_prompt_cache():
 async def reset_prompt_metrics():
     """重置提示词性能指标"""
     from .prompt_monitor import prompt_performance_monitor
+
     prompt_performance_monitor.reset_metrics()
 
     return {
         "success": True,
         "message": "提示词性能指标已重置",
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
     }
 
 
@@ -1630,12 +1616,14 @@ async def reset_prompt_metrics():
 async def test_prompt_build():
     """测试提示词构建性能"""
     from .prompts import test_prompt_build_performance
+
     return test_prompt_build_performance()
 
 
 # ==========================================
 # 管理员API
 # ==========================================
+
 
 @app.post("/api/admin/login")
 @api_error_handler
@@ -1647,19 +1635,17 @@ async def admin_login(request: AdminLoginRequest):
             detail=ErrorResponse(
                 error_code="ADMIN_AUTHENTICATION_FAILED",
                 message="密码错误",
-                details={"service": "admin_login"}
-            ).dict()
+                details={"service": "admin_login"},
+            ).dict(),
         )
-    
+
     timestamp = str(int(time.time()))
     token_string = f"admin:{timestamp}"
     token_hash = hashlib.sha256(token_string.encode()).hexdigest()[:16]
     token = f"admin:{timestamp}:{token_hash}"
-    
-    return {
-        "success": True,
-        "token": token
-    }
+
+    return {"success": True, "token": token}
+
 
 @app.get("/api/admin/users")
 @api_error_handler
@@ -1672,16 +1658,19 @@ async def get_all_users(credentials: HTTPAuthorizationCredentials = Depends(secu
             detail=ErrorResponse(
                 error_code="ADMIN_PERMISSION_REQUIRED",
                 message="需要管理员权限",
-                details={"token_provided": token[:20] if token else None}
-            ).dict()
+                details={"token_provided": token[:20] if token else None},
+            ).dict(),
         )
-    
+
     users = user_service.get_all_users()
     return {"users": users}
 
+
 @app.post("/api/admin/users/update")
 @api_error_handler
-async def update_user(request: UpdateUserRequest, credentials: HTTPAuthorizationCredentials = Depends(security)):
+async def update_user(
+    request: UpdateUserRequest, credentials: HTTPAuthorizationCredentials = Depends(security)
+):
     """更新用户信息（管理员）"""
     token = credentials.credentials
     if not token.startswith("admin:"):
@@ -1690,15 +1679,15 @@ async def update_user(request: UpdateUserRequest, credentials: HTTPAuthorization
             detail=ErrorResponse(
                 error_code="ADMIN_PERMISSION_REQUIRED",
                 message="需要管理员权限",
-                details={"token_provided": token[:20] if token else None}
-            ).dict()
+                details={"token_provided": token[:20] if token else None},
+            ).dict(),
         )
-    
+
     success, message = user_service.update_user(
         request.username,
         request.password,
         request.daily_translation_limit,
-        request.daily_ai_detection_limit
+        request.daily_ai_detection_limit,
     )
 
     if not success:
@@ -1707,15 +1696,18 @@ async def update_user(request: UpdateUserRequest, credentials: HTTPAuthorization
             detail=ErrorResponse(
                 error_code="USER_UPDATE_FAILED",
                 message=message,
-                details={"username": request.username}
-            ).dict()
+                details={"username": request.username},
+            ).dict(),
         )
-    
+
     return {"success": True, "message": message}
+
 
 @app.post("/api/admin/users/add")
 @api_error_handler
-async def add_user(request: AddUserRequest, credentials: HTTPAuthorizationCredentials = Depends(security)):
+async def add_user(
+    request: AddUserRequest, credentials: HTTPAuthorizationCredentials = Depends(security)
+):
     """添加新用户（管理员）"""
     token = credentials.credentials
     if not token.startswith("admin:"):
@@ -1724,15 +1716,15 @@ async def add_user(request: AddUserRequest, credentials: HTTPAuthorizationCreden
             detail=ErrorResponse(
                 error_code="ADMIN_PERMISSION_REQUIRED",
                 message="需要管理员权限",
-                details={"token_provided": token[:20] if token else None}
-            ).dict()
+                details={"token_provided": token[:20] if token else None},
+            ).dict(),
         )
-    
+
     success, message = user_service.add_user(
         request.username,
         request.password,
         request.daily_translation_limit,
-        request.daily_ai_detection_limit
+        request.daily_ai_detection_limit,
     )
 
     if not success:
@@ -1741,11 +1733,12 @@ async def add_user(request: AddUserRequest, credentials: HTTPAuthorizationCreden
             detail=ErrorResponse(
                 error_code="USER_ADD_FAILED",
                 message=message,
-                details={"username": request.username}
-            ).dict()
+                details={"username": request.username},
+            ).dict(),
         )
-    
+
     return {"success": True, "message": message}
+
 
 @app.get("/api/test")
 async def test_endpoint():
@@ -1765,4 +1758,5 @@ async def print_routes():
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

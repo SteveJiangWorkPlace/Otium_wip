@@ -82,7 +82,20 @@
       "Bash(git restore:*)",
       "Bash(cmd //c \"taskkill /PID 1604 /F\")",
       "Bash(venvScriptspython.exe -m uvicorn:*)",
-      "Bash(venv/Scripts/python.exe -m uvicorn:*)"
+      "Bash(venv/Scripts/python.exe -m uvicorn:*)",
+      "Bash(npx husky init:*)",
+      "Bash(\"venv\\\\Scripts\\\\python\" -m pip:*)",
+      "Bash(\"venv\\\\Scripts\\\\python\" fix_code_quality.py)",
+      "Bash(\"venv\\\\Scripts\\\\python\" run_quality_checks.py)",
+      "Bash(\"venv\\\\Scripts\\\\python\" -m ruff check:*)",
+      "Bash(\"venv\\\\Scripts\\\\python\" -m ruff check --output-format=concise .)",
+      "Bash(\"venv\\\\Scripts\\\\python\" -m ruff:*)",
+      "Bash(\"venv\\\\Scripts\\\\python\" -m ruff format fix_code_quality.py run_quality_checks.py --check)",
+      "Bash(venvScriptsactivate)",
+      "Bash(venvScriptspython -m pip install:*)",
+      "Bash(./venv/Scripts/python -m pip install:*)",
+      "Bash(./venv/Scripts/python:*)",
+      "Bash(tee:*)"
     ]
   }
 }

@@ -17,7 +17,12 @@ export const useApiKeys = () => {
   // 从localStorage加载API密钥
   useEffect(() => {
     const savedKeys = localStorage.getItem(API_KEYS_STORAGE_KEY);
-    console.log('useApiKeys - 从localStorage加载, 键名:', API_KEYS_STORAGE_KEY, '数据:', savedKeys ? '存在' : '不存在');
+    console.log(
+      'useApiKeys - 从localStorage加载, 键名:',
+      API_KEYS_STORAGE_KEY,
+      '数据:',
+      savedKeys ? '存在' : '不存在'
+    );
 
     if (savedKeys) {
       try {
@@ -25,8 +30,12 @@ export const useApiKeys = () => {
         console.log('useApiKeys - 解析后的密钥:', {
           geminiLength: parsedKeys.geminiApiKey ? parsedKeys.geminiApiKey.length : 0,
           gptzeroLength: parsedKeys.gptzeroApiKey ? parsedKeys.gptzeroApiKey.length : 0,
-          geminiPreview: parsedKeys.geminiApiKey ? `${parsedKeys.geminiApiKey.substring(0, Math.min(5, parsedKeys.geminiApiKey.length))}...` : '空',
-          gptzeroPreview: parsedKeys.gptzeroApiKey ? `${parsedKeys.gptzeroApiKey.substring(0, Math.min(5, parsedKeys.gptzeroApiKey.length))}...` : '空'
+          geminiPreview: parsedKeys.geminiApiKey
+            ? `${parsedKeys.geminiApiKey.substring(0, Math.min(5, parsedKeys.geminiApiKey.length))}...`
+            : '空',
+          gptzeroPreview: parsedKeys.gptzeroApiKey
+            ? `${parsedKeys.gptzeroApiKey.substring(0, Math.min(5, parsedKeys.gptzeroApiKey.length))}...`
+            : '空',
         });
 
         setApiKeys({
@@ -45,8 +54,12 @@ export const useApiKeys = () => {
       console.log('useApiKeys - 保存API密钥到localStorage:', {
         geminiLength: keys.geminiApiKey ? keys.geminiApiKey.length : 0,
         gptzeroLength: keys.gptzeroApiKey ? keys.gptzeroApiKey.length : 0,
-        geminiPreview: keys.geminiApiKey ? `${keys.geminiApiKey.substring(0, Math.min(5, keys.geminiApiKey.length))}...` : '空',
-        gptzeroPreview: keys.gptzeroApiKey ? `${keys.gptzeroApiKey.substring(0, Math.min(5, keys.gptzeroApiKey.length))}...` : '空'
+        geminiPreview: keys.geminiApiKey
+          ? `${keys.geminiApiKey.substring(0, Math.min(5, keys.geminiApiKey.length))}...`
+          : '空',
+        gptzeroPreview: keys.gptzeroApiKey
+          ? `${keys.gptzeroApiKey.substring(0, Math.min(5, keys.gptzeroApiKey.length))}...`
+          : '空',
       });
 
       localStorage.setItem(API_KEYS_STORAGE_KEY, JSON.stringify(keys));

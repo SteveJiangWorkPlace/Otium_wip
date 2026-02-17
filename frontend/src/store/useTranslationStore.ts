@@ -72,47 +72,51 @@ export const useTranslationStore = create<TranslationState>()(
       // 流式翻译操作
       setStreaming: (streaming: boolean) => set({ streaming }),
       setPartialText: (text: string) => set({ partialText: text }),
-      appendPartialText: (text: string, isNewSentence?: boolean) => set((state) => ({
-        partialText: state.partialText + (isNewSentence && state.partialText ? '\n' : '') + text
-      })),
+      appendPartialText: (text: string, isNewSentence?: boolean) =>
+        set((state) => ({
+          partialText: state.partialText + (isNewSentence && state.partialText ? '\n' : '') + text,
+        })),
       setSentences: (sentences: string[]) => set({ sentences }),
-      addSentence: (sentence: string, index?: number) => set((state) => {
-        const newSentences = [...state.sentences];
-        if (index !== undefined && index >= 0 && index <= newSentences.length) {
-          newSentences.splice(index, 0, sentence);
-        } else {
-          newSentences.push(sentence);
-        }
-        return { sentences: newSentences };
-      }),
+      addSentence: (sentence: string, index?: number) =>
+        set((state) => {
+          const newSentences = [...state.sentences];
+          if (index !== undefined && index >= 0 && index <= newSentences.length) {
+            newSentences.splice(index, 0, sentence);
+          } else {
+            newSentences.push(sentence);
+          }
+          return { sentences: newSentences };
+        }),
       setCurrentSentenceIndex: (index: number) => set({ currentSentenceIndex: index }),
       setTotalSentences: (total: number) => set({ totalSentences: total }),
       setStreamError: (error: string | null) => set({ streamError: error }),
       setCancelStream: (cancelFn: (() => void) | null) => set({ cancelStream: cancelFn }),
-      resetStreamState: () => set({
-        streaming: false,
-        partialText: '',
-        sentences: [],
-        currentSentenceIndex: 0,
-        totalSentences: 0,
-        streamError: null,
-        cancelStream: null
-      }),
-      clear: () => set({
-        inputText: '',
-        translatedText: '',
-        editableText: '',
-        loading: false,
-        loadingStep: null,
-        // 同时重置流式状态
-        streaming: false,
-        partialText: '',
-        sentences: [],
-        currentSentenceIndex: 0,
-        totalSentences: 0,
-        streamError: null,
-        cancelStream: null
-      }),
+      resetStreamState: () =>
+        set({
+          streaming: false,
+          partialText: '',
+          sentences: [],
+          currentSentenceIndex: 0,
+          totalSentences: 0,
+          streamError: null,
+          cancelStream: null,
+        }),
+      clear: () =>
+        set({
+          inputText: '',
+          translatedText: '',
+          editableText: '',
+          loading: false,
+          loadingStep: null,
+          // 同时重置流式状态
+          streaming: false,
+          partialText: '',
+          sentences: [],
+          currentSentenceIndex: 0,
+          totalSentences: 0,
+          streamError: null,
+          cancelStream: null,
+        }),
     }),
     {
       name: 'translation-storage',

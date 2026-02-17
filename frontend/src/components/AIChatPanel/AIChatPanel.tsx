@@ -1,5 +1,8 @@
 import React, { useRef, useEffect } from 'react';
-import { useAIChatStore, type AIChatMessage as StoreAIChatMessage } from '../../store/useAIChatStore';
+import {
+  useAIChatStore,
+  type AIChatMessage as StoreAIChatMessage,
+} from '../../store/useAIChatStore';
 import { apiClient } from '../../api/client';
 import type { AIChatMessage as ApiAIChatMessage } from '../../types';
 import Button from '../ui/Button/Button';
@@ -12,13 +15,7 @@ interface AIChatPanelProps {
 }
 
 const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) => {
-  const {
-    conversations,
-    toggleExpanded,
-    addMessage,
-    setInputText,
-    setLoading,
-  } = useAIChatStore();
+  const { conversations, toggleExpanded, addMessage, setInputText, setLoading } = useAIChatStore();
 
   const conversation = conversations[pageKey] || {
     isExpanded: false,
@@ -47,7 +44,6 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
     });
   };
 
-
   useEffect(() => {
     scrollToBottom();
   }, [conversation.messages]);
@@ -64,44 +60,57 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
     }
   }, [conversation.loading, conversation.messages.length]);
 
-
   // 清理markdown符号但保留必要格式
   const cleanMarkdown = (html: string): string => {
     // 先转换markdown格式为HTML
     let cleaned = html;
 
     // 首先处理markdown表格
-    cleaned = cleaned.replace(/\n(\|[^\n]+\|\s*\n)(\|[-\s:|]+\|.*\|\s*\n)((?:\|[^\n]+\|\s*\n)+)/g, (match, headerLine, separatorLine, dataLines) => {
-      try {
-        // 解析表头行 - 移除首尾的|，然后按|分割
-        const headerCells = headerLine.trim().slice(1, -1).split('|').map((cell: string) => cell.trim());
+    cleaned = cleaned.replace(
+      /\n(\|[^\n]+\|\s*\n)(\|[-\s:|]+\|.*\|\s*\n)((?:\|[^\n]+\|\s*\n)+)/g,
+      (match, headerLine, separatorLine, dataLines) => {
+        try {
+          // 解析表头行 - 移除首尾的|，然后按|分割
+          const headerCells = headerLine
+            .trim()
+            .slice(1, -1)
+            .split('|')
+            .map((cell: string) => cell.trim());
 
-        // 解析数据行
-        const rowLines = dataLines.trim().split('\n').filter((line: string) => line.trim() !== '');
-        const rows = rowLines.map((line: string) =>
-          line.trim().slice(1, -1).split('|').map((cell: string) => cell.trim())
-        );
+          // 解析数据行
+          const rowLines = dataLines
+            .trim()
+            .split('\n')
+            .filter((line: string) => line.trim() !== '');
+          const rows = rowLines.map((line: string) =>
+            line
+              .trim()
+              .slice(1, -1)
+              .split('|')
+              .map((cell: string) => cell.trim())
+          );
 
-        // 构建HTML表格
-        let tableHtml = '<div class="ai-table-container"><table class="ai-table"><thead><tr>';
-        headerCells.forEach((cell: string) => {
-          tableHtml += `<th>${cell}</th>`;
-        });
-        tableHtml += '</tr></thead><tbody>';
-        rows.forEach((row: string[]) => {
-          tableHtml += '<tr>';
-          row.forEach((cell: string) => {
-            tableHtml += `<td>${cell}</td>`;
+          // 构建HTML表格
+          let tableHtml = '<div class="ai-table-container"><table class="ai-table"><thead><tr>';
+          headerCells.forEach((cell: string) => {
+            tableHtml += `<th>${cell}</th>`;
           });
-          tableHtml += '</tr>';
-        });
-        tableHtml += '</tbody></table></div>';
-        return tableHtml;
-      } catch (error) {
-        console.warn('Markdown表格转换失败:', error);
-        return match; // 转换失败时返回原内容
+          tableHtml += '</tr></thead><tbody>';
+          rows.forEach((row: string[]) => {
+            tableHtml += '<tr>';
+            row.forEach((cell: string) => {
+              tableHtml += `<td>${cell}</td>`;
+            });
+            tableHtml += '</tr>';
+          });
+          tableHtml += '</tbody></table></div>';
+          return tableHtml;
+        } catch (error) {
+          console.warn('Markdown表格转换失败:', error);
+          return match; // 转换失败时返回原内容
+        }
       }
-    });
+    );
 
     // 转换 **文本** 为 <strong>文本</strong>
     cleaned = cleaned.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
@@ -124,7 +133,10 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
     cleaned = cleaned.replace(/^(\s)?\*(\s|$)/gm, '$1$2');
 
     // 为现有的HTML表格添加样式（如果AI直接返回了HTML表格）
-    cleaned = cleaned.replace(/<table>/g, '<div class="ai-table-container"><table class="ai-table">');
+    cleaned = cleaned.replace(
+      /<table>/g,
+      '<div class="ai-table-container"><table class="ai-table">'
+    );
     cleaned = cleaned.replace(/<\/table>/g, '</table></div>');
 
     // 保留HTML标签，其它markdown符号已处理
@@ -148,7 +160,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
 
     try {
       // 构建消息列表（转换为API格式）
-      const messages: ApiAIChatMessage[] = conversation.messages.map(msg => ({
+      const messages: ApiAIChatMessage[] = conversation.messages.map((msg) => ({
         role: msg.role,
         content: msg.content,
       }));
@@ -201,7 +213,6 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
       handleSendMessage();
     }
   };
-
 
   if (!conversation.isExpanded) {
     return (
@@ -304,7 +315,6 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
         {/* 底部预留位置 */}
         <div className={styles.aiStatusBar}></div>
       </div>
-
     </div>
   );
 };

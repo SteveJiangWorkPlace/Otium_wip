@@ -5,9 +5,9 @@
 支持LRU淘汰策略、TTL和版本管理。
 """
 
-import time
 import hashlib
-from typing import Optional, Dict, Any
+import time
+from typing import Any
 
 from utils import CacheManager
 
@@ -32,10 +32,12 @@ class PromptCacheManager:
             "hits": 0,
             "misses": 0,
             "total_requests": 0,
-            "creation_times": {}  # 记录创建时间
+            "creation_times": {},  # 记录创建时间
         }
 
-    def get_prompt_key(self, text: str, style: str, version: str, template_version: str = "compact") -> str:
+    def get_prompt_key(
+        self, text: str, style: str, version: str, template_version: str = "compact"
+    ) -> str:
         """
         生成缓存键：文本前200字符的哈希+风格+版本+模板版本
 
@@ -57,7 +59,9 @@ class PromptCacheManager:
         # 构建缓存键
         return f"prompt_{text_hash}_{style}_{version}_{template_version}"
 
-    def get(self, text: str, style: str, version: str, template_version: str = "compact") -> Optional[str]:
+    def get(
+        self, text: str, style: str, version: str, template_version: str = "compact"
+    ) -> str | None:
         """
         获取缓存的提示词
 
@@ -88,7 +92,9 @@ class PromptCacheManager:
             self.cache_stats["misses"] += 1
             return None
 
-    def set(self, text: str, style: str, version: str, prompt: str, template_version: str = "compact"):
+    def set(
+        self, text: str, style: str, version: str, prompt: str, template_version: str = "compact"
+    ):
         """
         缓存提示词
 
@@ -118,7 +124,7 @@ class PromptCacheManager:
         self.cache_stats["misses"] = 0
         self.cache_stats["total_requests"] = 0
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """
         获取缓存统计信息
 
@@ -140,7 +146,7 @@ class PromptCacheManager:
             "miss_rate": f"{miss_rate:.2%}",
             "cache_size": len(self.access_times),
             "max_entries": self.max_entries,
-            "ttl_seconds": self.ttl
+            "ttl_seconds": self.ttl,
         }
 
     def cleanup_old_entries(self):
@@ -149,7 +155,8 @@ class PromptCacheManager:
 
         # 清理过期的访问时间记录
         expired_keys = [
-            key for key, access_time in self.access_times.items()
+            key
+            for key, access_time in self.access_times.items()
             if current_time - access_time > self.ttl
         ]
 
@@ -163,7 +170,9 @@ class PromptCacheManager:
         if len(self.access_times) > self.max_entries:
             # 找到最久未访问的条目
             sorted_keys = sorted(self.access_times.items(), key=lambda x: x[1])
-            keys_to_remove = [key for key, _ in sorted_keys[:len(self.access_times) - self.max_entries]]
+            keys_to_remove = [
+                key for key, _ in sorted_keys[: len(self.access_times) - self.max_entries]
+            ]
 
             for key in keys_to_remove:
                 if key in self.access_times:

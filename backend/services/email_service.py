@@ -5,16 +5,15 @@
 支持SMTP协议和Resend API两种方式。
 """
 
-import smtplib
 import logging
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from typing import Optional, Dict, Any
+import smtplib
 from datetime import datetime
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 import resend
-from config import settings
 
+from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +35,9 @@ class EmailService:
             self.smtp_ssl = settings.SMTP_SSL
             self.smtp_timeout = settings.SMTP_TIMEOUT
             self.smtp_from = settings.SMTP_FROM
-            logger.info(f"邮件服务初始化 [SMTP]: {self.smtp_host}:{self.smtp_port}, 超时: {self.smtp_timeout}秒")
+            logger.info(
+                f"邮件服务初始化 [SMTP]: {self.smtp_host}:{self.smtp_port}, 超时: {self.smtp_timeout}秒"
+            )
 
         elif self.email_provider == "resend":
             # Resend API配置
@@ -63,9 +64,9 @@ class EmailService:
             str: base64编码的SVG数据
         """
         try:
+            import base64
             import os
             import re
-            import base64
 
             # 前端logo文件路径（使用绝对路径）
             base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -79,7 +80,7 @@ class EmailService:
                 raise FileNotFoundError(f"Logo文件不存在: {logo_path}")
 
             # 读取SVG文件
-            with open(logo_path, 'r', encoding='utf-8') as f:
+            with open(logo_path, encoding="utf-8") as f:
                 svg_content = f.read()
 
             logger.info(f"成功读取SVG文件，大小: {len(svg_content)} 字符")
@@ -90,14 +91,16 @@ class EmailService:
 
             # 将fill颜色替换为黑色 (#000000)
             # 更健壮的正则表达式，匹配各种fill颜色格式
-            svg_content = re.sub(r'fill=["\']#?[a-fA-F0-9]{3,8}["\']', 'fill="#000000"', svg_content)
+            svg_content = re.sub(
+                r'fill=["\']#?[a-fA-F0-9]{3,8}["\']', 'fill="#000000"', svg_content
+            )
 
             # 再次检查替换后的fill属性
             fill_after = re.findall(r'fill=["\'](#?\w+)["\']', svg_content)
             logger.info(f"替换后fill属性: {fill_after}")
 
             # 将SVG内容转换为base64
-            base64_data = base64.b64encode(svg_content.encode('utf-8')).decode('utf-8')
+            base64_data = base64.b64encode(svg_content.encode("utf-8")).decode("utf-8")
 
             logger.info(f"成功生成base64数据，长度: {len(base64_data)}")
 
@@ -110,7 +113,7 @@ class EmailService:
             # 这里使用硬编码的base64数据，但已修改fill为黑色
             return "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2ODQgNjc1IiBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJ4TWlkWU1pZCBtZWV0IiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZlcnNpb249IjEuMSI+CiA8ZyBpZD0iTGF5ZXJfMSI+CiAgPHRpdGxlPkxheWVyIDE8L3RpdGxlPgogIDxwYXRoIGlkPSJzdmdfNCIgZD0ibTQ1MC4xNzYwMiw1MzcuNzU5MzFhMC4yLDAuMTkgLTU5LjUgMCAwIC0wLjM0LDAuMDlxLTguMTIsNDAuOCAtMjkuNDQsNzcuMjhxLTEzLjA5LDIyLjQgLTMwLjMzLDQzLjI1cS02LjA5LDcuMzcgLTE0LjA2LDExLjYzYy0zMi4yNywxNy4yNiAtNjQuOTMsLTQ3LjM4IC03NC43MywtNjguNDFjLTkuMjgsLTE5Ljk0IC0xNy41NiwtNDAuMTQgLTI0LjUxLC02MS4ycS0wLjc4LC0yLjM2IC0xLjI3LDAuMDhxLTYuOTQsMzQuNTEgLTIyLjk0LDY0LjEycS05LjMxLDE3LjIxIC0xOC42NiwzMi45NHEtNy40OCwxMi41OCAtMTUuNzEsMjEuNjFxLTMuNDIsMy43NSAtNy43Niw2LjY1Yy04LjczLDUuODQgLTIwLjEyLDQuNDIgLTI4LjgxLC0xLjIxYy00LjczLC0zLjA3IC05LjE1LC02Ljc1IC0xMi45NSwtMTAuOTFjLTE1LjMzLC0xNi43NyAtMjcuMzMsLTM4LjE3IC0zNy42LC01OC4zNGMtNy41NiwtMTQuODYgLTE1LjEyLC0zMC4xNSAtMjEuOTgsLTQ1LjQ4cS0xNC44OCwtMzMuMjUgLTI5LjcyLC02Ni4xNGMtMTIuMTcsLTI2Ljk2IC0yNS4xMSwtNTQuMTYgLTM5LjM5LC04MC42NHEtMTEuMTgsLTIwLjc1IC0yMy4zOCwtMzcuNjFxLTcuMywtMTAuMSAtMTAuMzQsLTE2LjM1cS0xNC4xNiwtMjkuMTIgMy43MywtNTkuNDNjNC4zMywtNy4zMyA4Ljk2LC0xNC4zNSAxMy45NCwtMjAuODRxMTMuOTksLTE4LjI5IDI2LjU1LC0zNS45N3E1LjcsLTguMDIgMTEuOTEsLTE2LjFxMjEuMSwtMjcuNDMgNDEuNzksLTUzLjk2cTIyLjg1LC0yOS4zMSAzMy44MiwtNDYuMTVxMTAuMzksLTE1Ljk0IDIxLjgsLTM1LjQ3cTYuODEsLTExLjY0IDExLjc5LC0yMi4xMWM3LjQ4LC0xNS43MiAxNi4zLC0yOS4yMSAzMC4zMSwtMzkuMXExNi4zOSwtMTEuNTkgMzYuMjgsLTEyLjc3YzMwLC0xLjc3IDU5Ljg1LDE1LjM3IDc2LjAxLDQwLjAyYTAuNzQsMC43NCAwIDAgMCAxLjIyLDAuMDNxMjQuNCwtMzMuNDggNjUuMzcsLTQ0LjE1cTguNDgsLTIuMjEgMTguMzcsLTIuODZxMzAuMzMsLTIuMDEgNTUuODcsMTEuNTZxMTUuMTEsOC4wMyAyNi4yOCwxOS4yNnEzLjc4LDMuNzkgNi40NCw4LjM4cTQ1LjU3LDc4LjczIDkxLjUyLDE1Ni43MnE1LjAyLDguNTEgMTAuMDcsMTcuMzRxNDMsNzUuMTggNzkuMDQsMTM1LjA3YzEwLjE3LDE2LjkxIDE2LjQ1LDM3Ljk1IDE1LjUzLDU3LjdjLTAuODgsMTguOCAtNS40NywzNi43NCAtMTEuNTYsNTUuMjlxLTIuODMsOC42IC03LjA4LDE4LjUzcS0xMC4xOCwyMy43NSAtMjAuODMsNDcuM3EtMTEuMDksMjQuNTMgLTIxLjM2LDQyLjI1cS05Ljk3LDE3LjIyIC0yMi4yLDM1LjkzYy0xMS4xMiwxNi45OSAtMjEuODIsMzQuMTQgLTM0LjgzLDUwLjM2Yy02LjMxLDcuODUgLTE0LjYyLDE2LjMyIC0yNC4zNSwxOC43OGMtMTEuNTIsMi45MiAtMjMuODgsLTQuNSAtMzIuMzIsLTEyLjgyYy0xMi41MSwtMTIuMzUgLTIyLjA0LC0yOC4zMSAtMjkuODksLTQ0LjM4Yy0xMi4yLC0yNC45OCAtMjEuNTEsLTUxLjU0IC0yOC43OCwtNzguNzZxLTAuMTUsLTAuNTYgLTAuNTIsLTEuMDF6bS0zODAuMDIsLTI2NC40OWMtOC43OCw4LjEyIC0xOC4yNCwxNi4zOSAtMjIuNTEsMjguMDdjLTUuMzUsMTQuNjMgLTQuMSwyOC4zOSAyLjMsNDIuMjNjNS44NSwxMi42NSAxMy4xNywyNC4wOCAyMC45LDM2LjI1YzE0Ljk1LDIzLjU1IDI5LjksNDguNjMgNDAuNTgsNjYuOTRjMTguNDgsMzEuNjYgMzMuOTMsNjEuNjIgNDkuNzQsOTIuNDhxNC40Nyw4LjczIDkuOTYsMTcuNTdjNC42Niw3LjUgMTAuNTYsMTUuMTQgMjAuMzQsMTMuMzZjMTMuMjcsLTIuNDEgMjMuODgsLTE5LjkgMjkuOTUsLTMwLjc5cTcuODEsLTE0LjAyIDEzLjgzLC0yNy4xNXEyNC45NCwtNTQuMzQgNDMuOTMsLTkzLjI2cTkuOTMsLTIwLjM1IDIyLjkzLC00NC4zNHE3LjUsLTEzLjgyIDE0LjYzLC0yNS42NHE4LjIyLC0xMy42MSAyMS4wOSwtMjUuM2MyNS43NSwtMjMuMzkgNTguNTEsLTI5LjcxIDkyLjU1LC0yNC45NGEwLjQ1LDAuNDUgMCAwIDAgMC40NiwtMC42N2MtMjQuNjEsLTQ0LjI2IC01MC44NCwtOTAuMjIgLTc2Ljc2LC0xMzYuNjFxLTQuNjQsLTguMzEgLTkuOSwtMTcuMzZxLTE3LjM0LC0yOS44NyAtMzQuMzEsLTYwLjQxYy0wLjczLC0xLjMzIC0xLjcxLC0yLjUzIC0yLjg3LC0zLjUxYy0yMC44MiwtMTcuNDUgLTUyLjU2LC0zNS40OSAtODAuMzcsLTIzLjUyYy0xNS45Miw2Ljg0IC0yNy4wNywyMS43MiAtMzYuNTQsMzcuMXEtNC42Miw3LjUxIC0xMC4wOCwxNy4ycS0xOC41NCwzMi44OSAtMzUuNTgsNjUuNjFxLTUuMTMsOS44NSAtOS41OCwxNy4zOXEtMjIuMjUsMzcuNjMgLTUzLjE3LDY4LjQ5cS0yLjIxLDIuMiAtMTEuNTIsMTAuODF6bTQ5NC4wNiwyNS42NHEyLjYyLC0wLjQgMS4zNiwtMi43M3EtMTMuODQsLTI1Ljc0IC0yNy4zOCwtNTAuMzlxLTQuNDgsLTguMTUgLTkuNDYsLTE3LjU5cS0xMi4yMSwtMjMuMTIgLTI7Ljk0LDk5LjE1YzcuMTgsMTIuNDggMTQuOTksMjUuMTkgMjEuODUsMzcuODRxNS4xMyw5LjQ4IDkuNjksMTcuNDlxMjQuMjIsNDIuNiA0OC40Miw4NC40NGEwLjM4LDAuMzggMCAwIDAgMC42NSwwLjAycTIwLjg4LC0zMS42OSA1Ny4zNCwtNDEuMzdjNS4yOCwtMS4zOSAxMC44NywtMS45MSAxNi4yOCwtMi43M3ptLTI4Ljk2LDI2Ny43OXExMi4wOCwtMTEuMzUgMjEuNSwtMjIuODRxNDAuMzEsLTQ5LjIzIDU3LjY5LC0xMDguODVxMi45OCwtMTAuMTkgNS43NiwtMjEuMzJxMi41MSwtMTAuMDQgMC45OCwtMTkuNDVjLTEuODksLTExLjYyIC04LjQsLTI0Ljc2IC0xOC4wNywtMzIuMTVjLTE4LjI4LC0xMy45NiAtNDIuMywtOS42MSAtNTcuODMsNS44NWMtMC45NiwwLjk3IC0xLjYsMi4xIC0yLjI4LDMuMjdjLTE4LjU5LDMxLjg2IC0zNy4xNCw2My4wMiAtNTUuOSw5NS4wMmMtMS45LDMuMjUgLTQuMDEsNi40MiAtNS42Miw5Ljc0YTEuOSwxLjg5IDQzLjEgMCAwIDAuMDYsMS43OWMxNC43NywyNS45IDI5LjQ1LDUzLjA3IDQ0Ljc1LDc3LjU5YzIuNTcsNC4xMiA0LjEsOC4zNyA4LjAzLDExLjRhMC43MywwLjcxIC00Ny42IDAgMCAwLjkzLC0wLjA1em0tMTc0LjM1LC0xLjc5YTAuNTMsMC41MyAwIDAgMCAwLjc5LDAuMDNjMS42OSwtMS43NyAzLjYzLC0zLjIgNS4zNywtNC45OXExNywtMTcuNTggMzEuMTMsLTM5LjA1YzE5LjI3LC0yOS4yNiAzNC4wOCwtNjAuMzkgNDMuOTEsLTkzLjE3YzEuMTMsLTMuNzQgMy40NSwtNy4xMiA1LjAyLC0xMC43NHE3LjU0LC0xNy40NiAtMC41LC0zNS4yNmMtOS42MiwtMjEuMzMgLTMxLjksLTMyLjU4IC01NC44MSwtMjUuMzFjLTYuMzIsMiAtMTYuOTcsNi41NyAtMjAuNDIsMTIuNjdjLTguMDIsMTQuMTYgLTIxLjEzLDM3Ljk3IC0zMi43LDU4LjIzcS0xMS44MywyMC43MSAtMjMuMjUsNDEuNjVjLTEuNjIsMi45OCAtMy41Miw1LjgxIC00LjkzLDguODdxLTAuMjYsMC41NyAwLjA0LDEuMWMxLjg1LDMuMjYgMy45Nyw2LjQ0IDUuOCw5Ljc1cTE3LjAzLDMwLjY5IDM0Ljk2LDYwLjI0YzEuODcsMy4wOCA0LjA0LDUuNzMgNS40Myw5LjA2cTEuNTcsMy43OCA0LjIsNi45MnoiIGZpbGw9IiNGRkZGRkYiLz4KIDwvZz4KPC9zdmc+"
 
-    def _create_smtp_connection(self) -> Optional[smtplib.SMTP]:
+    def _create_smtp_connection(self) -> smtplib.SMTP | None:
         """创建SMTP连接（仅当使用SMTP时）"""
         if self.email_provider != "smtp":
             logger.error("尝试创建SMTP连接但邮件提供商不是SMTP")
@@ -138,7 +141,9 @@ class EmailService:
             logger.error(f"创建SMTP连接失败: {e}")
             return None
 
-    def _send_email(self, to_email: str, subject: str, html_content: str, text_content: str = None) -> bool:
+    def _send_email(
+        self, to_email: str, subject: str, html_content: str, text_content: str = None
+    ) -> bool:
         """发送邮件（内部方法）
 
         根据EMAIL_PROVIDER配置选择发送方式：
@@ -153,7 +158,9 @@ class EmailService:
             logger.error(f"不支持的邮件提供商: {self.email_provider}")
             return False
 
-    def _send_email_via_smtp(self, to_email: str, subject: str, html_content: str, text_content: str = None) -> bool:
+    def _send_email_via_smtp(
+        self, to_email: str, subject: str, html_content: str, text_content: str = None
+    ) -> bool:
         """通过SMTP发送邮件"""
         if not self.smtp_password:
             logger.warning("SMTP密码未配置，邮件发送功能不可用")
@@ -165,18 +172,18 @@ class EmailService:
 
         try:
             # 创建邮件
-            msg = MIMEMultipart('alternative')
-            msg['Subject'] = subject
-            msg['From'] = self.smtp_from
-            msg['To'] = to_email
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = subject
+            msg["From"] = self.smtp_from
+            msg["To"] = to_email
 
             # 添加纯文本版本
             if text_content:
-                text_part = MIMEText(text_content, 'plain', 'utf-8')
+                text_part = MIMEText(text_content, "plain", "utf-8")
                 msg.attach(text_part)
 
             # 添加HTML版本
-            html_part = MIMEText(html_content, 'html', 'utf-8')
+            html_part = MIMEText(html_content, "html", "utf-8")
             msg.attach(html_part)
 
             # 发送邮件
@@ -191,10 +198,12 @@ class EmailService:
         finally:
             try:
                 smtp.quit()
-            except:
+            except Exception:
                 pass
 
-    def _send_email_via_resend(self, to_email: str, subject: str, html_content: str, text_content: str = None) -> bool:
+    def _send_email_via_resend(
+        self, to_email: str, subject: str, html_content: str, text_content: str = None
+    ) -> bool:
         """通过Resend API发送邮件"""
         if not self.resend_api_key:
             logger.warning("RESEND_API_KEY未配置，邮件发送功能不可用")
@@ -206,7 +215,7 @@ class EmailService:
                 "from": self.resend_from,
                 "to": to_email,
                 "subject": subject,
-                "html": html_content
+                "html": html_content,
             }
 
             # 添加文本版本（如果提供）
@@ -215,7 +224,9 @@ class EmailService:
 
             # 发送邮件
             response = resend.Emails.send(params)
-            logger.info(f"邮件发送成功 [Resend]: {to_email}, 主题: {subject}, 响应ID: {response.get('id', 'N/A')}")
+            logger.info(
+                f"邮件发送成功 [Resend]: {to_email}, 主题: {subject}, 响应ID: {response.get('id', 'N/A')}"
+            )
             return True
 
         except Exception as e:

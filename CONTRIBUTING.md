@@ -150,18 +150,43 @@ git push origin feature/your-feature-name
 
 ### 提交前检查
 运行以下命令确保代码质量：
-```bash
-# 前端
-cd frontend
-npm run lint    # ESLint 检查
-npm run build   # 构建检查
 
-# 后端
-cd backend
-pytest tests/   # 运行测试
-black .         # 代码格式化（如果配置了）
-isort .         # 导入排序（如果配置了）
+#### 前端代码质量检查
+```bash
+cd frontend
+npm run lint          # ESLint 检查
+npm run lint:fix      # 自动修复ESLint问题
+npm run format:check  # 检查Prettier格式化
+npm run format        # 自动格式化代码
+npm run build         # 构建检查
 ```
+
+#### 后端代码质量检查
+```bash
+cd backend
+# 运行完整质量检查
+python run_quality_checks.py
+
+# 自动修复代码问题
+python fix_code_quality.py
+
+# 运行测试
+pytest tests/
+
+# 或者使用pre-commit（推荐）
+pre-commit run --all-files
+```
+
+#### 使用Git钩子（自动检查）
+项目已配置Git钩子，在提交时自动运行代码检查：
+
+1. **前端**：提交时自动运行lint-staged，检查并修复代码格式
+2. **后端**：可安装pre-commit钩子：
+   ```bash
+   cd backend
+   pip install pre-commit
+   pre-commit install
+   ```
 
 ## 测试
 

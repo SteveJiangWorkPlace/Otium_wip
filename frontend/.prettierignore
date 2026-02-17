@@ -1,0 +1,23 @@
+# Ignore artifacts:
+build
+coverage
+dist
+node_modules
+
+# Ignore configuration files:
+*.config.js
+*.config.ts
+webpack.config.js
+
+# Ignore all dotfiles
+.*
+!.gitignore
+!.prettierignore
+!.prettierrc
+
+# Ignore generated files
+.DS_Store
+Thumbs.db
+
+# Ignore problematic CSS files with non-standard syntax
+src/styles/design-system/typography.css

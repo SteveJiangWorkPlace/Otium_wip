@@ -11,10 +11,11 @@
 """
 
 import json
-import requests
 import sys
 import time
 from pathlib import Path
+
+import requests
 
 # 基础配置
 BASE_URL = "http://localhost:8000"
@@ -26,6 +27,7 @@ DETECT_AI_URL = f"{BASE_URL}/api/text/detect-ai"
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "admin123"
 
+
 # 读取测试文本
 def read_test_text():
     """读取测试段落1.txt"""
@@ -34,17 +36,15 @@ def read_test_text():
         print(f"[ERROR] 测试文件不存在: {test_file}")
         sys.exit(1)
 
-    with open(test_file, 'r', encoding='utf-8') as f:
+    with open(test_file, encoding="utf-8") as f:
         return f.read().strip()
+
 
 def login():
     """用户登录，获取JWT令牌"""
     print(f"[INFO] 正在登录用户: {ADMIN_USERNAME}")
 
-    payload = {
-        "username": ADMIN_USERNAME,
-        "password": ADMIN_PASSWORD
-    }
+    payload = {"username": ADMIN_USERNAME, "password": ADMIN_PASSWORD}
 
     try:
         response = requests.post(LOGIN_URL, json=payload, timeout=10)
@@ -61,17 +61,18 @@ def login():
 
     except requests.exceptions.RequestException as e:
         print(f"[ERROR] 登录请求失败: {e}")
-        if hasattr(e, 'response') and e.response:
+        if hasattr(e, "response") and e.response:
             print(f"响应内容: {e.response.text}")
         sys.exit(1)
 
+
 def make_authenticated_request(url, method="POST", token=None, **kwargs):
     """发送认证请求"""
-    headers = kwargs.get('headers', {})
+    headers = kwargs.get("headers", {})
     if token:
-        headers['Authorization'] = f"Bearer {token}"
+        headers["Authorization"] = f"Bearer {token}"
 
-    kwargs['headers'] = headers
+    kwargs["headers"] = headers
 
     try:
         if method.upper() == "POST":
@@ -87,31 +88,24 @@ def make_authenticated_request(url, method="POST", token=None, **kwargs):
         return None
     except requests.exceptions.RequestException as e:
         print(f"[ERROR] 请求失败: {url}")
-        if hasattr(e, 'response') and e.response:
+        if hasattr(e, "response") and e.response:
             print(f"状态码: {e.response.status_code}")
             print(f"响应内容: {e.response.text[:500]}")
         return None
 
+
 def test_error_correction(token, text):
     """测试智能纠错功能"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("测试智能纠错功能")
-    print("="*60)
+    print("=" * 60)
 
-    payload = {
-        "text": text,
-        "operation": "error_check",
-        "version": "professional"
-    }
+    payload = {"text": text, "operation": "error_check", "version": "professional"}
 
     print(f"[INFO] 发送纠错请求，文本长度: {len(text)} 字符")
     start_time = time.time()
 
-    response = make_authenticated_request(
-        CHECK_TEXT_URL,
-        token=token,
-        json=payload
-    )
+    response = make_authenticated_request(CHECK_TEXT_URL, token=token, json=payload)
 
     if not response:
         print("[FAIL] 智能纠错测试失败")
@@ -148,28 +142,21 @@ def test_error_correction(token, text):
 
     return True
 
+
 def test_translation(token, text, style="US", version="professional"):
     """测试翻译功能"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print(f"测试学术翻译功能 (风格: {style}, 版本: {version})")
-    print("="*60)
+    print("=" * 60)
 
     operation = f"translate_{style.lower()}"
-    payload = {
-        "text": text,
-        "operation": operation,
-        "version": version
-    }
+    payload = {"text": text, "operation": operation, "version": version}
 
     print(f"[INFO] 发送翻译请求，文本长度: {len(text)} 字符")
     print(f"[INFO] 操作: {operation}, 版本: {version}")
     start_time = time.time()
 
-    response = make_authenticated_request(
-        CHECK_TEXT_URL,
-        token=token,
-        json=payload
-    )
+    response = make_authenticated_request(CHECK_TEXT_URL, token=token, json=payload)
 
     if not response:
         print(f"[FAIL] 翻译测试失败 (style={style}, version={version})")
@@ -206,24 +193,19 @@ def test_translation(token, text, style="US", version="professional"):
 
     return True
 
+
 def test_ai_detection(token, text):
     """测试AI检测功能"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("测试AI检测功能")
-    print("="*60)
+    print("=" * 60)
 
-    payload = {
-        "text": text
-    }
+    payload = {"text": text}
 
     print(f"[INFO] 发送AI检测请求，文本长度: {len(text)} 字符")
     start_time = time.time()
 
-    response = make_authenticated_request(
-        DETECT_AI_URL,
-        token=token,
-        json=payload
-    )
+    response = make_authenticated_request(DETECT_AI_URL, token=token, json=payload)
 
     if not response:
         print("[FAIL] AI检测测试失败")
@@ -253,12 +235,13 @@ def test_ai_detection(token, text):
 
     return True
 
+
 def main():
     """主测试函数"""
-    print("="*80)
+    print("=" * 80)
     print("全平台功能测试")
     print(f"测试时间: {time.strftime('%Y-%m-%d %H:%M:%S')}")
-    print("="*80)
+    print("=" * 80)
 
     # 1. 读取测试文本
     print("\n[STEP 1] 读取测试文本")
@@ -278,9 +261,7 @@ def main():
     print("\n[STEP 4] 测试翻译功能")
 
     # 4.1 测试基础版翻译 (US风格)
-    translation_basic_us_success = test_translation(
-        token, test_text, style="US", version="basic"
-    )
+    translation_basic_us_success = test_translation(token, test_text, style="US", version="basic")
 
     # 4.2 测试专业版翻译 (US风格)
     translation_professional_us_success = test_translation(
@@ -288,9 +269,7 @@ def main():
     )
 
     # 4.3 测试基础版翻译 (UK风格)
-    translation_basic_uk_success = test_translation(
-        token, test_text, style="UK", version="basic"
-    )
+    translation_basic_uk_success = test_translation(token, test_text, style="UK", version="basic")
 
     # 4.4 测试专业版翻译 (UK风格)
     translation_professional_uk_success = test_translation(
@@ -302,9 +281,9 @@ def main():
     ai_detection_success = test_ai_detection(token, test_text)
 
     # 6. 总结报告
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("测试总结报告")
-    print("="*80)
+    print("=" * 80)
 
     tests = [
         ("智能纠错", error_correction_success),
@@ -312,7 +291,7 @@ def main():
         ("翻译-专业版-US", translation_professional_us_success),
         ("翻译-基础版-UK", translation_basic_uk_success),
         ("翻译-专业版-UK", translation_professional_uk_success),
-        ("AI检测", ai_detection_success)
+        ("AI检测", ai_detection_success),
     ]
 
     total_tests = len(tests)
@@ -332,6 +311,7 @@ def main():
     else:
         print(f"\n[WARNING] {total_tests - passed_tests} 个测试失败，请检查相关功能。")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

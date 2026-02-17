@@ -63,9 +63,9 @@ export interface StreamTranslationChunk {
   type: 'chunk' | 'sentence' | 'complete' | 'error';
   text?: string;
   full_text?: string;
-  index?: number;  // 句子索引
-  total?: number;  // 总句子数
-  chunk_index?: number;  // 块索引
+  index?: number; // 句子索引
+  total?: number; // 总句子数
+  chunk_index?: number; // 块索引
   error?: string;
   error_type?: string;
   total_sentences?: number;
@@ -82,9 +82,9 @@ export interface StreamRefineTextChunk {
   type: 'chunk' | 'sentence' | 'complete' | 'error';
   text?: string;
   full_text?: string;
-  index?: number;  // 句子索引
-  total?: number;  // 总句子数
-  chunk_index?: number;  // 块索引
+  index?: number; // 句子索引
+  total?: number; // 总句子数
+  chunk_index?: number; // 块索引
   error?: string;
   error_type?: string;
   total_sentences?: number;
@@ -159,9 +159,10 @@ export interface AIDetectionResponse {
   is_ai_generated: boolean;
   confidence: number;
   details: string;
-  ai_score?: number;          // AI 特征分数（0-1）
-  full_text?: string;         // 完整文本
-  detailed_scores?: Array<{   // 每句话的详细分数
+  ai_score?: number; // AI 特征分数（0-1）
+  full_text?: string; // 完整文本
+  detailed_scores?: Array<{
+    // 每句话的详细分数
     sentence: string;
     generated_prob: number;
   }>;

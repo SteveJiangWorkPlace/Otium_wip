@@ -30,13 +30,14 @@ export const useCorrectionStore = create<CorrectionState>()(
       setLoadingStep: (step: 'error_checking' | null) => set({ loadingStep: step }),
       setResultText: (text: string) => set({ resultText: text }),
       setEditableText: (text: string) => set({ editableText: text }),
-      clear: () => set({
-        inputText: '',
-        resultText: '',
-        editableText: '',
-        loading: false,
-        loadingStep: null
-      }),
+      clear: () =>
+        set({
+          inputText: '',
+          resultText: '',
+          editableText: '',
+          loading: false,
+          loadingStep: null,
+        }),
     }),
     {
       name: 'correction-storage',

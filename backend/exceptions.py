@@ -6,23 +6,26 @@
 
 import logging
 from functools import wraps
+from typing import Any
+
 from fastapi import HTTPException, status
-from typing import Dict, Any, Optional
 
 from schemas import ErrorResponse
-
 
 # ==========================================
 # 自定义异常类
 # ==========================================
 
+
 class APIError(Exception):
     """API错误基类"""
+
     pass
 
 
 class GeminiAPIError(APIError):
     """Gemini API错误"""
+
     def __init__(self, message: str, error_type: str = "unknown"):
         self.message = message
         self.error_type = error_type
@@ -31,42 +34,50 @@ class GeminiAPIError(APIError):
 
 class GPTZeroAPIError(APIError):
     """GPTZero API错误"""
+
     pass
 
 
 class RateLimitError(APIError):
     """速率限制错误"""
+
     pass
 
 
 class ValidationError(APIError):
     """文本验证错误"""
+
     pass
 
 
 class AuthenticationError(APIError):
     """认证错误"""
+
     pass
 
 
 class AuthorizationError(APIError):
     """授权错误"""
+
     pass
 
 
 class ResourceNotFoundError(APIError):
     """资源未找到错误"""
+
     pass
 
 
 class DatabaseError(APIError):
     """数据库错误"""
+
     pass
 
 
 # ==========================================
 # 统一异常处理装饰器
 # ==========================================
+
 
 def api_error_handler(func):
     """统一异常处理装饰器
@@ -77,6 +88,7 @@ def api_error_handler(func):
     - APIError 子类: 根据错误类型映射状态码
     - 其他异常: 500 Internal Server Error
     """
+
     @wraps(func)
     async def wrapper(*args, **kwargs):
         try:
@@ -89,9 +101,9 @@ def api_error_handler(func):
                 detail=ErrorResponse(
                     error_code="VALIDATION_ERROR",
                     message=str(e) or "参数验证失败",
-                    details={"exception_type": "ValueError"}
-                ).dict()
-            )
+                    details={"exception_type": "ValueError"},
+                ).dict(),
+            ) from e
         except RateLimitError as e:
             # 速率限制错误
             logging.error(f"速率限制错误: {str(e)}", exc_info=True)
@@ -100,9 +112,9 @@ def api_error_handler(func):
                 detail=ErrorResponse(
                     error_code="RATE_LIMIT_EXCEEDED",
                     message=str(e) or "请求过于频繁，请稍后再试",
-                    details={"exception_type": "RateLimitError"}
-                ).dict()
-            )
+                    details={"exception_type": "RateLimitError"},
+                ).dict(),
+            ) from e
         except GeminiAPIError as e:
             # Gemini API 错误
             logging.error(f"Gemini API 错误: {str(e)}", exc_info=True)
@@ -111,9 +123,9 @@ def api_error_handler(func):
                 detail=ErrorResponse(
                     error_code="GEMINI_API_ERROR",
                     message=str(e) or "Gemini API 处理失败",
-                    details={"exception_type": "GeminiAPIError", "error_type": e.error_type}
-                ).dict()
-            )
+                    details={"exception_type": "GeminiAPIError", "error_type": e.error_type},
+                ).dict(),
+            ) from e
         except GPTZeroAPIError as e:
             # GPTZero API 错误
             logging.error(f"GPTZero API 错误: {str(e)}", exc_info=True)
@@ -122,9 +134,9 @@ def api_error_handler(func):
                 detail=ErrorResponse(
                     error_code="GPTZERO_API_ERROR",
                     message=str(e) or "GPTZero API 处理失败",
-                    details={"exception_type": "GPTZeroAPIError"}
-                ).dict()
-            )
+                    details={"exception_type": "GPTZeroAPIError"},
+                ).dict(),
+            ) from e
         except ValidationError as e:
             # 文本验证错误
             logging.error(f"文本验证错误: {str(e)}", exc_info=True)
@@ -133,9 +145,9 @@ def api_error_handler(func):
                 detail=ErrorResponse(
                     error_code="TEXT_VALIDATION_ERROR",
                     message=str(e) or "文本验证失败",
-                    details={"exception_type": "ValidationError"}
-                ).dict()
-            )
+                    details={"exception_type": "ValidationError"},
+                ).dict(),
+            ) from e
         except AuthenticationError as e:
             # 认证错误
             logging.error(f"认证错误: {str(e)}", exc_info=True)
@@ -144,9 +156,9 @@ def api_error_handler(func):
                 detail=ErrorResponse(
                     error_code="AUTHENTICATION_ERROR",
                     message=str(e) or "认证失败",
-                    details={"exception_type": "AuthenticationError"}
-                ).dict()
-            )
+                    details={"exception_type": "AuthenticationError"},
+                ).dict(),
+            ) from e
         except AuthorizationError as e:
             # 授权错误
             logging.error(f"授权错误: {str(e)}", exc_info=True)
@@ -155,9 +167,9 @@ def api_error_handler(func):
                 detail=ErrorResponse(
                     error_code="AUTHORIZATION_ERROR",
                     message=str(e) or "权限不足",
-                    details={"exception_type": "AuthorizationError"}
-                ).dict()
-            )
+                    details={"exception_type": "AuthorizationError"},
+                ).dict(),
+            ) from e
         except ResourceNotFoundError as e:
             # 资源未找到错误
             logging.error(f"资源未找到错误: {str(e)}", exc_info=True)
@@ -166,9 +178,9 @@ def api_error_handler(func):
                 detail=ErrorResponse(
                     error_code="RESOURCE_NOT_FOUND",
                     message=str(e) or "请求的资源不存在",
-                    details={"exception_type": "ResourceNotFoundError"}
-                ).dict()
-            )
+                    details={"exception_type": "ResourceNotFoundError"},
+                ).dict(),
+            ) from e
         except HTTPException:
             # 重新抛出已有的 HTTPException
             raise
@@ -180,9 +192,10 @@ def api_error_handler(func):
                 detail=ErrorResponse(
                     error_code="INTERNAL_SERVER_ERROR",
                     message="服务器内部错误",
-                    details={"exception_type": e.__class__.__name__}
-                ).dict()
-            )
+                    details={"exception_type": e.__class__.__name__},
+                ).dict(),
+            ) from e
+
     return wrapper
 
 
@@ -190,23 +203,19 @@ def api_error_handler(func):
 # 错误响应工具函数
 # ==========================================
 
+
 def create_error_response(
     error_code: str,
     message: str,
     status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR,
-    details: Optional[Dict[str, Any]] = None
-) -> Dict[str, Any]:
+    details: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """创建统一的错误响应"""
-    return ErrorResponse(
-        error_code=error_code,
-        message=message,
-        details=details or {}
-    ).dict()
+    return ErrorResponse(error_code=error_code, message=message, details=details or {}).dict()
 
 
 def handle_exception(
-    exception: Exception,
-    default_message: str = "服务器内部错误"
+    exception: Exception, default_message: str = "服务器内部错误"
 ) -> HTTPException:
     """处理异常并返回HTTPException"""
     error_code = "INTERNAL_SERVER_ERROR"
@@ -246,6 +255,6 @@ def handle_exception(
         detail=create_error_response(
             error_code=error_code,
             message=message,
-            details={"exception_type": exception.__class__.__name__}
-        )
+            details={"exception_type": exception.__class__.__name__},
+        ),
     )

@@ -12,9 +12,9 @@
 
 import os
 import sys
+
 import pytest
 from fastapi.testclient import TestClient
-import logging
 
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -48,9 +48,9 @@ class TestDeploymentConfiguration:
 
     def test_cors_configuration(self):
         """测试CORS配置是否正确包含Netlify域名"""
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("测试CORS配置")
-        print("="*60)
+        print("=" * 60)
 
         # 获取当前CORS配置
         cors_origins = self.settings.CORS_ORIGINS
@@ -58,10 +58,12 @@ class TestDeploymentConfiguration:
 
         # 检查硬编码的域名（从main.py）
         from main import hardcoded_origins
+
         print(f"硬编码的允许源: {hardcoded_origins}")
 
         # 合并所有允许的源
         from main import all_allowed_origins
+
         print(f"合并后的允许源列表: {all_allowed_origins}")
 
         # 验证必需的生产域名
@@ -91,9 +93,9 @@ class TestDeploymentConfiguration:
 
     def test_mail_service_configuration(self):
         """测试邮件服务配置"""
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("测试邮件服务配置")
-        print("="*60)
+        print("=" * 60)
 
         # 检查邮件服务配置
         required_smtp_vars = [
@@ -142,9 +144,9 @@ class TestDeploymentConfiguration:
 
     def test_api_endpoint_accessibility(self):
         """测试关键API端点可访问性"""
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("测试API端点可访问性")
-        print("="*60)
+        print("=" * 60)
 
         # 测试健康检查端点
         endpoints_to_test = [
@@ -191,9 +193,9 @@ class TestDeploymentConfiguration:
 
     def test_environment_configuration(self):
         """测试环境变量配置"""
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("测试环境变量配置")
-        print("="*60)
+        print("=" * 60)
 
         # 检查关键环境变量
         critical_env_vars = [
@@ -244,9 +246,9 @@ class TestDeploymentConfiguration:
 
     def test_cors_headers_with_simulation(self):
         """模拟前端请求测试CORS头部"""
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("模拟前端请求测试CORS头部")
-        print("="*60)
+        print("=" * 60)
 
         # 测试Netlify域名的CORS头部
         test_origins = [
@@ -260,10 +262,7 @@ class TestDeploymentConfiguration:
 
             # 测试OPTIONS预检请求
             try:
-                response = self.client.options(
-                    "/api/register/send-verification",
-                    headers=headers
-                )
+                response = self.client.options("/api/register/send-verification", headers=headers)
 
                 # 检查CORS头部
                 allow_origin = response.headers.get("Access-Control-Allow-Origin")
@@ -289,9 +288,9 @@ class TestDeploymentConfiguration:
 
 def run_deployment_tests():
     """运行所有部署测试的汇总函数"""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("运行部署配置测试")
-    print("="*70)
+    print("=" * 70)
 
     # 创建测试实例
     tester = TestDeploymentConfiguration()
@@ -331,9 +330,9 @@ def run_deployment_tests():
         print(f"[FAIL] CORS头部模拟测试失败: {e}")
 
     # 汇总结果
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("测试结果汇总")
-    print("="*70)
+    print("=" * 70)
 
     passed_tests = 0
     total_tests = len(test_results)
@@ -360,7 +359,9 @@ if __name__ == "__main__":
 
     # 设置环境变量（如果是本地测试）
     if not os.environ.get("CORS_ORIGINS"):
-        os.environ["CORS_ORIGINS"] = "http://localhost:3000,http://localhost:8000,https://otiumtrans.netlify.app"
+        os.environ["CORS_ORIGINS"] = (
+            "http://localhost:3000,http://localhost:8000,https://otiumtrans.netlify.app"
+        )
 
     if not os.environ.get("SMTP_TIMEOUT"):
         os.environ["SMTP_TIMEOUT"] = "30"

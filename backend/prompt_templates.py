@@ -197,7 +197,7 @@ Provide ONLY the translated English text without explanations, comments, or any 
 # 句子结构规则定义（生产版本）
 SENTENCE_STRUCTURE_RULES_PRODUCTION = {
     "basic": """**Sentence Structure (Basic Rule)**: Strictly avoid using the "comma + verb-ing" structure (e.g., ", revealing trends"). Instead, use relative clauses (e.g., ", which revealed..."), coordination (e.g., "and revealed..."), or start new sentences where appropriate for better flow.""",
-    "professional": """**Sentence Structure Variety (Balanced Rule)**: AI models often overuse the "comma + verb-ing" structure (e.g., ", revealing trends"). Do not strictly ban it, but **use it sparingly** to avoid a repetitive "AI tone." Instead, prioritize variety by using relative clauses (e.g., ", which revealed..."), coordination (e.g., "and revealed..."), or starting new sentences where appropriate for better flow."""
+    "professional": """**Sentence Structure Variety (Balanced Rule)**: AI models often overuse the "comma + verb-ing" structure (e.g., ", revealing trends"). Do not strictly ban it, but **use it sparingly** to avoid a repetitive "AI tone." Instead, prioritize variety by using relative clauses (e.g., ", which revealed..."), coordination (e.g., "and revealed..."), or starting new sentences where appropriate for better flow.""",
 }
 
 # =================================================================
@@ -230,7 +230,7 @@ SENTENCE_STRUCTURE_RULES_PRODUCTION = {
 # 拼写规则定义（生产版本）
 SPELLING_RULES_PRODUCTION = {
     "US": "American Spelling (Color, Honor, Analyze)",
-    "UK": "British Spelling (Colour, Honour, Analyse)"
+    "UK": "British Spelling (Colour, Honour, Analyse)",
 }
 
 # =================================================================
@@ -442,7 +442,7 @@ SHORTCUT_ANNOTATIONS_PRODUCTION = {
    - Add filler words: just, really, kind of, sort of
    - Occasionally use informal starters: "The thing is," "What I'm trying to say is,"
 
-The final text should be a natural blend of formal knowledge and a more personal voice, preserving the core ideas of the original. Aim for 40-70% replacement rate, don't change everything."""
+The final text should be a natural blend of formal knowledge and a more personal voice, preserving the core ideas of the original. Aim for 40-70% replacement rate, don't change everything.""",
 }
 
 # =================================================================
@@ -546,8 +546,8 @@ The final text should be a natural blend of formal knowledge and a more personal
 # =================================================================
 
 TEMPLATE_VERSIONS = {
-    "production": "production",    # 生产版本（当前实际使用，基于原始版本，确保稳定性）
-    "original": "original",        # 原始版本备份（最长，最详细）
-    "compact": "compact",          # 紧凑版本框架（具体内容已删除，用户可自行填充调试）
-    "ai_optimized": "ai_optimized" # AI优化版本框架（具体内容已删除，用户可自行填充调试）
+    "production": "production",  # 生产版本（当前实际使用，基于原始版本，确保稳定性）
+    "original": "original",  # 原始版本备份（最长，最详细）
+    "compact": "compact",  # 紧凑版本框架（具体内容已删除，用户可自行填充调试）
+    "ai_optimized": "ai_optimized",  # AI优化版本框架（具体内容已删除，用户可自行填充调试）
 }

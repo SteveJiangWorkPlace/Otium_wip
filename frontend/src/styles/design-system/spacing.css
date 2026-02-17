@@ -4,15 +4,15 @@
 
   /* Spacing scale (0-20) */
   --spacing-0: 0;
-  --spacing-1: calc(var(--spacing-unit) * 1);  /* 4px */
-  --spacing-2: calc(var(--spacing-unit) * 2);  /* 8px */
-  --spacing-3: calc(var(--spacing-unit) * 3);  /* 12px */
-  --spacing-4: calc(var(--spacing-unit) * 4);  /* 16px */
-  --spacing-5: calc(var(--spacing-unit) * 5);  /* 20px */
-  --spacing-6: calc(var(--spacing-unit) * 6);  /* 24px */
-  --spacing-7: calc(var(--spacing-unit) * 7);  /* 28px */
-  --spacing-8: calc(var(--spacing-unit) * 8);  /* 32px */
-  --spacing-9: calc(var(--spacing-unit) * 9);  /* 36px */
+  --spacing-1: calc(var(--spacing-unit) * 1); /* 4px */
+  --spacing-2: calc(var(--spacing-unit) * 2); /* 8px */
+  --spacing-3: calc(var(--spacing-unit) * 3); /* 12px */
+  --spacing-4: calc(var(--spacing-unit) * 4); /* 16px */
+  --spacing-5: calc(var(--spacing-unit) * 5); /* 20px */
+  --spacing-6: calc(var(--spacing-unit) * 6); /* 24px */
+  --spacing-7: calc(var(--spacing-unit) * 7); /* 28px */
+  --spacing-8: calc(var(--spacing-unit) * 8); /* 32px */
+  --spacing-9: calc(var(--spacing-unit) * 9); /* 36px */
   --spacing-10: calc(var(--spacing-unit) * 10); /* 40px */
   --spacing-11: calc(var(--spacing-unit) * 11); /* 44px */
   --spacing-12: calc(var(--spacing-unit) * 12); /* 48px */
@@ -21,13 +21,13 @@
   --spacing-20: calc(var(--spacing-unit) * 20); /* 80px */
 
   /* Border radius */
-  --radius-sm: 0.25rem;  /* 4px */
+  --radius-sm: 0.25rem; /* 4px */
   --radius-md: 0.375rem; /* 6px */
-  --radius-lg: 0.5rem;   /* 8px */
-  --radius-xl: 0.75rem;  /* 12px */
-  --radius-2xl: 1rem;    /* 16px */
-  --radius-3xl: 1.5rem;  /* 24px */
-  --radius-4xl: 2rem;     /* 32px */
+  --radius-lg: 0.5rem; /* 8px */
+  --radius-xl: 0.75rem; /* 12px */
+  --radius-2xl: 1rem; /* 16px */
+  --radius-3xl: 1.5rem; /* 24px */
+  --radius-4xl: 2rem; /* 32px */
   --radius-full: 9999px;
 
   /* Shadows */
@@ -47,20 +47,23 @@
   --card-padding-medium: var(--spacing-4); /* Card component padding-medium */
   --workspace-title-font-size: var(--font-size-base); /* .cardTitle font-size */
   --workspace-title-line-height: var(--line-height-tight); /* .cardTitle line-height */
-  --workspace-title-height: calc(var(--workspace-title-font-size) * var(--workspace-title-line-height)); /* ~18px */
+  --workspace-title-height: calc(
+    var(--workspace-title-font-size) * var(--workspace-title-line-height)
+  ); /* ~18px */
 
   /* Workspace title top from top of workspace container */
   --workspace-title-top: calc(
-    var(--global-progress-bar-height) +
-    var(--workspace-content-padding-top) +
-    var(--card-padding-medium)
+    var(--global-progress-bar-height) + var(--workspace-content-padding-top) +
+      var(--card-padding-medium)
   );
 
   /* Sidebar header height calculation */
   --sidebar-header-padding-top: var(--spacing-5); /* .header padding-top */
   --sidebar-logo-font-size: var(--font-size-2xl); /* .logoText font-size */
   --sidebar-logo-line-height: var(--line-height-tight); /* .logoText line-height */
-  --sidebar-logo-height: calc(var(--sidebar-logo-font-size) * var(--sidebar-logo-line-height)); /* ~22.5px */
+  --sidebar-logo-height: calc(
+    var(--sidebar-logo-font-size) * var(--sidebar-logo-line-height)
+  ); /* ~22.5px */
   --sidebar-header-height: calc(var(--sidebar-header-padding-top) + var(--sidebar-logo-height));
 
   /* Sidebar menu button padding */
@@ -69,9 +72,7 @@
   /* Sidebar nav padding-top calculation to align with workspace title */
   /* Formula: workspace-title-top = sidebar-header-height + sidebar-nav-padding-top + menu-button-padding-top */
   --sidebar-nav-padding-top: calc(
-    var(--workspace-title-top) -
-    var(--sidebar-header-height) -
-    var(--menu-button-padding-top)
+    var(--workspace-title-top) - var(--sidebar-header-height) - var(--menu-button-padding-top)
   );
 
   /* Vertical Alignment Adjustment Guide */
