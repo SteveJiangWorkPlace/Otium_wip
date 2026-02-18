@@ -92,9 +92,10 @@ def generate_gemini_content_with_fallback(
                 os.environ['all_proxy'] = ''
                 logging.info("已禁用代理设置，使用直接连接")
 
-                # 创建客户端，设置超时避免无限等待
-                http_options = {"timeout": 30}  # 30秒超时
-                client = google.genai.Client(api_key=current_api_key, http_options=http_options)
+                # 创建客户端
+                # 注意：不提供http_options，使用默认超时设置
+                # 提供http_options会导致读取超时被错误地设置为timeout/1000秒
+                client = google.genai.Client(api_key=current_api_key)
 
                 # 准备配置（包括安全设置）
                 config = {"safety_settings": safety_settings}
@@ -167,7 +168,7 @@ def generate_gemini_content_with_fallback(
                         logging.info(f"等待 {retry_delay} 秒后重试...")
                         time.sleep(retry_delay)
                         continue
-                    raise GeminiAPIError("请求超时（默认60秒），请检查网络连接", "timeout") from e
+                    raise GeminiAPIError("请求超时（默认300秒），请检查网络连接", "timeout") from e
 
                 # 网络连接错误
                 elif (
@@ -363,6 +364,8 @@ async def generate_gemini_content_stream(
             raise GeminiAPIError("未提供 Gemini API Key，请在侧边栏输入", "missing_key")
 
         # 创建客户端
+        # 注意：不提供http_options，使用默认超时设置
+        # 提供http_options会导致读取超时被错误地设置为timeout/1000秒
         client = google.genai.Client(api_key=current_api_key)
 
         # 准备配置
@@ -414,7 +417,7 @@ async def generate_gemini_content_stream(
 
         # 处理流式响应
         start_time = time.time()
-        timeout_seconds = 120  # 与前端超时保持一致
+        timeout_seconds = 300  # 与前端超时保持一致（5分钟）
         chunk_count = 0
 
         for chunk in response_stream:
@@ -594,7 +597,7 @@ def check_gptzero(text: str, api_key: str) -> dict[str, Any]:
 
     while retry_count < max_retries:
         try:
-            response = requests.post(url, headers=headers, json=payload, timeout=30)
+            response = requests.post(url, headers=headers, json=payload, timeout=300)
             response.raise_for_status()
             result = response.json()
 

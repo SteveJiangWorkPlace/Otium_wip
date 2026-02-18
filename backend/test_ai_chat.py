@@ -16,7 +16,7 @@ except ImportError:
     sys.exit(1)
 
 # 配置
-BASE_URL = "http://localhost:8003"
+BASE_URL = "http://localhost:8006"
 LOGIN_URL = f"{BASE_URL}/api/login"
 CHAT_URL = f"{BASE_URL}/api/chat"
 
@@ -80,7 +80,7 @@ def test_ai_chat(token):
 
     try:
         start_time = time.time()
-        response = requests.post(CHAT_URL, json=chat_request, headers=headers, timeout=30)
+        response = requests.post(CHAT_URL, json=chat_request, headers=headers, timeout=300)
         elapsed_time = time.time() - start_time
 
         print(f"   响应时间: {elapsed_time:.2f}秒")
@@ -153,7 +153,7 @@ def test_rate_limiting(token):
         }
 
         try:
-            response = requests.post(CHAT_URL, json=chat_request, headers=headers, timeout=10)
+            response = requests.post(CHAT_URL, json=chat_request, headers=headers, timeout=300)
             print(f"   请求 {i+1}: 状态码 {response.status_code}")
 
             if response.status_code == 429:
