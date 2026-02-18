@@ -401,7 +401,24 @@ async def generate_gemini_content_stream(
         sentence_end_pattern = re.compile(r"[。！？.!?]")
 
         # 处理流式响应
+        start_time = time.time()
+        timeout_seconds = 120  # 与前端超时保持一致
+        chunk_count = 0
+
         for chunk in response_stream:
+            # 超时检查
+            chunk_count += 1
+            if time.time() - start_time > timeout_seconds:
+                logging.error(
+                    f"流式翻译超时: {timeout_seconds}秒内未完成, "
+                    f"已处理{chunk_count}个chunk, 已生成{len(sentences)}个句子"
+                )
+                yield {
+                    "type": "error",
+                    "error": f"流式翻译超时: {timeout_seconds}秒内未完成",
+                    "error_type": "timeout"
+                }
+                return  # 结束生成器
             if hasattr(chunk, "text"):
                 chunk_text = chunk.text
             elif hasattr(chunk, "candidates") and chunk.candidates:
@@ -429,7 +446,19 @@ async def generate_gemini_content_stream(
                 }
 
                 # 检测缓冲区中是否有完整的句子
+                # 添加循环安全机制，防止无限循环
+                max_iterations = len(buffer) * 2  # 安全上限
+                iteration_count = 0
+
                 while True:
+                    iteration_count += 1
+                    if iteration_count > max_iterations:
+                        logging.warning(
+                            f"句子检测循环超过安全上限({max_iterations})，强制退出。"
+                            f"buffer长度: {len(buffer)}, 内容前50字符: {repr(buffer[:50])}"
+                        )
+                        break
+
                     # 查找句子结束位置
                     match = sentence_end_pattern.search(buffer)
                     if not match:
