@@ -1,7 +1,21 @@
 {
   "permissions": {
     "allow": [
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(curl:*)",
+      "Bash(python:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)",
+      "Bash(kill:*)",
+      "Bash(pip install:*)",
+      "Bash(echo:*)",
+      "Bash(tskill:*)",
+      "Bash(tasklist:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(cmd /c 'for /f \"\"tokens=5\"\" %a in \\(''netstat -ano ^| findstr :8002''\\) do taskkill /F /PID %a')",
+      "Bash(cmd /c:*)",
+      "Bash(uvicorn:*)"
     ]
   }
 }

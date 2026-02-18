@@ -8,6 +8,7 @@ import ast
 import hashlib
 import json
 import logging
+import os
 import re
 import time
 from collections.abc import AsyncGenerator
@@ -81,8 +82,19 @@ def generate_gemini_content_with_fallback(
                 logging.info(f"使用请求头中的Gemini API密钥，前缀: {key_prefix}...")
                 logging.info(f"尝试使用模型: {model_name}")
 
-                # 创建客户端
-                client = google.genai.Client(api_key=current_api_key)
+                # 禁用代理设置，确保直接连接
+                os.environ['NO_PROXY'] = '*'
+                os.environ['HTTP_PROXY'] = ''
+                os.environ['HTTPS_PROXY'] = ''
+                os.environ['ALL_PROXY'] = ''
+                os.environ['http_proxy'] = ''
+                os.environ['https_proxy'] = ''
+                os.environ['all_proxy'] = ''
+                logging.info("已禁用代理设置，使用直接连接")
+
+                # 创建客户端，设置超时避免无限等待
+                http_options = {"timeout": 30}  # 30秒超时
+                client = google.genai.Client(api_key=current_api_key, http_options=http_options)
 
                 # 准备配置（包括安全设置）
                 config = {"safety_settings": safety_settings}
