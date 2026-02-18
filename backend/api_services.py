@@ -16,6 +16,7 @@ from typing import Any
 
 import google.genai
 import google.genai.errors
+from google.genai.types import HttpOptions
 import requests
 
 from exceptions import GeminiAPIError, RateLimitError
@@ -93,9 +94,10 @@ def generate_gemini_content_with_fallback(
                 logging.info("已禁用代理设置，使用直接连接")
 
                 # 创建客户端
-                # 注意：不提供http_options，使用默认超时设置
-                # 提供http_options会导致读取超时被错误地设置为timeout/1000秒
-                client = google.genai.Client(api_key=current_api_key)
+                # 设置较大的timeout值（300000 = 300秒读取超时）
+                # timeout值除以1000得到实际的读取超时秒数
+                http_opts = HttpOptions(timeout=300000)
+                client = google.genai.Client(api_key=current_api_key, http_options=http_opts)
 
                 # 准备配置（包括安全设置）
                 config = {"safety_settings": safety_settings}
@@ -364,9 +366,10 @@ async def generate_gemini_content_stream(
             raise GeminiAPIError("未提供 Gemini API Key，请在侧边栏输入", "missing_key")
 
         # 创建客户端
-        # 注意：不提供http_options，使用默认超时设置
-        # 提供http_options会导致读取超时被错误地设置为timeout/1000秒
-        client = google.genai.Client(api_key=current_api_key)
+        # 设置较大的timeout值（300000 = 300秒读取超时）
+        # timeout值除以1000得到实际的读取超时秒数
+        http_opts = HttpOptions(timeout=300000)
+        client = google.genai.Client(api_key=current_api_key, http_options=http_opts)
 
         # 准备配置
         config = {"safety_settings": safety_settings}
