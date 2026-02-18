@@ -16,7 +16,7 @@ except ImportError:
     sys.exit(1)
 
 # 配置
-BASE_URL = "http://localhost:8006"
+BASE_URL = "http://localhost:8008"
 LOGIN_URL = f"{BASE_URL}/api/login"
 CHAT_URL = f"{BASE_URL}/api/chat"
 
