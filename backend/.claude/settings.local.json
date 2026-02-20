@@ -15,7 +15,10 @@
       "Bash(powershell -Command:*)",
       "Bash(cmd /c 'for /f \"\"tokens=5\"\" %a in \\(''netstat -ano ^| findstr :8002''\\) do taskkill /F /PID %a')",
       "Bash(cmd /c:*)",
-      "Bash(uvicorn:*)"
+      "Bash(uvicorn:*)",
+      "Bash(set GEMINI_API_KEY=AIzaSyCXy0hptUh8CZNMkdQ61jF8H8K6lLh9RR4:*)",
+      "Bash(start cmd /c:*)",
+      "Bash(powershell \"Stop-Process -Id 10576 -Force\")"
     ]
   }
 }

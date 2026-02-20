@@ -76,9 +76,9 @@ def make_authenticated_request(url, method="POST", token=None, **kwargs):
 
     try:
         if method.upper() == "POST":
-            response = requests.post(url, **kwargs, timeout=300)
+            response = requests.post(url, **kwargs, timeout=180)
         else:
-            response = requests.get(url, **kwargs, timeout=300)
+            response = requests.get(url, **kwargs, timeout=180)
 
         response.raise_for_status()
         return response

@@ -83,20 +83,12 @@ def generate_gemini_content_with_fallback(
                 logging.info(f"使用请求头中的Gemini API密钥，前缀: {key_prefix}...")
                 logging.info(f"尝试使用模型: {model_name}")
 
-                # 禁用代理设置，确保直接连接
-                os.environ['NO_PROXY'] = '*'
-                os.environ['HTTP_PROXY'] = ''
-                os.environ['HTTPS_PROXY'] = ''
-                os.environ['ALL_PROXY'] = ''
-                os.environ['http_proxy'] = ''
-                os.environ['https_proxy'] = ''
-                os.environ['all_proxy'] = ''
-                logging.info("已禁用代理设置，使用直接连接")
+                logging.info("使用系统代理设置连接")
 
                 # 创建客户端
-                # 设置较大的timeout值（300000 = 300秒读取超时）
+                # 设置timeout值（180000 = 180秒/3分钟读取超时）
                 # timeout值除以1000得到实际的读取超时秒数
-                http_opts = HttpOptions(timeout=300000)
+                http_opts = HttpOptions(timeout=180000)
                 client = google.genai.Client(api_key=current_api_key, http_options=http_opts)
 
                 # 准备配置（包括安全设置）
@@ -170,7 +162,7 @@ def generate_gemini_content_with_fallback(
                         logging.info(f"等待 {retry_delay} 秒后重试...")
                         time.sleep(retry_delay)
                         continue
-                    raise GeminiAPIError("请求超时（默认300秒），请检查网络连接", "timeout") from e
+                    raise GeminiAPIError("请求超时（默认180秒/3分钟），请检查网络连接", "timeout") from e
 
                 # 网络连接错误
                 elif (
@@ -271,35 +263,167 @@ def generate_gemini_content_with_fallback(
 
     except GeminiAPIError as e:
         logging.warning(
-            f"主要模型 {primary_model} 失败，错误类型: {e.error_type}, 尝试备用模型 {fallback_model}"
+            f"主要模型 {primary_model} 失败，错误类型: {e.error_type}"
         )
 
-        # 即使密钥无效也尝试备用模型，因为可能只是某个模型的问题
-        # if e.error_type in ["blocked", "invalid_key", "region_restricted"]:
-        #     return {"success": False, "error": e.message, "error_type": e.error_type}
+        # 如果是网络连接错误，直接尝试requests备选方案，而不是备用模型
+        if e.error_type == "network_error":
+            logging.warning("网络连接错误，直接尝试requests备选方案...")
+            try:
+                result = generate_gemini_with_requests(
+                    prompt=prompt,
+                    api_key=api_key,
+                    model=primary_model
+                )
+                if result.get("success"):
+                    logging.info(f"requests备选方案成功: 模型={primary_model}")
+                    return result
+                else:
+                    # 主要模型失败，尝试备用模型
+                    logging.warning(f"requests主要模型失败，尝试备用模型: {fallback_model}")
+                    result = generate_gemini_with_requests(
+                        prompt=prompt,
+                        api_key=api_key,
+                        model=fallback_model
+                    )
+                    return result
+            except Exception as requests_exception:
+                logging.error(f"requests备选方案也失败: {str(requests_exception)}", exc_info=True)
+                return {
+                    "success": False,
+                    "error": f"所有尝试均失败: {e.message}",
+                    "error_type": e.error_type,
+                }
 
+        # 如果不是网络错误，尝试备用模型
+        logging.warning(f"尝试备用模型 {fallback_model}")
         try:
             return _try_model(fallback_model)
         except GeminiAPIError as fallback_error:
-            return {
-                "success": False,
-                "error": fallback_error.message,
-                "error_type": fallback_error.error_type,
-            }
+            logging.warning(f"备用模型也失败，错误类型: {fallback_error.error_type}, 尝试requests备选方案...")
+
+            # 尝试使用requests备选方案
+            try:
+                # 先尝试主要模型
+                result = generate_gemini_with_requests(
+                    prompt=prompt,
+                    api_key=api_key,
+                    model=primary_model
+                )
+
+                if result.get("success"):
+                    logging.info(f"requests备选方案成功: 模型={primary_model}")
+                    return result
+                else:
+                    # 主要模型失败，尝试备用模型
+                    logging.warning(f"requests主要模型失败，尝试备用模型: {fallback_model}")
+                    result = generate_gemini_with_requests(
+                        prompt=prompt,
+                        api_key=api_key,
+                        model=fallback_model
+                    )
+                    return result
+
+            except Exception as requests_exception:
+                logging.error(f"requests备选方案也失败: {str(requests_exception)}", exc_info=True)
+                return {
+                    "success": False,
+                    "error": f"所有尝试均失败: {fallback_error.message}",
+                    "error_type": fallback_error.error_type,
+                }
         except Exception as fallback_error:
             logging.error(f"备用模型也失败: {str(fallback_error)}", exc_info=True)
-            return {
-                "success": False,
-                "error": "所有模型尝试均失败，请稍后再试",
-                "error_type": "all_failed",
-            }
+            logging.warning("尝试requests备选方案...")
+
+            # 尝试使用requests备选方案
+            try:
+                # 先尝试主要模型
+                result = generate_gemini_with_requests(
+                    prompt=prompt,
+                    api_key=api_key,
+                    model=primary_model
+                )
+
+                if result.get("success"):
+                    logging.info(f"requests备选方案成功: 模型={primary_model}")
+                    return result
+                else:
+                    # 主要模型失败，尝试备用模型
+                    logging.warning(f"requests主要模型失败，尝试备用模型: {fallback_model}")
+                    result = generate_gemini_with_requests(
+                        prompt=prompt,
+                        api_key=api_key,
+                        model=fallback_model
+                    )
+                    return result
+
+            except Exception as requests_exception:
+                logging.error(f"requests备选方案也失败: {str(requests_exception)}", exc_info=True)
+                return {
+                    "success": False,
+                    "error": "所有尝试均失败，请稍后再试",
+                    "error_type": "all_failed",
+                }
 
     except RateLimitError as e:
-        return {"success": False, "error": str(e), "error_type": "rate_limit"}
+        logging.warning(f"速率限制错误，尝试requests备选方案...")
+
+        # 尝试使用requests备选方案
+        try:
+            # 先尝试主要模型
+            result = generate_gemini_with_requests(
+                prompt=prompt,
+                api_key=api_key,
+                model=primary_model
+            )
+
+            if result.get("success"):
+                logging.info(f"requests备选方案成功: 模型={primary_model}")
+                return result
+            else:
+                # 主要模型失败，尝试备用模型
+                logging.warning(f"requests主要模型失败，尝试备用模型: {fallback_model}")
+                result = generate_gemini_with_requests(
+                    prompt=prompt,
+                    api_key=api_key,
+                    model=fallback_model
+                )
+                return result
+
+        except Exception as requests_exception:
+            logging.error(f"requests备选方案也失败: {str(requests_exception)}", exc_info=True)
+            return {"success": False, "error": str(e), "error_type": "rate_limit"}
 
     except Exception as e:
         logging.error(f"未知错误: {str(e)}", exc_info=True)
-        return {"success": False, "error": "系统错误，请稍后再试", "error_type": "unknown"}
+
+        # 当google.genai库失败时，尝试使用requests备选方案
+        logging.warning("google.genai库调用失败，尝试使用requests备选方案...")
+
+        try:
+            # 先尝试主要模型
+            result = generate_gemini_with_requests(
+                prompt=prompt,
+                api_key=api_key,
+                model=primary_model
+            )
+
+            if result.get("success"):
+                logging.info(f"requests备选方案成功: 模型={primary_model}")
+                return result
+            else:
+                # 主要模型失败，尝试备用模型
+                logging.warning(f"requests主要模型失败，尝试备用模型: {fallback_model}")
+                result = generate_gemini_with_requests(
+                    prompt=prompt,
+                    api_key=api_key,
+                    model=fallback_model
+                )
+                return result
+
+        except Exception as fallback_exception:
+            logging.error(f"requests备选方案也失败: {str(fallback_exception)}", exc_info=True)
+            return {"success": False, "error": f"所有尝试均失败: {str(e)}", "error_type": "all_failed"}
 
 
 # ==========================================
@@ -365,10 +489,11 @@ async def generate_gemini_content_stream(
         if not current_api_key:
             raise GeminiAPIError("未提供 Gemini API Key，请在侧边栏输入", "missing_key")
 
+
         # 创建客户端
-        # 设置较大的timeout值（300000 = 300秒读取超时）
+        # 设置timeout值（180000 = 180秒/3分钟读取超时）
         # timeout值除以1000得到实际的读取超时秒数
-        http_opts = HttpOptions(timeout=300000)
+        http_opts = HttpOptions(timeout=180000)
         client = google.genai.Client(api_key=current_api_key, http_options=http_opts)
 
         # 准备配置
@@ -420,7 +545,7 @@ async def generate_gemini_content_stream(
 
         # 处理流式响应
         start_time = time.time()
-        timeout_seconds = 300  # 与前端超时保持一致（5分钟）
+        timeout_seconds = 180  # 与前端超时保持一致（3分钟）
         chunk_count = 0
 
         for chunk in response_stream:
@@ -594,13 +719,14 @@ def check_gptzero(text: str, api_key: str) -> dict[str, Any]:
     }
     payload = {"document": text}
 
+
     max_retries = 3
     retry_count = 0
     current_delay = 2
 
     while retry_count < max_retries:
         try:
-            response = requests.post(url, headers=headers, json=payload, timeout=300)
+            response = requests.post(url, headers=headers, json=payload, timeout=180)
             response.raise_for_status()
             result = response.json()
 
@@ -863,6 +989,108 @@ def clean_markdown(text: str) -> str:
     return text.strip()
 
 
+def generate_gemini_with_requests(
+    prompt: str,
+    api_key: str | None = None,
+    model: str = "gemini-2.5-flash",
+) -> dict[str, Any]:
+    """使用requests库直接调用Gemini API（备选方案）
+
+    Args:
+        prompt: 提示词文本
+        api_key: Gemini API密钥，如果为None则使用环境变量
+        model: 模型名称
+
+    Returns:
+        包含结果的字典，格式：{"success": bool, "text": str, "model_used": str, "error": str, "error_type": str}
+    """
+    try:
+        # 获取API密钥
+        current_api_key = api_key
+        if not current_api_key:
+            from config import settings
+            current_api_key = settings.GEMINI_API_KEY
+
+        if not current_api_key:
+            return {"success": False, "text": "", "model_used": model,
+                    "error": "未提供 Gemini API Key", "error_type": "missing_key"}
+
+        logging.info("使用系统代理设置连接")
+
+        # Gemini API端点
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={current_api_key}"
+
+        # 请求头
+        headers = {
+            "Content-Type": "application/json"
+        }
+
+        # 请求体
+        payload = {
+            "contents": [{
+                "parts": [{
+                    "text": prompt
+                }]
+            }],
+            "safetySettings": [
+                {
+                    "category": "HARM_CATEGORY_HARASSMENT",
+                    "threshold": "BLOCK_NONE"
+                },
+                {
+                    "category": "HARM_CATEGORY_HATE_SPEECH",
+                    "threshold": "BLOCK_NONE"
+                },
+                {
+                    "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                    "threshold": "BLOCK_NONE"
+                },
+                {
+                    "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                    "threshold": "BLOCK_NONE"
+                }
+            ],
+            "generationConfig": {
+                "temperature": 0.7,
+                "topK": 1,
+                "topP": 1,
+                "maxOutputTokens": 8192  # 增加最大输出token数
+            }
+        }
+
+        logging.info(f"使用requests调用Gemini API: 模型={model}, prompt长度={len(prompt)}")
+        response = requests.post(url, headers=headers, json=payload, timeout=180)
+
+        if response.status_code == 200:
+            result = response.json()
+            if "candidates" in result and result["candidates"]:
+                text = result["candidates"][0]["content"]["parts"][0]["text"]
+                logging.info(f"requests调用Gemini API成功: 模型={model}, 响应长度={len(text)}")
+                return {"success": True, "text": text, "model_used": model, "error": "", "error_type": ""}
+            else:
+                error_msg = f"响应格式异常: {result}"
+                logging.error(error_msg)
+                return {"success": False, "text": "", "model_used": model,
+                        "error": error_msg, "error_type": "api_error"}
+        else:
+            error_msg = f"API错误: {response.status_code} - {response.text[:200]}"
+            logging.error(error_msg)
+            return {"success": False, "text": "", "model_used": model,
+                    "error": error_msg, "error_type": "api_error"}
+
+    except requests.exceptions.Timeout:
+        error_msg = "请求超时 (300秒)"
+        logging.error(error_msg)
+        return {"success": False, "text": "", "model_used": model,
+                "error": error_msg, "error_type": "timeout"}
+
+    except Exception as e:
+        error_msg = f"请求异常: {type(e).__name__}: {str(e)}"
+        logging.error(error_msg, exc_info=True)
+        return {"success": False, "text": "", "model_used": model,
+                "error": error_msg, "error_type": "unknown"}
+
+
 def chat_with_gemini(messages: list[dict[str, str]], api_key: str | None = None) -> dict[str, Any]:
     """与Gemini进行对话
 
@@ -894,7 +1122,7 @@ def chat_with_gemini(messages: list[dict[str, str]], api_key: str | None = None)
     result = generate_gemini_content_with_fallback(
         prompt=prompt,
         api_key=api_key,
-        primary_model="gemini-3-pro-preview",
+        primary_model="gemini-2.5-flash",
         fallback_model="gemini-2.5-pro",
     )
 

@@ -3,6 +3,7 @@ import logging
 import os
 import time
 import warnings
+import requests
 from datetime import datetime
 
 # import google.api_core.exceptions
@@ -81,6 +82,7 @@ logging.basicConfig(
 
 # 加载环境变量
 load_dotenv()
+
 
 
 def run_migrations_if_needed():
@@ -1335,6 +1337,18 @@ async def detect_ai(
     # 提取用户名
     username = user.username if hasattr(user, "username") else str(user)
 
+    # 速率限制检查
+    allowed, wait_time = rate_limiter.is_allowed(username)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=ErrorResponse(
+                error_code="RATE_LIMIT_EXCEEDED",
+                message=f"请求过于频繁，请等待 {wait_time} 秒",
+                details={"wait_time": wait_time, "username": username},
+            ).dict(),
+        )
+
     # 优先从环境变量读取GPTZero API密钥
     gptzero_api_key = None
     source = "环境变量"
@@ -1759,4 +1773,4 @@ async def print_routes():
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)

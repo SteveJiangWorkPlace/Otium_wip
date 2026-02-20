@@ -18,6 +18,7 @@ Otium 是一个全栈学术文本处理平台，专注于智能文本检查、AI
 - 使用UTF-8编码的PowerShell启动指令避免乱码：`$OutputEncoding = [System.Text.Encoding]::UTF8`
 - **每次新增功能后必须检查并补充相应的单元测试**
 - 手动启动时参考MANUAL_STARTUP.md，检查端口占用并寻找空闲端口
+- **Windows命令行编码注意事项**：Windows命令行默认使用GBK编码（代码页936），在编写Python脚本时应避免使用Unicode字符（如✓✗⚠），建议使用`[成功]`、`[失败]`、`[警告]`代替
 
 ## 技术栈
 
@@ -31,7 +32,7 @@ Otium 是一个全栈学术文本处理平台，专注于智能文本检查、AI
 ### 后端
 - **FastAPI** - Python Web框架
 - **Pydantic** - 数据验证和序列化
-- **模块化架构** - 11个专注模块（config, schemas, exceptions, utils, prompts, prompt_templates, prompt_cache, prompt_monitor, prompts_backup, services, main）
+- **模块化架构** - 11个专注模块（config, schemas, exceptions, utils, prompts, prompt_templates, prompt_cache, prompt_monitor, prompts_backup, api_services, main）
 - **提示词性能优化** - 模板化、缓存、监控系统，提示词长度减少70%，构建时间减少80%+
 - **JWT认证** - 用户身份验证和授权
 - **流式API** - 支持Server-Sent Events (SSE) 的流式翻译和文本修改
@@ -51,7 +52,7 @@ Otium采用前后端分离架构，前端React应用通过REST API和SSE流式�
 - **异常处理** (`exceptions.py`)：统一错误处理和HTTP异常
 - **工具类** (`utils.py`)：用户限制管理、速率限制、文本验证
 - **提示词系统** (`prompts.py`, `prompt_templates.py`, `prompt_cache.py`, `prompt_monitor.py`)：模板化、缓存、监控的提示词构建系统
-- **API服务** (`services.py`)：集成Gemini AI和GPTZero外部API
+- **API服务** (`api_services.py`)：集成Gemini AI和GPTZero外部API
 - **主应用** (`main.py`)：API路由定义和FastAPI应用初始化
 
 ### 前端状态管理
@@ -88,7 +89,7 @@ Otium/
 │   ├── prompt_cache.py     # 提示词缓存管理器
 │   ├── prompt_monitor.py   # 性能监控系统
 │   ├── prompts_backup.py   # 原始提示词完整备份（安全回滚）
-│   ├── services.py         # 外部API集成（Gemini, GPTZero）
+│   ├── api_services.py     # 外部API集成（Gemini, GPTZero）
 │   ├── requirements.txt    # Python依赖
 │   ├── start_backend.bat   # Windows启动脚本
 │   └── start_backend.ps1   # PowerShell启动脚本
@@ -192,6 +193,8 @@ pip install -r requirements.txt
 ### 测试
 
 **重要**：每次新增功能后必须检查并补充相应的单元测试。
+
+**测试脚本编码要求**：所有测试脚本（Python）应避免使用Unicode字符（✓✗⚠），使用ASCII兼容标记如`[成功]`、`[失败]`、`[警告]`，确保在Windows命令行（GBK编码）下正常运行。
 
 #### 后端测试
 ```bash
@@ -307,7 +310,7 @@ python final_system_test.py        # 运行系统测试
 - 默认管理员：`admin` / `admin123`
 - 用户限制通过 `UserLimitManager` 管理每日API调用次数
 
-## 最近UI修改（2026-02-13及2026-02-15）
+## 最近UI修改（2026-02-18更新）
 
 1. **取消所有"执行中，请稍后"提示**：
    - 移除了所有页面的loadingMessage组件
@@ -329,7 +332,7 @@ python final_system_test.py        # 运行系统测试
    - 错误：`"{任务名称}错误: {错误信息}"`
    - 取消：`"{任务名称}已取消"`
 
-5. **侧边栏优化（2026-02-15）**：
+5. **侧边栏优化**：
    - 移除侧边栏API密钥输入功能，后续通过环境变量配置
    - 登出图标替换为自定义logout.svg，使用fill="#000000"确保主题黑色填充
    - 登出图标放大至20px，按钮尺寸增至32px
@@ -339,7 +342,7 @@ python final_system_test.py        # 运行系统测试
    - 菜单项整体下移，通过增加.nav的padding-top至var(--spacing-12)实现与右侧工作区标题对齐
    - 用户信息（用户名、翻译次数、AI检测次数）从侧边栏移除（移至工作区右上角）
 
-6. **工作区用户信息图标（2026-02-15）**：
+6. **工作区用户信息图标**：
    - 在工作区右上角（gemini图标上方，与全局状态栏高度齐平）添加圆形用户信息图标
    - 图标填充色为var(--color-gray-900)（主题黑色/深灰色），字体为白色
    - 图标内容为当前用户名的前两个字母大写
@@ -361,6 +364,7 @@ python final_system_test.py        # 运行系统测试
 - 类型提示（Type Hints）
 - 模块化设计，单一职责原则
 - 异常统一通过 `exceptions.py` 处理
+- **Windows编码兼容性**：所有输出脚本应避免Unicode字符，使用ASCII兼容标记如`[成功]`、`[失败]`、`[警告]`，避免GBK编码错误
 
 ## 代码质量工具
 
@@ -536,7 +540,7 @@ DEFAULT_ANNOTATIONS_VERSION = "original_modified"  # 快捷批注使用修改后
 - 保持API向后兼容
 
 ### 添加新的AI服务
-1. 在 `backend/services.py` 添加服务类
+1. 在 `backend/api_services.py` 添加服务类
 2. 在 `backend/prompts.py` 添加提示词模板
 3. 在 `backend/main.py` 添加API端点
 4. 在前端API客户端添加对应方法

@@ -95,7 +95,22 @@
       "Bash(venvScriptspython -m pip install:*)",
       "Bash(./venv/Scripts/python -m pip install:*)",
       "Bash(./venv/Scripts/python:*)",
-      "Bash(tee:*)"
+      "Bash(tee:*)",
+      "Bash(kill:*)",
+      "Bash(venvScriptspython.exe -m pip install:*)",
+      "Bash(start:*)",
+      "Bash(cmd //c \"taskkill /PID 24652 /F\")",
+      "Bash(cmd //c \"taskkill /PID 8148 /F\")",
+      "Bash(cmd //c \"tasklist /FI \"\"PID eq 8148\"\"\")",
+      "Bash(cmd //c \"tasklist | findstr 8148\")",
+      "Bash(cmd //c \"echo 将要删除的临时测试文件: & dir \"\"D:\\\\IT Projects\\\\Otium\\\\Otium\\\\test_*.py\"\" /B\")",
+      "Bash(cmd //c \"del \"\"D:\\\\IT Projects\\\\Otium\\\\Otium\\\\test_translation_proxy.py\"\"\")",
+      "Bash(cmd //c \"taskkill /F /PID 8148\")",
+      "Bash(cmd //c \"dir /b D:\\\\IT\\\\ Projects\\\\Otium\\\\Otium\\\\backend\\\\*.py\")",
+      "Bash(test:*)",
+      "Bash(\"venv\\\\Scripts\\\\pip.exe\" install:*)",
+      "Bash(\"venv\\\\Scripts\\\\uvicorn.exe\":*)",
+      "Bash(\"venv\\\\Scripts\\\\python.exe\":*)"
     ]
   }
 }
