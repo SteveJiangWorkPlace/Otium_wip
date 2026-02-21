@@ -71,3 +71,57 @@ logs/
 # Local development files
 .local/
 .cache/
+
+# Environment variables and sensitive configuration
+.env
+.env.*
+!.env.example
+
+# Claude Code configuration (local development only)
+.claude/
+
+# Frontend build and cache
+frontend/build/
+frontend/.env.local
+frontend/node_modules/
+frontend/.npm/
+frontend/.cache/
+
+# Backend Python cache and development files
+backend/__pycache__/
+backend/*.pyc
+backend/.pytest_cache/
+backend/.coverage
+backend/htmlcov/
+
+# System-specific files
+*.local
+*.local.*
+
+# Test coverage reports
+coverage/
+.coverage
+.coverage.*
+*.cover
+
+# Database files (if any)
+*.db
+*.sqlite3
+*.sql
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary test and build files
+*.tmp
+*.temp
+dist/
+build/
