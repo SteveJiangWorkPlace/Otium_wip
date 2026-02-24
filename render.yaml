@@ -71,20 +71,9 @@ services:
         value: true
 
       # ==================== 邮件服务配置 ====================
-      - key: SMTP_HOST
-        value: smtp.sendgrid.net
-      - key: SMTP_PORT
-        value: "587"
-      - key: SMTP_USERNAME
-        value: apikey
-      - key: SMTP_PASSWORD
-        sync: false  # Must be set manually in Render dashboard
-      - key: SMTP_FROM
-        value: noreply@example.com
-      - key: SMTP_TLS
-        value: "true"
-      - key: SMTP_SSL
-        value: "false"
+      # 注意：请手动在 Render Dashboard 中设置以下环境变量：
+      # RESEND_API_KEY: 您的 Resend API 密钥
+      # RESEND_FROM: 发件人邮箱（已验证的邮箱）
       - key: VERIFICATION_CODE_TTL
         value: "600"
       - key: RESET_TOKEN_TTL

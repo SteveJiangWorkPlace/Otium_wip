@@ -48,15 +48,21 @@ export const useGlobalProgressStore = create<GlobalProgressState>((set) => ({
 
   // 隐藏进度（任务完成时调用）- 只清除点号动画，保持完成状态显示
   hideProgress: () =>
-    set((state) => ({
-      // 保持可见，让完成状态继续显示
-      isVisible: true,
-      // 保持消息不变（如"智能文本修改完成"），但GlobalProgressBar会显示简单直白的完成消息
-      message: state.message,
-      showDots: false,
-      // 保存已完成的任务类型
-      lastCompletedTask: state.taskType,
-    })),
+    set((state) => {
+      // 检查是否为错误状态
+      const errorKeywords = ['错误', '失败', '取消'];
+      const isError = errorKeywords.some(keyword => state.message && state.message.includes(keyword));
+
+      return {
+        // 保持可见，让状态继续显示
+        isVisible: true,
+        // 保持消息不变
+        message: state.message,
+        showDots: false,
+        // 如果是错误状态，不保存最后完成的任务；否则保存已完成的任务类型
+        lastCompletedTask: isError ? null : state.taskType,
+      };
+    }),
 
   // 设置是否显示点号动画
   setShowDots: (show: boolean) => set({ showDots: show }),

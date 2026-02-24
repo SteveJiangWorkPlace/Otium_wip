@@ -124,8 +124,22 @@ const GlobalProgressBar: React.FC = () => {
 
   // 根据状态更新幽默文案
   useEffect(() => {
-    // 优先级1: 运行中状态（showDots为true）
-    if (showDots) {
+    // 优先级1: 错误状态（最高优先级）
+    const errorKeywords = ['错误', '失败', '取消'];
+    const hasError = errorKeywords.some(keyword => message && message.includes(keyword));
+
+    if (hasError) {
+      // 错误状态 - 使用幽默文案
+      const messages = HUMOROUS_MESSAGES.error;
+      const randomIndex = Math.floor(Math.random() * messages.length);
+
+      // 添加任务类型信息
+      const taskName = taskType ? TASK_TYPE_MAP[taskType] || '任务' : '任务';
+      const baseMessage = messages[randomIndex];
+      setHumorousMessage(`${baseMessage}（${taskName}）`);
+    }
+    // 优先级2: 运行中状态（showDots为true）
+    else if (showDots) {
       // 运行中状态 - 使用幽默文案
       const messages = HUMOROUS_MESSAGES.working;
       const randomIndex = Math.floor(Math.random() * messages.length);
@@ -140,22 +154,11 @@ const GlobalProgressBar: React.FC = () => {
         setHumorousMessage(`${baseMessage} - ${taskName}进行中`);
       }
     }
-    // 优先级2: 完成状态（有最后完成的任务且没有点号动画）
+    // 优先级3: 完成状态（有最后完成的任务且没有点号动画）
     else if (lastCompletedTask && !showDots) {
       // 完成状态 - 只显示简单直白的任务完成消息，不使用幽默文案
       const taskName = TASK_TYPE_MAP[lastCompletedTask] || '未知任务';
       setHumorousMessage(`${taskName}已完成`);
-    }
-    // 优先级3: 错误状态
-    else if (message.includes('错误') || message.includes('失败') || message.includes('取消')) {
-      // 错误状态 - 使用幽默文案
-      const messages = HUMOROUS_MESSAGES.error;
-      const randomIndex = Math.floor(Math.random() * messages.length);
-
-      // 添加任务类型信息
-      const taskName = taskType ? TASK_TYPE_MAP[taskType] || '任务' : '任务';
-      const baseMessage = messages[randomIndex];
-      setHumorousMessage(`${baseMessage}（${taskName}）`);
     }
     // 优先级4: 其他状态，使用原始消息
     else if (message) {
@@ -175,28 +178,61 @@ const GlobalProgressBar: React.FC = () => {
 
   // 确定当前显示的图标路径
   const getCurrentIconPath = () => {
-    if (showDots) {
+    // 首先检查错误状态（优先级最高）
+    const errorKeywords = ['错误', '失败', '取消'];
+    const hasError = errorKeywords.some(keyword => message && message.includes(keyword));
+
+    if (hasError) {
+      // 错误状态 - 显示休息图标
+      return '/rest.svg';
+    } else if (showDots) {
       // 运行中状态
       return '/working.svg';
     } else if (lastCompletedTask && !showDots) {
       // 完成状态
       return '/complete.svg';
-    } else if (message.includes('错误') || message.includes('失败') || message.includes('取消')) {
-      // 错误状态 - 也显示工作图标
-      return '/working.svg';
     } else {
       // 空闲状态
       return '/rest.svg';
     }
   };
 
+  // 检查是否为错误状态
+  const errorKeywords = ['错误', '失败', '取消'];
+  const isErrorState = errorKeywords.some(keyword => message && message.includes(keyword));
+
   const currentIconPath = getCurrentIconPath();
+
+  // 图标加载错误处理
+  const [iconError, setIconError] = useState(false);
+
+  // 当图标路径变化时重置错误状态
+  useEffect(() => {
+    setIconError(false);
+  }, [currentIconPath]);
+
+  const handleIconError = () => {
+    console.error(`图标加载失败: ${currentIconPath}`);
+    setIconError(true);
+  };
 
   return (
     <div className={styles.progressBarContainer}>
       {/* 图标容器 */}
       <div className={styles.iconContainer}>
-        <img src={currentIconPath} alt="状态图标" className={styles.statusIcon} />
+        {iconError ? (
+          <div className={styles.fallbackIcon}>
+            <span className={styles.fallbackText}>!</span>
+          </div>
+        ) : (
+          <img
+            src={currentIconPath}
+            alt="状态图标"
+            className={`${styles.statusIcon} ${isErrorState ? styles.error : ''}`}
+            onError={handleIconError}
+            loading="eager"
+          />
+        )}
       </div>
 
       {/* 进度条内容 */}

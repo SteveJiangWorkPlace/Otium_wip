@@ -118,17 +118,8 @@ class Settings:
     ).lower() in ("true", "1", "yes")
 
     # 邮件服务配置
-    EMAIL_PROVIDER: str = os.environ.get("EMAIL_PROVIDER", "resend")  # resend, smtp
+    EMAIL_PROVIDER: str = "resend"  # 本项目仅支持 Resend API
 
-    # SMTP配置（当EMAIL_PROVIDER=smtp时使用）
-    SMTP_HOST: str = os.environ.get("SMTP_HOST", "smtp.sendgrid.net")
-    SMTP_PORT: int = int(os.environ.get("SMTP_PORT", "587"))
-    SMTP_USERNAME: str = os.environ.get("SMTP_USERNAME", "apikey")
-    SMTP_PASSWORD: str = os.environ.get("SMTP_PASSWORD", "")
-    SMTP_FROM: str = os.environ.get("SMTP_FROM", "noreply@example.com")
-    SMTP_TLS: bool = os.environ.get("SMTP_TLS", "true").lower() in ("true", "1", "yes")
-    SMTP_SSL: bool = os.environ.get("SMTP_SSL", "false").lower() in ("true", "1", "yes")
-    SMTP_TIMEOUT: int = int(os.environ.get("SMTP_TIMEOUT", "30"))  # 默认30秒超时
 
     # Resend API配置（当EMAIL_PROVIDER=resend时使用）
     RESEND_API_KEY: str = os.environ.get("RESEND_API_KEY", "")
@@ -187,17 +178,11 @@ class Settings:
         if self.DATABASE_TYPE == "postgresql" and not self.DATABASE_URL:
             logging.warning("⚠️ 使用PostgreSQL但未设置DATABASE_URL环境变量")
 
-        # 检查邮件配置
-        if self.EMAIL_PROVIDER == "smtp":
-            if not self.SMTP_PASSWORD:
-                logging.warning("⚠️ SMTP_PASSWORD 未设置，邮件发送功能将不可用")
-            if self.SMTP_FROM == "noreply@example.com":
-                logging.warning("⚠️ SMTP_FROM 使用默认值，请设置为有效的发件人邮箱")
-        elif self.EMAIL_PROVIDER == "resend":
-            if not self.RESEND_API_KEY:
-                logging.warning("⚠️ RESEND_API_KEY 未设置，邮件发送功能将不可用")
-            if self.RESEND_FROM == "onboarding@resend.dev":
-                logging.warning("⚠️ RESEND_FROM 使用默认值，请设置为已验证的发件人邮箱")
+        # 检查邮件配置（仅支持 Resend API）
+        if not self.RESEND_API_KEY:
+            logging.warning("⚠️ RESEND_API_KEY 未设置，邮件发送功能将不可用")
+        if self.RESEND_FROM == "onboarding@resend.dev":
+            logging.warning("⚠️ RESEND_FROM 使用默认值，请设置为已验证的发件人邮箱")
 
 
 # 全局配置实例

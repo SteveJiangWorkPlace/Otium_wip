@@ -2,7 +2,7 @@
 邮件服务模块
 
 提供邮件发送功能，包括验证码邮件和密码重置邮件。
-支持SMTP协议和Resend API两种方式。
+仅支持Resend API方式。
 """
 
 import logging
@@ -23,23 +23,9 @@ class EmailService:
 
     def __init__(self):
         """初始化邮件服务"""
-        self.email_provider = settings.EMAIL_PROVIDER  # resend 或 smtp
+        self.email_provider = "resend"  # 仅支持 Resend API
 
-        if self.email_provider == "smtp":
-            # SMTP配置
-            self.smtp_host = settings.SMTP_HOST
-            self.smtp_port = settings.SMTP_PORT
-            self.smtp_username = settings.SMTP_USERNAME
-            self.smtp_password = settings.SMTP_PASSWORD
-            self.smtp_tls = settings.SMTP_TLS
-            self.smtp_ssl = settings.SMTP_SSL
-            self.smtp_timeout = settings.SMTP_TIMEOUT
-            self.smtp_from = settings.SMTP_FROM
-            logger.info(
-                f"邮件服务初始化 [SMTP]: {self.smtp_host}:{self.smtp_port}, 超时: {self.smtp_timeout}秒"
-            )
-
-        elif self.email_provider == "resend":
+        if self.email_provider == "resend":
             # Resend API配置
             self.resend_api_key = settings.RESEND_API_KEY
             self.resend_from = settings.RESEND_FROM

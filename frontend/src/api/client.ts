@@ -28,7 +28,7 @@ console.log(
   process.env.REACT_APP_API_BASE_URL
 );
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8001';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 console.log('API客户端 - 使用的基础URL:', API_BASE_URL);
 
 const axiosInstance = axios.create({

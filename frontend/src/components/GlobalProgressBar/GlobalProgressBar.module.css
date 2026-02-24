@@ -111,3 +111,26 @@
     font-size: var(--font-size-sm);
   }
 }
+
+/* 备用图标样式 */
+.fallbackIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  background-color: #ef4444; /* 红色 */
+  color: white;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+}
+
+.fallbackText {
+  line-height: 1;
+}
+
+/* 错误状态图标样式 */
+.statusIcon.error {
+  filter: brightness(0) saturate(100%) hue-rotate(300deg) opacity(0.8); /* 红色色调 */
+}
