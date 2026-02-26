@@ -310,7 +310,6 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
             // 计算第二行的前导空格数（视觉长度）
             const leadingSpacesMatch = nextLine.match(/^(\s*)/);
             const nextLineIndentStr = leadingSpacesMatch ? leadingSpacesMatch[1] : '';
-            const nextLineIndent = visualLength(nextLineIndentStr);
 
             // 获取第二行文本内容（去除前导空格）
             const nextLineText = nextLine.substring(nextLineIndentStr.length);
