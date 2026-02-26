@@ -1228,6 +1228,9 @@ def chat_with_manus(
     logging.info(f"开始Manus API对话，prompt长度: {len(prompt)} 字符")
     logging.info(f"prompt预览: {repr(prompt[:100])}...")
 
+    # 记录开始时间用于计算总处理时间
+    start_time = time.time()
+
     # Manus API调用
     url = "https://api.manus.ai/v1/tasks"
     headers = {
@@ -1391,11 +1394,19 @@ def chat_with_manus(
                     # 注释掉clean_markdown，因为Manus API已返回纯文本，清理可能导致格式问题
                     # result_text = clean_markdown(result_text)
 
-                    logging.info(f"Manus API对话成功，文本长度: {len(result_text)}")
+                    logging.info(f"Manus API对话成功，文本长度: {len(result_text)} 字符")
+                    # 记录响应体字节大小（UTF-8编码）
+                    byte_size = len(result_text.encode('utf-8'))
+                    logging.info(f"Manus API响应体字节大小: {byte_size} 字节 ({byte_size/1024:.2f} KB)")
                     # 调试：记录前200个字符
                     if result_text:
                         preview = result_text[:200].replace('\n', ' ')
                         logging.info(f"Manus API返回文本预览: {preview}")
+
+                    # 计算总处理时间
+                    total_time = time.time() - start_time
+                    logging.info(f"Manus API总处理时间: {total_time:.2f}秒, 轮询次数: {attempt + 1}次")
+
                     return {
                         "success": True,
                         "text": result_text,
@@ -1439,6 +1450,9 @@ def chat_with_manus(
         # 如果达到最大轮询次数
         timeout_msg = f"任务轮询超时（{max_poll_attempts}次尝试，{max_poll_attempts * poll_interval}秒），任务仍未完成"
         logging.error(timeout_msg)
+        # 计算总处理时间
+        total_time = time.time() - start_time
+        logging.error(f"Manus API超时，总处理时间: {total_time:.2f}秒, 轮询次数: {max_poll_attempts}次")
         # 根据用户要求：即使有部分内容，如果任务未完成，也不返回内容
         # 始终返回错误，表示任务未能在预期时间内完成
         return {
@@ -1453,6 +1467,9 @@ def chat_with_manus(
     except Exception as e:
         error_msg = f"Manus API对话异常: {type(e).__name__}: {str(e)}"
         logging.error(error_msg, exc_info=True)
+        # 计算总处理时间
+        total_time = time.time() - start_time
+        logging.error(f"Manus API异常，总处理时间: {total_time:.2f}秒")
         return {
             "success": False,
             "text": "",

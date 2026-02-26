@@ -74,6 +74,7 @@ from datetime import datetime  # noqa: E402
 from dotenv import load_dotenv  # noqa: E402
 from fastapi import Depends, FastAPI, HTTPException, Request, status  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from fastapi.middleware.gzip import GZipMiddleware  # noqa: E402
 from fastapi.responses import StreamingResponse  # noqa: E402
 from fastapi.security import (  # noqa: E402
     HTTPAuthorizationCredentials,
@@ -283,6 +284,48 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 添加Gzip压缩中间件，减少响应体大小
+app.add_middleware(GZipMiddleware, minimum_size=1000)  # 只压缩大于1000字节的响应
+
+
+# 添加请求日志中间件，记录请求处理时间和状态
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = time.time()
+
+    # 记录请求开始
+    logging.info(f"请求开始: {request.method} {request.url.path}")
+
+    try:
+        response = await call_next(request)
+        process_time = time.time() - start_time
+
+        # 记录请求完成信息
+        logging.info(
+            f"请求完成: {request.method} {request.url.path} - "
+            f"状态码: {response.status_code} - "
+            f"处理时间: {process_time:.3f}秒"
+        )
+
+        # 如果处理时间超过5秒，记录警告
+        if process_time > 5:
+            logging.warning(
+                f"请求处理时间过长: {process_time:.3f}秒 - "
+                f"{request.method} {request.url.path}"
+            )
+
+        return response
+
+    except Exception as e:
+        process_time = time.time() - start_time
+        logging.error(
+            f"请求异常: {request.method} {request.url.path} - "
+            f"异常: {type(e).__name__}: {str(e)} - "
+            f"处理时间: {process_time:.3f}秒"
+        )
+        # 重新抛出异常，让应用错误处理器处理
+        raise
 
 
 # 添加UTF-8编码中间件，确保所有JSON响应使用UTF-8字符集
@@ -1536,6 +1579,7 @@ async def chat_endpoint(
     user: UserObject = Depends(get_current_user),
 ):
     """AI聊天对话"""
+    start_time = time.time()
 
     logging.info(
         f"chat_endpoint called: deep_research_mode={request.deep_research_mode}, messages_count={len(request.messages)}"
@@ -1683,6 +1727,49 @@ async def chat_endpoint(
                 if not text:
                     text = "已处理您的请求，但没有生成具体的回复内容。"
 
+                # 记录响应体大小
+                text_bytes = len(text.encode('utf-8'))
+                logging.info(f"Manus API响应体大小: {text_bytes} 字节 ({text_bytes/1024:.2f} KB)")
+                if text_bytes > settings.MAX_RESPONSE_SIZE_BYTES:  # 大于配置的最大响应大小
+                    logging.warning(f"Manus API响应体过大: {text_bytes/1024/1024:.2f} MB，超过最大限制 {settings.MAX_RESPONSE_SIZE_BYTES/1024/1024:.2f} MB，可能影响网络传输")
+                    # 对于过大的响应，使用流式响应分块发送
+                    # 创建JSON响应
+                    import json
+                    response_data = AIChatResponse(
+                        success=True,
+                        text=text,
+                        session_id=request.session_id,
+                        model_used="manus-ai",
+                        steps=result.get("steps", []),  # 传递Manus API步骤信息
+                    )
+                    json_str = json.dumps(response_data.dict(), ensure_ascii=False)
+
+                    # 将JSON字符串分块发送
+                    chunk_size = settings.CHUNK_SIZE_BYTES
+
+                    def generate_chunks():
+                        for i in range(0, len(json_str), chunk_size):
+                            chunk = json_str[i:i + chunk_size]
+                            yield chunk.encode('utf-8')
+                            logging.debug(f"Sent chunk {i//chunk_size + 1}, size: {len(chunk)} bytes")
+
+                    return StreamingResponse(
+                        generate_chunks(),
+                        media_type="application/json",
+                        headers={
+                            "Transfer-Encoding": "chunked",
+                            "X-Response-Size": str(text_bytes),
+                            "X-Response-Chunks": str((len(json_str) + chunk_size - 1) // chunk_size),
+                            "X-Response-Streaming": "true"
+                        }
+                    )
+                elif text_bytes > 1024 * 100:  # 大于100KB
+                    logging.info(f"Manus API响应体较大: {text_bytes/1024:.2f} KB")
+
+                # 记录总处理时间
+                total_time = time.time() - start_time
+                logging.info(f"chat_endpoint Manus API总处理时间: {total_time:.2f}秒, 响应大小: {text_bytes}字节")
+
                 return AIChatResponse(
                     success=True,
                     text=text,
@@ -1691,6 +1778,10 @@ async def chat_endpoint(
                     steps=result.get("steps", []),  # 传递Manus API步骤信息
                 )
             else:
+                # 记录总处理时间
+                total_time = time.time() - start_time
+                logging.info(f"chat_endpoint Manus API失败，总处理时间: {total_time:.2f}秒")
+
                 return AIChatResponse(
                     success=False,
                     text="",

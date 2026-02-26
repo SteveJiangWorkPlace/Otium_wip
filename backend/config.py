@@ -60,6 +60,10 @@ class Settings:
         self.GPTZERO_API_KEY: str = os.environ.get("GPTZERO_API_KEY", "")
         self.MANUS_API_KEY: str = os.environ.get("MANUS_API_KEY", "")
 
+        # 响应大小限制配置
+        self.MAX_RESPONSE_SIZE_BYTES: int = int(os.environ.get("MAX_RESPONSE_SIZE_BYTES", "1048576"))  # 默认1MB
+        self.CHUNK_SIZE_BYTES: int = int(os.environ.get("CHUNK_SIZE_BYTES", "65536"))  # 默认64KB
+
         # 用户管理配置
         self.ADMIN_USERNAME: str = os.environ.get("ADMIN_USERNAME", "admin")
         self.ADMIN_PASSWORD: str = os.environ.get("ADMIN_PASSWORD", "admin123")
