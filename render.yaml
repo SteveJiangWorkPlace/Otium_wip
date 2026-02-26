@@ -13,7 +13,7 @@ services:
     pythonVersion: "3.11.9"
     region: oregon  # or: frankfurt, singapore, ohio, etc.
     buildCommand: pip install -r backend/requirements.txt
-    startCommand: cd backend && gunicorn --bind 0.0.0.0:$PORT --workers 4 --worker-class uvicorn.workers.UvicornWorker --timeout 120 main:app
+    startCommand: cd backend && gunicorn --bind 0.0.0.0:$PORT --workers 4 --worker-class uvicorn.workers.UvicornWorker --timeout 1800 main:app
     healthCheckPath: /api/health
     envVars:
       # ==================== 应用配置 ====================
