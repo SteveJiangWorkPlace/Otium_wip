@@ -33,7 +33,7 @@ console.log('API客户端 - 使用的基础URL:', API_BASE_URL);
 
 const axiosInstance = axios.create({
   baseURL: `${API_BASE_URL}/api`,
-  timeout: 300000, // 增加超时时间到300秒（5分钟），避免API调用超时
+  timeout: 1800000, // 增加超时时间到1800秒（30分钟），匹配后端Gunicorn timeout设置
   headers: {
     'Content-Type': 'application/json',
   },

@@ -1238,10 +1238,10 @@ def chat_with_manus(
     data = {"prompt": prompt, "model": "manus-1.6-lite"}
 
     try:
-        # 设置超时（对话可能需要较长时间）
-        timeout = 300  # 5分钟超时
+        # 设置超时（对话可能需要较长时间，匹配Render的1800秒超时）
+        timeout = 1200  # 20分钟超时，匹配Gunicorn的1800秒超时
         logging.info(
-            f"Manus API超时设置: POST请求超时={timeout}秒, 最大轮询次数=240次(20分钟), 轮询超时=120秒, pending状态超时=600秒"
+            f"Manus API超时设置: POST请求超时={timeout}秒, 最大轮询次数=720次(60分钟), 轮询超时=300秒, pending状态超时=1200秒"
         )
         response = requests.post(url, json=data, headers=headers, timeout=timeout)
         response.raise_for_status()
@@ -1270,8 +1270,8 @@ def chat_with_manus(
         else:
             task_status_url = f"https://api.manus.ai/v1/tasks/{task_id}"
             logging.info(f"使用构建的任务状态URL: {task_status_url}")
-        max_poll_attempts = 240  # 最多尝试240次（20分钟，每5秒一次）
-        poll_interval = 5  # 每5秒轮询一次
+        max_poll_attempts = 1200  # 最多尝试1200次（60分钟，每3秒一次）
+        poll_interval = 3  # 每3秒轮询一次，保持连接活跃
 
         # 存储收集到的assistant文本和步骤信息
         all_assistant_texts = []
