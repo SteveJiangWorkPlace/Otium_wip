@@ -1029,6 +1029,143 @@ def clean_markdown(text: str) -> str:
     return text.strip()
 
 
+def convert_urls_to_markdown(text: str) -> str:
+    """将纯文本中的URL转换为Markdown链接格式
+
+    Args:
+        text: 包含URL的纯文本
+
+    Returns:
+        转换后的文本，URL被转换为[标题](URL)格式
+    """
+    import re
+
+    if not text:
+        return text
+
+    # 常见的URL模式
+    # 匹配http/https/ftp协议，包括常见的学术网站
+    url_pattern = re.compile(
+        r'(https?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+|'  # 基础URL
+        r'https?://(?:www\.)?arxiv\.org/[^\s]+|'  # arXiv
+        r'https?://(?:www\.)?doi\.org/[^\s]+|'  # DOI
+        r'https?://(?:www\.)?ncbi\.nlm\.nih\.gov/[^\s]+|'  # PubMed/NCBI
+        r'https?://(?:www\.)?ieee\.org/[^\s]+|'  # IEEE
+        r'https?://(?:www\.)?acm\.org/[^\s]+|'  # ACM
+        r'https?://(?:www\.)?springer\.com/[^\s]+|'  # Springer
+        r'https?://(?:www\.)?elsevier\.com/[^\s]+|'  # Elsevier
+        r'https?://(?:www\.)?wiley\.com/[^\s]+|'  # Wiley
+        r'https?://(?:www\.)?tandfonline\.com/[^\s]+|'  # Taylor & Francis
+        r'https?://(?:www\.)?sciencedirect\.com/[^\s]+|'  # ScienceDirect
+        r'https?://(?:www\.)?researchgate\.net/[^\s]+|'  # ResearchGate
+        r'https?://(?:www\.)?scholar\.google\.com/[^\s]+|'  # Google Scholar
+        r'https?://(?:www\.)?semanticscholar\.org/[^\s]+)'  # Semantic Scholar
+    )
+
+    def replace_url(match):
+        url = match.group(0)
+        # 移除末尾的标点符号（句号、逗号、括号等）
+        while url and url[-1] in '.,;:!?)\'"<>':
+            url = url[:-1]
+
+        # 尝试从URL中提取有意义的标题
+        title = url
+
+        # 如果是arXiv链接，尝试提取论文ID
+        if 'arxiv.org' in url:
+            # 匹配arXiv ID格式：arXiv:YYMM.NNNNN 或 arXiv:YYMM.NNNNNvN
+            arxiv_match = re.search(r'arxiv\.org/(?:abs/|pdf/)?(\d+\.\d+(?:v\d+)?)', url, re.IGNORECASE)
+            if arxiv_match:
+                title = f"arXiv:{arxiv_match.group(1)}"
+
+        # 如果是DOI链接
+        elif 'doi.org' in url:
+            doi_match = re.search(r'doi\.org/(.+)', url)
+            if doi_match:
+                title = f"DOI:{doi_match.group(1)[:50]}"
+
+        # 如果是PubMed链接
+        elif 'pubmed.ncbi.nlm.nih.gov' in url:
+            pm_match = re.search(r'pubmed\.ncbi\.nlm\.nih\.gov/(\d+)', url)
+            if pm_match:
+                title = f"PubMed ID:{pm_match.group(1)}"
+
+        # 如果是其他学术链接，尝试提取最后一部分作为标题
+        else:
+            # 移除协议和域名部分
+            clean_url = re.sub(r'^https?://(?:www\.)?', '', url)
+            # 取最后一部分，最多40个字符
+            parts = clean_url.split('/')
+            if len(parts) > 1:
+                last_part = parts[-1]
+                # 移除查询参数
+                last_part = last_part.split('?')[0]
+                # 解码URL编码字符
+                import urllib.parse
+                last_part = urllib.parse.unquote(last_part)
+                if len(last_part) > 40:
+                    title = f"...{last_part[-40:]}"
+                else:
+                    title = last_part if last_part else clean_url[:50]
+            else:
+                title = clean_url[:50]
+
+        # 返回Markdown格式链接
+        return f"[{title}]({url})"
+
+    # 查找所有URL并替换
+    def process_text_segment(segment):
+        # 如果已经是Markdown链接格式，跳过
+        if re.search(r'\[.*?\]\(https?://[^)]+\)', segment):
+            return segment
+
+        # 替换URL
+        return url_pattern.sub(replace_url, segment)
+
+    # 分割文本为段落，避免在HTML标签或已有Markdown中替换
+    lines = text.split('\n')
+    processed_lines = []
+
+    for line in lines:
+        # 分割行，避免在代码块或特殊格式中替换
+        # 简单实现：直接处理整行
+        processed_lines.append(process_text_segment(line))
+
+    return '\n'.join(processed_lines)
+
+
+def normalize_paragraph_spacing(text: str, max_empty_lines: int = 1) -> str:
+    """规范化段落间距，确保不超过指定数量的空行
+
+    Args:
+        text: 输入文本
+        max_empty_lines: 允许的最大连续空行数（默认1）
+
+    Returns:
+        处理后的文本
+    """
+    import re
+
+    if not text:
+        return text
+
+    # 分割为行
+    lines = text.split('\n')
+    processed_lines = []
+    empty_count = 0
+
+    for line in lines:
+        if line.strip() == '':
+            empty_count += 1
+            if empty_count <= max_empty_lines:
+                processed_lines.append(line)
+        else:
+            empty_count = 0
+            processed_lines.append(line)
+
+    return '\n'.join(processed_lines)
+
+
 def generate_gemini_with_requests(
     prompt: str,
     api_key: str | None = None,
@@ -1406,6 +1543,16 @@ def chat_with_manus(
                     # 计算总处理时间
                     total_time = time.time() - start_time
                     logging.info(f"Manus API总处理时间: {total_time:.2f}秒, 轮询次数: {attempt + 1}次")
+
+                    # 处理结果文本：转换URL为可点击链接，规范化段落间距
+                    if result_text:
+                        # 转换URL为Markdown链接格式
+                        result_text = convert_urls_to_markdown(result_text)
+                        logging.info(f"URL转换后文本长度: {len(result_text)} 字符")
+
+                        # 规范化段落间距，确保不超过一个空行
+                        result_text = normalize_paragraph_spacing(result_text, max_empty_lines=1)
+                        logging.info(f"段落规范化后文本长度: {len(result_text)} 字符")
 
                     return {
                         "success": True,

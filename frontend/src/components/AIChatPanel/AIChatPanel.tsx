@@ -396,6 +396,26 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
       cleaned = cleaned.replace(placeholder, html);
     });
 
+    // 第十二步：规范化段落间距，确保不超过一个空行
+    const linesForSpacing = cleaned.split('\n');
+    const normalizedLines: string[] = [];
+    let emptyLineCount = 0;
+
+    for (const line of linesForSpacing) {
+      if (line.trim() === '') {
+        emptyLineCount++;
+        if (emptyLineCount <= 1) {
+          normalizedLines.push(line);
+        }
+        // 如果emptyLineCount > 1，跳过这个额外的空行
+      } else {
+        emptyLineCount = 0;
+        normalizedLines.push(line);
+      }
+    }
+
+    cleaned = normalizedLines.join('\n');
+
     // 保留HTML标签，其它markdown符号已处理
     return cleaned;
   };
