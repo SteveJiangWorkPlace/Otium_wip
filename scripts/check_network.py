@@ -4,19 +4,20 @@
 检查代理设置、API连接和端口占用情况
 
 注意事项：
-- Windows编码兼容性：避免使用Unicode字符（✓✗⚠），使用[成功]、[失败]、[警告]标记
+- Windows编码兼容性：避免使用Unicode字符（如[成功]、[失败]、[警告]），使用ASCII兼容标记如[成功]、[失败]、[警告]标记
 - 安全考虑：不包含敏感信息，避免泄露API密钥
 """
 
-import os
-import sys
 import json
-import socket
-import requests
-import subprocess
+import os
 import platform
+import socket
+import subprocess
+import sys
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
+
+import requests
 
 
 def safe_print(message: str) -> None:
@@ -25,7 +26,7 @@ def safe_print(message: str) -> None:
         print(message)
     except UnicodeEncodeError:
         # 如果遇到编码问题，使用ASCII安全版本
-        safe_message = message.encode('ascii', errors='replace').decode('ascii')
+        safe_message = message.encode("ascii", errors="replace").decode("ascii")
         print(safe_message)
 
 
@@ -36,10 +37,16 @@ def check_proxy_settings() -> Dict[str, Optional[str]]:
     safe_print("=" * 60)
 
     proxy_vars = [
-        'HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY',
-        'http_proxy', 'https_proxy', 'no_proxy',
-        'ALL_PROXY', 'all_proxy',
-        'FTP_PROXY', 'ftp_proxy'
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "NO_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "no_proxy",
+        "ALL_PROXY",
+        "all_proxy",
+        "FTP_PROXY",
+        "ftp_proxy",
     ]
 
     proxy_settings = {}
@@ -67,19 +74,19 @@ def check_npm_proxy() -> Dict[str, Optional[str]]:
 
     npm_configs = {}
     npm_commands = [
-        ('proxy', 'npm config get proxy'),
-        ('https-proxy', 'npm config get https-proxy'),
-        ('noproxy', 'npm config get noproxy'),
-        ('registry', 'npm config get registry')
+        ("proxy", "npm config get proxy"),
+        ("https-proxy", "npm config get https-proxy"),
+        ("noproxy", "npm config get noproxy"),
+        ("registry", "npm config get registry"),
     ]
 
     try:
         for name, cmd in npm_commands:
             result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
             value = result.stdout.strip()
-            npm_configs[name] = value if value and value != 'null' else None
+            npm_configs[name] = value if value and value != "null" else None
 
-            if value and value != 'null':
+            if value and value != "null":
                 safe_print(f"[警告] 检测到npm配置 {name}: {value}")
     except Exception as e:
         safe_print(f"[错误] 检查npm配置时出错: {e}")
@@ -91,7 +98,9 @@ def check_npm_proxy() -> Dict[str, Optional[str]]:
     return npm_configs
 
 
-def check_backend_connection(url: str = "http://localhost:8000/api/health", timeout: int = 5) -> Tuple[bool, Optional[Dict]]:
+def check_backend_connection(
+    url: str = "http://localhost:8000/api/health", timeout: int = 5
+) -> Tuple[bool, Optional[Dict]]:
     """检查后端API连接"""
     safe_print("=" * 60)
     safe_print("检查后端API连接")
@@ -127,7 +136,9 @@ def check_backend_connection(url: str = "http://localhost:8000/api/health", time
     safe_print("")
 
 
-def check_frontend_connection(url: str = "http://localhost:3000", timeout: int = 5) -> bool:
+def check_frontend_connection(
+    url: str = "http://localhost:3000", timeout: int = 5
+) -> bool:
     """检查前端开发服务器连接"""
     safe_print("=" * 60)
     safe_print("检查前端开发服务器连接")
@@ -164,7 +175,7 @@ def check_port_usage(ports: List[int] = [8000, 8001, 3000, 3001]) -> Dict[int, b
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(1)
-            result = sock.connect_ex(('localhost', port))
+            result = sock.connect_ex(("localhost", port))
             sock.close()
 
             is_in_use = result == 0
@@ -190,30 +201,30 @@ def check_environment_configs() -> Dict[str, str]:
 
     configs = {}
     env_vars_to_check = [
-        'REACT_APP_API_BASE_URL',
-        'GEMINI_API_KEY',
-        'GPTZERO_API_KEY',
-        'DATABASE_TYPE',
-        'CORS_ORIGINS',
-        'EMAIL_PROVIDER'
+        "REACT_APP_API_BASE_URL",
+        "GEMINI_API_KEY",
+        "GPTZERO_API_KEY",
+        "DATABASE_TYPE",
+        "CORS_ORIGINS",
+        "EMAIL_PROVIDER",
     ]
 
     for var in env_vars_to_check:
         value = os.environ.get(var)
         configs[var] = value
 
-        if var == 'GEMINI_API_KEY' or var == 'GPTZERO_API_KEY':
+        if var == "GEMINI_API_KEY" or var == "GPTZERO_API_KEY":
             # 安全地显示API密钥（仅显示是否存在）
             if value:
                 masked = value[:4] + "***" + value[-4:] if len(value) > 8 else "***"
                 safe_print(f"[信息] {var}: {masked}")
             else:
                 safe_print(f"[警告] {var}: 未设置")
-        elif var == 'REACT_APP_API_BASE_URL':
+        elif var == "REACT_APP_API_BASE_URL":
             if value:
                 safe_print(f"[信息] {var}: {value}")
-                if '8001' in value:
-                    safe_print(f"[警告] 前端API基础URL包含8001端口，建议使用8000端口")
+                if "8001" in value:
+                    safe_print("[警告] 前端API基础URL包含8001端口，建议使用8000端口")
             else:
                 safe_print(f"[警告] {var}: 未设置，前端将使用默认值")
         else:
@@ -232,7 +243,7 @@ def generate_summary_report(
     backend_ok: bool,
     frontend_ok: bool,
     port_status: Dict[int, bool],
-    configs: Dict[str, str]
+    configs: Dict[str, str],
 ) -> None:
     """生成诊断报告摘要"""
     safe_print("=" * 60)
@@ -253,7 +264,9 @@ def generate_summary_report(
 
     if has_npm_proxy:
         issues.append("检测到npm代理配置")
-        recommendations.append("检查npm配置: npm config get proxy / npm config get https-proxy")
+        recommendations.append(
+            "检查npm配置: npm config get proxy / npm config get https-proxy"
+        )
 
     if not backend_ok:
         issues.append("后端服务连接失败")
@@ -261,17 +274,17 @@ def generate_summary_report(
         recommendations.append("2. 检查端口8000是否被占用")
         recommendations.append("3. 检查防火墙设置")
 
-    if 'REACT_APP_API_BASE_URL' in configs and configs['REACT_APP_API_BASE_URL']:
-        if '8001' in configs['REACT_APP_API_BASE_URL']:
+    if "REACT_APP_API_BASE_URL" in configs and configs["REACT_APP_API_BASE_URL"]:
+        if "8001" in configs["REACT_APP_API_BASE_URL"]:
             issues.append("前端API基础URL配置使用8001端口")
             recommendations.append("修改REACT_APP_API_BASE_URL为http://localhost:8000")
 
     # 检查关键API密钥
-    if not configs.get('GEMINI_API_KEY'):
+    if not configs.get("GEMINI_API_KEY"):
         issues.append("GEMINI_API_KEY未设置")
         recommendations.append("设置GEMINI_API_KEY环境变量以使用AI功能")
 
-    if not configs.get('GPTZERO_API_KEY'):
+    if not configs.get("GPTZERO_API_KEY"):
         issues.append("GPTZERO_API_KEY未设置")
         recommendations.append("设置GPTZERO_API_KEY环境变量以使用AI检测功能")
 
@@ -317,8 +330,7 @@ def main():
 
     # 生成报告
     generate_summary_report(
-        proxy_settings, npm_configs, backend_ok,
-        frontend_ok, port_status, configs
+        proxy_settings, npm_configs, backend_ok, frontend_ok, port_status, configs
     )
 
     # 返回退出码

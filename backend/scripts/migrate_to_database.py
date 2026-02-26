@@ -17,6 +17,7 @@ import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any, cast
 
 # 添加项目根目录到Python路径
 project_root = Path(__file__).parent.parent
@@ -35,7 +36,7 @@ def setup_logging():
     )
 
 
-def backup_file(file_path: str) -> str:
+def backup_file(file_path: str) -> str | None:
     """备份文件"""
     if not os.path.exists(file_path):
         logging.warning(f"文件不存在，无需备份: {file_path}")
@@ -53,11 +54,11 @@ def backup_file(file_path: str) -> str:
         return None
 
 
-def load_allowed_users_from_env() -> dict:
+def load_allowed_users_from_env() -> dict[str, Any]:
     """从环境变量加载用户数据"""
     try:
         users_env = os.environ.get("ALLOWED_USERS", "{}")
-        users_data = json.loads(users_env)
+        users_data = cast(dict[str, Any], json.loads(users_env))
         logging.info(f"从环境变量加载了 {len(users_data)} 个用户")
         return users_data
     except Exception as e:
@@ -65,7 +66,7 @@ def load_allowed_users_from_env() -> dict:
         return {}
 
 
-def load_usage_data_from_json() -> dict:
+def load_usage_data_from_json() -> dict[str, Any]:
     """从JSON文件加载使用数据"""
     usage_file = settings.USAGE_DB_PATH
     if not os.path.exists(usage_file):
@@ -74,7 +75,7 @@ def load_usage_data_from_json() -> dict:
 
     try:
         with open(usage_file, encoding="utf-8") as f:
-            usage_data = json.load(f)
+            usage_data = cast(dict[str, Any], json.load(f))
         logging.info(f"从JSON文件加载了 {len(usage_data)} 个用户的使用数据")
         return usage_data
     except Exception as e:

@@ -19,7 +19,8 @@
   height: 100%;
   width: 100%;
   position: relative;
-  overflow: hidden;
+  overflow: auto;
+  margin: 0;
 }
 
 .workspaceContainer {
@@ -27,7 +28,7 @@
   flex-direction: column;
   height: 100%;
   transition: width 0.3s ease;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .workspaceHeader {
@@ -75,7 +76,7 @@
 
 .workspaceContent {
   flex: 1;
-  overflow-y: auto;
+  overflow-y: visible;
   padding: var(--spacing-2) var(--spacing-4) var(--spacing-4);
   margin-top: -13px;
 }
@@ -92,6 +93,7 @@
 @media (max-width: 768px) {
   .pageContainer {
     flex-direction: column;
+    margin: 0;
   }
 
   .workspaceContainer {

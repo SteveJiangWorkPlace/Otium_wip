@@ -4,9 +4,9 @@
 包含所有Pydantic模型，用于请求/响应数据验证和序列化。
 """
 
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 # ==========================================
 # 请求模型
@@ -16,14 +16,14 @@ from pydantic import BaseModel
 class LoginRequest(BaseModel):
     """登录请求模型"""
 
-    username: str
-    password: str
+    username: str = Field(min_length=1, description="用户名不能为空")
+    password: str = Field(min_length=1, description="密码不能为空")
 
 
 class CheckTextRequest(BaseModel):
     """文本检查请求模型"""
 
-    text: str
+    text: str = Field(min_length=1, description="文本不能为空")
     operation: str  # "error_check", "translate_us", "translate_uk"
     version: str | None = "professional"
 
@@ -31,14 +31,14 @@ class CheckTextRequest(BaseModel):
 class RefineTextRequest(BaseModel):
     """文本润色请求模型"""
 
-    text: str
+    text: str = Field(min_length=1, description="文本不能为空")
     directives: list[str] = []
 
 
 class AIDetectionRequest(BaseModel):
     """AI检测请求模型"""
 
-    text: str
+    text: str = Field(min_length=1, description="文本不能为空")
 
 
 class AdminLoginRequest(BaseModel):
@@ -50,7 +50,7 @@ class AdminLoginRequest(BaseModel):
 class UpdateUserRequest(BaseModel):
     """更新用户请求模型"""
 
-    username: str
+    username: str = Field(min_length=1, description="用户名不能为空")
     daily_translation_limit: int | None = None
     daily_ai_detection_limit: int | None = None
     password: str | None = None
@@ -59,8 +59,8 @@ class UpdateUserRequest(BaseModel):
 class AddUserRequest(BaseModel):
     """添加用户请求模型"""
 
-    username: str
-    password: str
+    username: str = Field(min_length=1, description="用户名不能为空")
+    password: str = Field(min_length=1, description="密码不能为空")
     daily_translation_limit: int = 3
     daily_ai_detection_limit: int = 3
 
@@ -81,10 +81,12 @@ class VerifyEmailRequest(BaseModel):
 class RegisterRequest(BaseModel):
     """注册请求模型"""
 
-    username: str
-    email: str
-    password: str
-    verification_token: str  # 邮箱验证成功后获得的令牌
+    username: str = Field(min_length=1, description="用户名不能为空")
+    email: str = Field(min_length=1, description="邮箱不能为空")
+    password: str = Field(min_length=1, description="密码不能为空")
+    verification_token: str = Field(
+        min_length=1, description="验证令牌不能为空"
+    )  # 邮箱验证成功后获得的令牌
 
 
 class PasswordResetRequest(BaseModel):
@@ -103,7 +105,7 @@ class ResetPasswordRequest(BaseModel):
 class CheckUsernameRequest(BaseModel):
     """检查用户名请求模型"""
 
-    username: str
+    username: str = Field(min_length=1, description="用户名不能为空")
 
 
 # ==========================================
@@ -213,9 +215,17 @@ class AIDetectionResponse(BaseModel):
     """AI检测响应模型"""
 
     text: str
-    ai_probability: float
+    ai_probability: float = Field(ge=0.0, le=1.0, description="AI生成概率，范围0.0-1.0")
     is_ai_generated: bool
     details: dict[str, Any]
+
+    @field_validator("is_ai_generated")
+    @classmethod
+    def validate_is_ai_generated(cls, v):
+        """验证is_ai_generated字段为布尔类型，防止字符串自动转换"""
+        if not isinstance(v, bool):
+            raise ValueError("is_ai_generated必须是布尔值")
+        return v
 
 
 # ==========================================
@@ -252,15 +262,21 @@ class TranslationDirective(BaseModel):
 class AIChatMessage(BaseModel):
     """AI聊天消息模型"""
 
-    role: str  # "user"或"assistant"
-    content: str
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1)
 
 
 class AIChatRequest(BaseModel):
     """AI聊天请求模型"""
 
-    messages: list[AIChatMessage]
+    messages: list[AIChatMessage] = Field(min_length=1, description="消息列表不能为空")
     session_id: str | None = None  # 可选，用于保持对话上下文
+    deep_research_mode: bool = Field(
+        default=False, description="文献调研模式开关，使用Manus API进行文献调研式回复"
+    )
+    generate_literature_review: bool = Field(
+        default=False, description="生成文献综述选项，控制文献调研输出格式"
+    )
 
 
 class AIChatResponse(BaseModel):
@@ -271,6 +287,7 @@ class AIChatResponse(BaseModel):
     session_id: str | None = None
     model_used: str
     error: str | None = None
+    steps: list[str] | None = None  # Manus API步骤信息，仅文献调研模式使用
 
 
 # ==========================================
@@ -281,7 +298,7 @@ class AIChatResponse(BaseModel):
 class StreamTranslationRequest(BaseModel):
     """流式翻译请求模型"""
 
-    text: str
+    text: str = Field(min_length=1, description="文本不能为空")
     operation: str  # "translate_us", "translate_uk"
     version: str | None = "professional"
 
@@ -308,7 +325,7 @@ class StreamTranslationChunk(BaseModel):
 class StreamRefineTextRequest(BaseModel):
     """流式文本修改请求模型"""
 
-    text: str
+    text: str = Field(min_length=1, description="文本不能为空")
     directives: list[str] = []
 
 

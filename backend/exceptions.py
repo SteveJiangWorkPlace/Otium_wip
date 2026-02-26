@@ -95,89 +95,92 @@ def api_error_handler(func):
             return await func(*args, **kwargs)
         except ValueError as e:
             # 参数验证错误
-            logging.error(f"参数验证错误: {str(e)}", exc_info=True)
+            logging.error(f"参数验证错误: {repr(str(e))}", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorResponse(
                     error_code="VALIDATION_ERROR",
-                    message=str(e) or "参数验证失败",
+                    message=repr(str(e)) if str(e) else "参数验证失败",
                     details={"exception_type": "ValueError"},
                 ).dict(),
             ) from e
         except RateLimitError as e:
             # 速率限制错误
-            logging.error(f"速率限制错误: {str(e)}", exc_info=True)
+            logging.error(f"速率限制错误: {repr(str(e))}", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=ErrorResponse(
                     error_code="RATE_LIMIT_EXCEEDED",
-                    message=str(e) or "请求过于频繁，请稍后再试",
+                    message=repr(str(e)) if str(e) else "请求过于频繁，请稍后再试",
                     details={"exception_type": "RateLimitError"},
                 ).dict(),
             ) from e
         except GeminiAPIError as e:
             # Gemini API 错误
-            logging.error(f"Gemini API 错误: {str(e)}", exc_info=True)
+            logging.error(f"Gemini API 错误: {repr(str(e))}", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=ErrorResponse(
                     error_code="GEMINI_API_ERROR",
-                    message=str(e) or "Gemini API 处理失败",
-                    details={"exception_type": "GeminiAPIError", "error_type": e.error_type},
+                    message=repr(str(e)) if str(e) else "Gemini API 处理失败",
+                    details={
+                        "exception_type": "GeminiAPIError",
+                        "error_type": e.error_type,
+                    },
                 ).dict(),
             ) from e
         except GPTZeroAPIError as e:
             # GPTZero API 错误
-            logging.error(f"GPTZero API 错误: {str(e)}", exc_info=True)
+            logging.error(f"GPTZero API 错误: {repr(str(e))}", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=ErrorResponse(
                     error_code="GPTZERO_API_ERROR",
-                    message=str(e) or "GPTZero API 处理失败",
+                    message=repr(str(e)) if str(e) else "GPTZero API 处理失败",
                     details={"exception_type": "GPTZeroAPIError"},
                 ).dict(),
             ) from e
         except ValidationError as e:
             # 文本验证错误
-            logging.error(f"文本验证错误: {str(e)}", exc_info=True)
+            logging.error(f"文本验证错误: {repr(str(e))}", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorResponse(
                     error_code="TEXT_VALIDATION_ERROR",
-                    message=str(e) or "文本验证失败",
+                    message=repr(str(e)) if str(e) else "文本验证失败",
                     details={"exception_type": "ValidationError"},
                 ).dict(),
             ) from e
         except AuthenticationError as e:
             # 认证错误
-            logging.error(f"认证错误: {str(e)}", exc_info=True)
+            logging.error(f"认证错误: {repr(str(e))}", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=ErrorResponse(
                     error_code="AUTHENTICATION_ERROR",
-                    message=str(e) or "认证失败",
+                    message=repr(str(e)) if str(e) else "认证失败",
                     details={"exception_type": "AuthenticationError"},
                 ).dict(),
             ) from e
         except AuthorizationError as e:
             # 授权错误
-            logging.error(f"授权错误: {str(e)}", exc_info=True)
+            logging.error(f"授权错误: {repr(str(e))}", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=ErrorResponse(
                     error_code="AUTHORIZATION_ERROR",
-                    message=str(e) or "权限不足",
+                    message=repr(str(e)) if str(e) else "权限不足",
                     details={"exception_type": "AuthorizationError"},
                 ).dict(),
             ) from e
         except ResourceNotFoundError as e:
             # 资源未找到错误
-            logging.error(f"资源未找到错误: {str(e)}", exc_info=True)
+            logging.error(f"资源未找到错误: {repr(str(e))}", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=ErrorResponse(
                     error_code="RESOURCE_NOT_FOUND",
-                    message=str(e) or "请求的资源不存在",
+                    message=repr(str(e)) if str(e) else "请求的资源不存在",
                     details={"exception_type": "ResourceNotFoundError"},
                 ).dict(),
             ) from e

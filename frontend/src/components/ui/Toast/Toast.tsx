@@ -44,10 +44,10 @@ const Toast: React.FC<ToastProps> = ({
   };
 
   const iconMap = {
-    success: '✓',
-    error: '✗',
-    info: 'ℹ',
-    warning: '⚠',
+    success: '+',
+    error: 'x',
+    info: 'i',
+    warning: '!',
   };
 
   return (

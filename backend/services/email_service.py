@@ -6,10 +6,7 @@
 """
 
 import logging
-import smtplib
 from datetime import datetime
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 
 import resend
 
@@ -99,96 +96,25 @@ class EmailService:
             # 这里使用硬编码的base64数据，但已修改fill为黑色
             return "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2ODQgNjc1IiBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJ4TWlkWU1pZCBtZWV0IiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZlcnNpb249IjEuMSI+CiA8ZyBpZD0iTGF5ZXJfMSI+CiAgPHRpdGxlPkxheWVyIDE8L3RpdGxlPgogIDxwYXRoIGlkPSJzdmdfNCIgZD0ibTQ1MC4xNzYwMiw1MzcuNzU5MzFhMC4yLDAuMTkgLTU5LjUgMCAwIC0wLjM0LDAuMDlxLTguMTIsNDAuOCAtMjkuNDQsNzcuMjhxLTEzLjA5LDIyLjQgLTMwLjMzLDQzLjI1cS02LjA5LDcuMzcgLTE0LjA2LDExLjYzYy0zMi4yNywxNy4yNiAtNjQuOTMsLTQ3LjM4IC03NC43MywtNjguNDFjLTkuMjgsLTE5Ljk0IC0xNy41NiwtNDAuMTQgLTI0LjUxLC02MS4ycS0wLjc4LC0yLjM2IC0xLjI3LDAuMDhxLTYuOTQsMzQuNTEgLTIyLjk0LDY0LjEycS05LjMxLDE3LjIxIC0xOC42NiwzMi45NHEtNy40OCwxMi41OCAtMTUuNzEsMjEuNjFxLTMuNDIsMy43NSAtNy43Niw2LjY1Yy04LjczLDUuODQgLTIwLjEyLDQuNDIgLTI4LjgxLC0xLjIxYy00LjczLC0zLjA3IC05LjE1LC02Ljc1IC0xMi45NSwtMTAuOTFjLTE1LjMzLC0xNi43NyAtMjcuMzMsLTM4LjE3IC0zNy42LC01OC4zNGMtNy41NiwtMTQuODYgLTE1LjEyLC0zMC4xNSAtMjEuOTgsLTQ1LjQ4cS0xNC44OCwtMzMuMjUgLTI5LjcyLC02Ni4xNGMtMTIuMTcsLTI2Ljk2IC0yNS4xMSwtNTQuMTYgLTM5LjM5LC04MC42NHEtMTEuMTgsLTIwLjc1IC0yMy4zOCwtMzcuNjFxLTcuMywtMTAuMSAtMTAuMzQsLTE2LjM1cS0xNC4xNiwtMjkuMTIgMy43MywtNTkuNDNjNC4zMywtNy4zMyA4Ljk2LC0xNC4zNSAxMy45NCwtMjAuODRxMTMuOTksLTE4LjI5IDI2LjU1LC0zNS45N3E1LjcsLTguMDIgMTEuOTEsLTE2LjFxMjEuMSwtMjcuNDMgNDEuNzksLTUzLjk2cTIyLjg1LC0yOS4zMSAzMy44MiwtNDYuMTVxMTAuMzksLTE1Ljk0IDIxLjgsLTM1LjQ3cTYuODEsLTExLjY0IDExLjc5LC0yMi4xMWM3LjQ4LC0xNS43MiAxNi4zLC0yOS4yMSAzMC4zMSwtMzkuMXExNi4zOSwtMTEuNTkgMzYuMjgsLTEyLjc3YzMwLC0xLjc3IDU5Ljg1LDE1LjM3IDc2LjAxLDQwLjAyYTAuNzQsMC43NCAwIDAgMCAxLjIyLDAuMDNxMjQuNCwtMzMuNDggNjUuMzcsLTQ0LjE1cTguNDgsLTIuMjEgMTguMzcsLTIuODZxMzAuMzMsLTIuMDEgNTUuODcsMTEuNTZxMTUuMTEsOC4wMyAyNi4yOCwxOS4yNnEzLjc4LDMuNzkgNi40NCw4LjM4cTQ1LjU3LDc4LjczIDkxLjUyLDE1Ni43MnE1LjAyLDguNTEgMTAuMDcsMTcuMzRxNDMsNzUuMTggNzkuMDQsMTM1LjA3YzEwLjE3LDE2LjkxIDE2LjQ1LDM3Ljk1IDE1LjUzLDU3LjdjLTAuODgsMTguOCAtNS40NywzNi43NCAtMTEuNTYsNTUuMjlxLTIuODMsOC42IC03LjA4LDE4LjUzcS0xMC4xOCwyMy43NSAtMjAuODMsNDcuM3EtMTEuMDksMjQuNTMgLTIxLjM2LDQyLjI1cS05Ljk3LDE3LjIyIC0yMi4yLDM1LjkzYy0xMS4xMiwxNi45OSAtMjEuODIsMzQuMTQgLTM0LjgzLDUwLjM2Yy02LjMxLDcuODUgLTE0LjYyLDE2LjMyIC0yNC4zNSwxOC43OGMtMTEuNTIsMi45MiAtMjMuODgsLTQuNSAtMzIuMzIsLTEyLjgyYy0xMi41MSwtMTIuMzUgLTIyLjA0LC0yOC4zMSAtMjkuODksLTQ0LjM4Yy0xMi4yLC0yNC45OCAtMjEuNTEsLTUxLjU0IC0yOC43OCwtNzguNzZxLTAuMTUsLTAuNTYgLTAuNTIsLTEuMDF6bS0zODAuMDIsLTI2NC40OWMtOC43OCw4LjEyIC0xOC4yNCwxNi4zOSAtMjIuNTEsMjguMDdjLTUuMzUsMTQuNjMgLTQuMSwyOC4zOSAyLjMsNDIuMjNjNS44NSwxMi42NSAxMy4xNywyNC4wOCAyMC45LDM2LjI1YzE0Ljk1LDIzLjU1IDI5LjksNDguNjMgNDAuNTgsNjYuOTRjMTguNDgsMzEuNjYgMzMuOTMsNjEuNjIgNDkuNzQsOTIuNDhxNC40Nyw4LjczIDkuOTYsMTcuNTdjNC42Niw3LjUgMTAuNTYsMTUuMTQgMjAuMzQsMTMuMzZjMTMuMjcsLTIuNDEgMjMuODgsLTE5LjkgMjkuOTUsLTMwLjc5cTcuODEsLTE0LjAyIDEzLjgzLC0yNy4xNXEyNC45NCwtNTQuMzQgNDMuOTMsLTkzLjI2cTkuOTMsLTIwLjM1IDIyLjkzLC00NC4zNHE3LjUsLTEzLjgyIDE0LjYzLC0yNS42NHE4LjIyLC0xMy42MSAyMS4wOSwtMjUuM2MyNS43NSwtMjMuMzkgNTguNTEsLTI5LjcxIDkyLjU1LC0yNC45NGEwLjQ1LDAuNDUgMCAwIDAgMC40NiwtMC42N2MtMjQuNjEsLTQ0LjI2IC01MC44NCwtOTAuMjIgLTc2Ljc2LC0xMzYuNjFxLTQuNjQsLTguMzEgLTkuOSwtMTcuMzZxLTE3LjM0LC0yOS44NyAtMzQuMzEsLTYwLjQxYy0wLjczLC0xLjMzIC0xLjcxLC0yLjUzIC0yLjg3LC0zLjUxYy0yMC44MiwtMTcuNDUgLTUyLjU2LC0zNS40OSAtODAuMzcsLTIzLjUyYy0xNS45Miw2Ljg0IC0yNy4wNywyMS43MiAtMzYuNTQsMzcuMXEtNC42Miw3LjUxIC0xMC4wOCwxNy4ycS0xOC41NCwzMi44OSAtMzUuNTgsNjUuNjFxLTUuMTMsOS44NSAtOS41OCwxNy4zOXEtMjIuMjUsMzcuNjMgLTUzLjE3LDY4LjQ5cS0yLjIxLDIuMiAtMTEuNTIsMTAuODF6bTQ5NC4wNiwyNS42NHEyLjYyLC0wLjQgMS4zNiwtMi43M3EtMTMuODQsLTI1Ljc0IC0yNy4zOCwtNTAuMzlxLTQuNDgsLTguMTUgLTkuNDYsLTE3LjU5cS0xMi4yMSwtMjMuMTIgLTI7Ljk0LDk5LjE1YzcuMTgsMTIuNDggMTQuOTksMjUuMTkgMjEuODUsMzcuODRxNS4xMyw5LjQ4IDkuNjksMTcuNDlxMjQuMjIsNDIuNiA0OC40Miw4NC40NGEwLjM4LDAuMzggMCAwIDAgMC42NSwwLjAycTIwLjg4LC0zMS42OSA1Ny4zNCwtNDEuMzdjNS4yOCwtMS4zOSAxMC44NywtMS45MSAxNi4yOCwtMi43M3ptLTI4Ljk2LDI2Ny43OXExMi4wOCwtMTEuMzUgMjEuNSwtMjIuODRxNDAuMzEsLTQ5LjIzIDU3LjY5LC0xMDguODVxMi45OCwtMTAuMTkgNS43NiwtMjEuMzJxMi41MSwtMTAuMDQgMC45OCwtMTkuNDVjLTEuODksLTExLjYyIC04LjQsLTI0Ljc2IC0xOC4wNywtMzIuMTVjLTE4LjI4LC0xMy45NiAtNDIuMywtOS42MSAtNTcuODMsNS44NWMtMC45NiwwLjk3IC0xLjYsMi4xIC0yLjI4LDMuMjdjLTE4LjU5LDMxLjg2IC0zNy4xNCw2My4wMiAtNTUuOSw5NS4wMmMtMS45LDMuMjUgLTQuMDEsNi40MiAtNS42Miw5Ljc0YTEuOSwxLjg5IDQzLjEgMCAwIDAuMDYsMS43OWMxNC43NywyNS45IDI5LjQ1LDUzLjA3IDQ0Ljc1LDc3LjU5YzIuNTcsNC4xMiA0LjEsOC4zNyA4LjAzLDExLjRhMC43MywwLjcxIC00Ny42IDAgMCAwLjkzLC0wLjA1em0tMTc0LjM1LC0xLjc5YTAuNTMsMC41MyAwIDAgMCAwLjc5LDAuMDNjMS42OSwtMS43NyAzLjYzLC0zLjIgNS4zNywtNC45OXExNywtMTcuNTggMzEuMTMsLTM5LjA1YzE5LjI3LC0yOS4yNiAzNC4wOCwtNjAuMzkgNDMuOTEsLTkzLjE3YzEuMTMsLTMuNzQgMy40NSwtNy4xMiA1LjAyLC0xMC43NHE3LjU0LC0xNy40NiAtMC41LC0zNS4yNmMtOS42MiwtMjEuMzMgLTMxLjksLTMyLjU4IC01NC44MSwtMjUuMzFjLTYuMzIsMiAtMTYuOTcsNi41NyAtMjAuNDIsMTIuNjdjLTguMDIsMTQuMTYgLTIxLjEzLDM3Ljk3IC0zMi43LDU4LjIzcS0xMS44MywyMC43MSAtMjMuMjUsNDEuNjVjLTEuNjIsMi45OCAtMy41Miw1LjgxIC00LjkzLDguODdxLTAuMjYsMC41NyAwLjA0LDEuMWMxLjg1LDMuMjYgMy45Nyw2LjQ0IDUuOCw5Ljc1cTE3LjAzLDMwLjY5IDM0Ljk2LDYwLjI0YzEuODcsMy4wOCA0LjA0LDUuNzMgNS40Myw5LjA2cTEuNTcsMy43OCA0LjIsNi45MnoiIGZpbGw9IiNGRkZGRkYiLz4KIDwvZz4KPC9zdmc+"
 
-    def _create_smtp_connection(self) -> smtplib.SMTP | None:
-        """创建SMTP连接（仅当使用SMTP时）"""
-        if self.email_provider != "smtp":
-            logger.error("尝试创建SMTP连接但邮件提供商不是SMTP")
-            return None
-
-        try:
-            if self.smtp_ssl:
-                # SSL连接，使用配置的超时
-                smtp = smtplib.SMTP_SSL(self.smtp_host, self.smtp_port, timeout=self.smtp_timeout)
-            else:
-                # 普通连接，使用配置的超时
-                smtp = smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=self.smtp_timeout)
-
-            if self.smtp_tls and not self.smtp_ssl:
-                # STARTTLS加密
-                smtp.starttls()
-
-            # 登录
-            if self.smtp_username and self.smtp_password:
-                smtp.login(self.smtp_username, self.smtp_password)
-
-            return smtp
-
-        except Exception as e:
-            logger.error(f"创建SMTP连接失败: {e}")
-            return None
-
     def _send_email(
-        self, to_email: str, subject: str, html_content: str, text_content: str = None
+        self,
+        to_email: str,
+        subject: str,
+        html_content: str,
+        text_content: str | None = None,
     ) -> bool:
         """发送邮件（内部方法）
 
-        根据EMAIL_PROVIDER配置选择发送方式：
-        - smtp: 使用SMTP协议发送
-        - resend: 使用Resend API发送
+        仅支持Resend API发送方式。
         """
-        if self.email_provider == "smtp":
-            return self._send_email_via_smtp(to_email, subject, html_content, text_content)
-        elif self.email_provider == "resend":
-            return self._send_email_via_resend(to_email, subject, html_content, text_content)
-        else:
-            logger.error(f"不支持的邮件提供商: {self.email_provider}")
-            return False
-
-    def _send_email_via_smtp(
-        self, to_email: str, subject: str, html_content: str, text_content: str = None
-    ) -> bool:
-        """通过SMTP发送邮件"""
-        if not self.smtp_password:
-            logger.warning("SMTP密码未配置，邮件发送功能不可用")
-            return False
-
-        smtp = self._create_smtp_connection()
-        if not smtp:
-            return False
-
-        try:
-            # 创建邮件
-            msg = MIMEMultipart("alternative")
-            msg["Subject"] = subject
-            msg["From"] = self.smtp_from
-            msg["To"] = to_email
-
-            # 添加纯文本版本
-            if text_content:
-                text_part = MIMEText(text_content, "plain", "utf-8")
-                msg.attach(text_part)
-
-            # 添加HTML版本
-            html_part = MIMEText(html_content, "html", "utf-8")
-            msg.attach(html_part)
-
-            # 发送邮件
-            smtp.send_message(msg)
-            logger.info(f"邮件发送成功 [SMTP]: {to_email}, 主题: {subject}")
-            return True
-
-        except Exception as e:
-            logger.error(f"发送邮件失败 [SMTP]: {e}")
-            return False
-
-        finally:
-            try:
-                smtp.quit()
-            except Exception:
-                pass
+        return self._send_email_via_resend(to_email, subject, html_content, text_content)
 
     def _send_email_via_resend(
-        self, to_email: str, subject: str, html_content: str, text_content: str = None
+        self,
+        to_email: str,
+        subject: str,
+        html_content: str,
+        text_content: str | None = None,
     ) -> bool:
         """通过Resend API发送邮件"""
         if not self.resend_api_key:
@@ -209,7 +135,7 @@ class EmailService:
                 params["text"] = text_content
 
             # 发送邮件
-            response = resend.Emails.send(params)
+            response = resend.Emails.send(params)  # type: ignore[arg-type]
             logger.info(
                 f"邮件发送成功 [Resend]: {to_email}, 主题: {subject}, 响应ID: {response.get('id', 'N/A')}"
             )
@@ -262,9 +188,9 @@ class EmailService:
 
                     <div class="note">
                         <p><strong>注意：</strong></p>
-                        <p>• 如果您没有注册Otium账户，请忽略此邮件</p>
-                        <p>• 请勿将验证码分享给他人</p>
-                        <p>• 此验证码仅用于邮箱验证，不会用于其他用途</p>
+                        <p>- 如果您没有注册Otium账户，请忽略此邮件</p>
+                        <p>- 请勿将验证码分享给他人</p>
+                        <p>- 此验证码仅用于邮箱验证，不会用于其他用途</p>
                     </div>
                 </div>
                 <div class="footer">
@@ -287,9 +213,9 @@ class EmailService:
         验证码有效期10分钟，请尽快使用。
 
         注意：
-        • 如果您没有注册Otium账户，请忽略此邮件
-        • 请勿将验证码分享给他人
-        • 此验证码仅用于邮箱验证，不会用于其他用途
+        - 如果您没有注册Otium账户，请忽略此邮件
+        - 请勿将验证码分享给他人
+        - 此验证码仅用于邮箱验证，不会用于其他用途
 
         © {datetime.now().year} Otium学术文本处理平台. 保留所有权利.
         此邮件为系统自动发送，请勿回复
@@ -351,9 +277,9 @@ class EmailService:
 
                     <div class="note">
                         <p><strong>注意：</strong></p>
-                        <p>• 如果您没有申请重置密码，请忽略此邮件</p>
-                        <p>• 请勿将此链接分享给他人</p>
-                        <p>• 重置链接只能使用一次</p>
+                        <p>- 如果您没有申请重置密码，请忽略此邮件</p>
+                        <p>- 请勿将此链接分享给他人</p>
+                        <p>- 重置链接只能使用一次</p>
                     </div>
                 </div>
                 <div class="footer">
@@ -377,9 +303,9 @@ class EmailService:
         此链接24小时内有效，过期后需要重新申请。
 
         注意：
-        • 如果您没有申请重置密码，请忽略此邮件
-        • 请勿将此链接分享给他人
-        • 重置链接只能使用一次
+        - 如果您没有申请重置密码，请忽略此邮件
+        - 请勿将此链接分享给他人
+        - 重置链接只能使用一次
 
         © {datetime.now().year} Otium学术文本处理平台. 保留所有权利.
         此邮件为系统自动发送，请勿回复
@@ -433,22 +359,22 @@ class EmailService:
                         <h3>开始使用以下功能：</h3>
 
                         <div class="feature">
-                            <div class="feature-icon">✓</div>
+                            <div class="feature-icon">+</div>
                             <div><strong>文本纠错</strong> - 识别原文语法、拼写和标点错误</div>
                         </div>
 
                         <div class="feature">
-                            <div class="feature-icon">✓</div>
+                            <div class="feature-icon">+</div>
                             <div><strong>学术翻译</strong> - 论文标准的去AI化中英文翻译</div>
                         </div>
 
                         <div class="feature">
-                            <div class="feature-icon">✓</div>
+                            <div class="feature-icon">+</div>
                             <div><strong>文本修改</strong> - 内置详细的语法规则降低AI率</div>
                         </div>
 
                         <div class="feature">
-                            <div class="feature-icon">✓</div>
+                            <div class="feature-icon">+</div>
                             <div><strong>AI内容检测</strong> - 即时检测并识别AI生成内容</div>
                         </div>
                     </div>
@@ -479,10 +405,10 @@ class EmailService:
         感谢您注册Otium学术文本处理平台！您的账户已成功创建，邮箱已验证。
 
         开始使用以下功能：
-        • 文本纠错 - 识别原文语法、拼写和标点错误
-        • 学术翻译 - 论文标准的去AI化中英文翻译
-        • 文本修改 - 内置详细的语法规则降低AI率
-        • AI内容检测 - 即时检测并识别AI生成内容
+        - 文本纠错 - 识别原文语法、拼写和标点错误
+        - 学术翻译 - 论文标准的去AI化中英文翻译
+        - 文本修改 - 内置详细的语法规则降低AI率
+        - AI内容检测 - 即时检测并识别AI生成内容
 
         立即登录开始使用：
         {self.frontend_base_url}

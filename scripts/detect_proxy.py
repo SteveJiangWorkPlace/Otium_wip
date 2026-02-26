@@ -8,14 +8,14 @@
 - 安全考虑：仅检测配置，不修改系统设置
 """
 
-import os
-import sys
 import json
+import os
 import platform
 import subprocess
+import sys
 import winreg  # Windows注册表访问
-from typing import Dict, List, Optional, Tuple
 from datetime import datetime
+from typing import Dict, Optional
 
 
 def safe_print(message: str) -> None:
@@ -24,7 +24,7 @@ def safe_print(message: str) -> None:
         print(message)
     except UnicodeEncodeError:
         # 如果遇到编码问题，使用ASCII安全版本
-        safe_message = message.encode('ascii', errors='replace').decode('ascii')
+        safe_message = message.encode("ascii", errors="replace").decode("ascii")
         print(safe_message)
 
 
@@ -35,31 +35,31 @@ def check_environment_proxies() -> Dict[str, Dict[str, Optional[str]]]:
     safe_print("=" * 60)
 
     proxy_vars = {
-        'HTTP_PROXY': 'HTTP代理',
-        'HTTPS_PROXY': 'HTTPS代理',
-        'NO_PROXY': '代理排除列表',
-        'http_proxy': 'HTTP代理(小写)',
-        'https_proxy': 'HTTPS代理(小写)',
-        'no_proxy': '代理排除列表(小写)',
-        'ALL_PROXY': '通用代理',
-        'all_proxy': '通用代理(小写)',
-        'FTP_PROXY': 'FTP代理',
-        'ftp_proxy': 'FTP代理(小写)'
+        "HTTP_PROXY": "HTTP代理",
+        "HTTPS_PROXY": "HTTPS代理",
+        "NO_PROXY": "代理排除列表",
+        "http_proxy": "HTTP代理(小写)",
+        "https_proxy": "HTTPS代理(小写)",
+        "no_proxy": "代理排除列表(小写)",
+        "ALL_PROXY": "通用代理",
+        "all_proxy": "通用代理(小写)",
+        "FTP_PROXY": "FTP代理",
+        "ftp_proxy": "FTP代理(小写)",
     }
 
     results = {}
     for var, description in proxy_vars.items():
         value = os.environ.get(var)
         results[var] = {
-            'value': value,
-            'description': description,
-            'exists': value is not None
+            "value": value,
+            "description": description,
+            "exists": value is not None,
         }
 
         if value:
             safe_print(f"[警告] 检测到环境变量: {var}={value} ({description})")
 
-    if not any(results[var]['exists'] for var in results):
+    if not any(results[var]["exists"] for var in results):
         safe_print("[成功] 未在环境变量中检测到代理设置")
 
     safe_print("")
@@ -74,15 +74,19 @@ def check_windows_registry_proxies() -> Dict[str, Optional[str]]:
 
     registry_proxies = {}
     registry_paths = [
-        (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Internet Settings", "用户级代理设置"),
-        (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Internet Settings", "系统级代理设置")
+        (
+            winreg.HKEY_CURRENT_USER,
+            r"Software\Microsoft\Windows\CurrentVersion\Internet Settings",
+            "用户级代理设置",
+        ),
+        (
+            winreg.HKEY_LOCAL_MACHINE,
+            r"Software\Microsoft\Windows\CurrentVersion\Internet Settings",
+            "系统级代理设置",
+        ),
     ]
 
-    proxy_keys = [
-        'ProxyServer',
-        'ProxyEnable',
-        'ProxyOverride'
-    ]
+    proxy_keys = ["ProxyServer", "ProxyEnable", "ProxyOverride"]
 
     try:
         for hive, path, description in registry_paths:
@@ -95,12 +99,18 @@ def check_windows_registry_proxies() -> Dict[str, Optional[str]]:
                         value, reg_type = winreg.QueryValueEx(key, proxy_key)
                         registry_proxies[f"{description}_{proxy_key}"] = str(value)
 
-                        if proxy_key == 'ProxyEnable' and value == 1:
-                            safe_print(f"[警告] 注册表代理已启用: {description}.{proxy_key} = {value}")
-                        elif proxy_key == 'ProxyServer' and value:
-                            safe_print(f"[警告] 注册表代理服务器: {description}.{proxy_key} = {value}")
-                        elif proxy_key == 'ProxyOverride' and value:
-                            safe_print(f"[信息] 注册表代理排除: {description}.{proxy_key} = {value}")
+                        if proxy_key == "ProxyEnable" and value == 1:
+                            safe_print(
+                                f"[警告] 注册表代理已启用: {description}.{proxy_key} = {value}"
+                            )
+                        elif proxy_key == "ProxyServer" and value:
+                            safe_print(
+                                f"[警告] 注册表代理服务器: {description}.{proxy_key} = {value}"
+                            )
+                        elif proxy_key == "ProxyOverride" and value:
+                            safe_print(
+                                f"[信息] 注册表代理排除: {description}.{proxy_key} = {value}"
+                            )
                     except FileNotFoundError:
                         # 键不存在是正常的
                         pass
@@ -131,37 +141,36 @@ def check_npm_proxy_config() -> Dict[str, Optional[str]]:
 
     npm_configs = {}
     npm_commands = [
-        ('proxy', 'npm config get proxy'),
-        ('https-proxy', 'npm config get https-proxy'),
-        ('noproxy', 'npm config get noproxy'),
-        ('registry', 'npm config get registry')
+        ("proxy", "npm config get proxy"),
+        ("https-proxy", "npm config get https-proxy"),
+        ("noproxy", "npm config get noproxy"),
+        ("registry", "npm config get registry"),
     ]
 
     try:
         for name, cmd in npm_commands:
             result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
             value = result.stdout.strip()
-            npm_configs[f'npm_{name}'] = value if value and value != 'null' else None
+            npm_configs[f"npm_{name}"] = value if value and value != "null" else None
 
-            if value and value != 'null':
+            if value and value != "null":
                 safe_print(f"[警告] 检测到npm全局配置 {name}: {value}")
     except Exception as e:
         safe_print(f"[错误] 检查npm配置时出错: {e}")
 
     # 检查项目级.npmrc文件
-    npmrc_paths = [
-        os.path.join(os.getcwd(), '.npmrc'),
-        os.path.expanduser('~/.npmrc')
-    ]
+    npmrc_paths = [os.path.join(os.getcwd(), ".npmrc"), os.path.expanduser("~/.npmrc")]
 
     for npmrc_path in npmrc_paths:
         if os.path.exists(npmrc_path):
             try:
-                with open(npmrc_path, 'r', encoding='utf-8') as f:
+                with open(npmrc_path, "r", encoding="utf-8") as f:
                     content = f.read()
-                    if 'proxy' in content.lower() or 'registry' in content.lower():
+                    if "proxy" in content.lower() or "registry" in content.lower():
                         safe_print(f"[警告] 检测到项目级npm配置文件: {npmrc_path}")
-                        npm_configs[f'npmrc_{os.path.basename(npmrc_path)}'] = content[:200] + "..." if len(content) > 200 else content
+                        npm_configs[f"npmrc_{os.path.basename(npmrc_path)}"] = (
+                            content[:200] + "..." if len(content) > 200 else content
+                        )
             except Exception as e:
                 safe_print(f"[错误] 读取npmrc文件 {npmrc_path} 时出错: {e}")
 
@@ -182,11 +191,13 @@ def check_python_proxy_config() -> Dict[str, Optional[str]]:
 
     # 检查pip配置
     try:
-        result = subprocess.run('pip config list', shell=True, capture_output=True, text=True)
+        result = subprocess.run(
+            "pip config list", shell=True, capture_output=True, text=True
+        )
         pip_config = result.stdout.strip()
         if pip_config:
-            python_configs['pip_config'] = pip_config
-            if 'proxy' in pip_config.lower():
+            python_configs["pip_config"] = pip_config
+            if "proxy" in pip_config.lower():
                 safe_print("[警告] 检测到pip代理配置")
                 safe_print(f"pip配置:\n{pip_config}")
     except Exception as e:
@@ -195,9 +206,10 @@ def check_python_proxy_config() -> Dict[str, Optional[str]]:
     # 检查Python环境中的代理相关模块配置
     try:
         import urllib.request
+
         proxy_handler = urllib.request.getproxies()
         if proxy_handler:
-            python_configs['urllib_proxies'] = json.dumps(proxy_handler)
+            python_configs["urllib_proxies"] = json.dumps(proxy_handler)
             safe_print("[警告] 检测到urllib代理设置:")
             for key, value in proxy_handler.items():
                 safe_print(f"  {key}: {value}")
@@ -219,9 +231,9 @@ def check_git_proxy_config() -> Dict[str, Optional[str]]:
 
     git_configs = {}
     git_commands = [
-        ('http.proxy', 'git config --global http.proxy'),
-        ('https.proxy', 'git config --global https.proxy'),
-        ('http.sslVerify', 'git config --global http.sslVerify')
+        ("http.proxy", "git config --global http.proxy"),
+        ("https.proxy", "git config --global https.proxy"),
+        ("http.sslVerify", "git config --global http.sslVerify"),
     ]
 
     try:
@@ -229,7 +241,7 @@ def check_git_proxy_config() -> Dict[str, Optional[str]]:
             result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
             value = result.stdout.strip()
             if value:
-                git_configs[f'git_{name}'] = value
+                git_configs[f"git_{name}"] = value
                 safe_print(f"[警告] 检测到Git配置 {name}: {value}")
     except Exception as e:
         safe_print(f"[错误] 检查Git配置时出错: {e}")
@@ -249,13 +261,15 @@ def check_system_proxy_settings() -> Dict[str, Optional[str]]:
 
     system_proxies = {}
 
-    if platform.system() == 'Windows':
+    if platform.system() == "Windows":
         try:
             # 检查WinHTTP代理设置
-            result = subprocess.run('netsh winhttp show proxy', shell=True, capture_output=True, text=True)
+            result = subprocess.run(
+                "netsh winhttp show proxy", shell=True, capture_output=True, text=True
+            )
             output = result.stdout.strip()
-            if output and 'Direct access' not in output:
-                system_proxies['winhttp_proxy'] = output
+            if output and "Direct access" not in output:
+                system_proxies["winhttp_proxy"] = output
                 safe_print("[警告] 检测到WinHTTP代理设置:")
                 safe_print(output)
             else:
@@ -275,7 +289,7 @@ def generate_proxy_report(
     npm_proxies: Dict[str, Optional[str]],
     python_proxies: Dict[str, Optional[str]],
     git_proxies: Dict[str, Optional[str]],
-    system_proxies: Dict[str, Optional[str]]
+    system_proxies: Dict[str, Optional[str]],
 ) -> None:
     """生成代理检测报告"""
     safe_print("=" * 60)
@@ -283,16 +297,18 @@ def generate_proxy_report(
     safe_print("=" * 60)
 
     # 统计检测结果
-    env_count = sum(1 for var in env_proxies if env_proxies[var]['exists'])
+    env_count = sum(1 for var in env_proxies if env_proxies[var]["exists"])
     registry_count = len(registry_proxies)
     npm_count = sum(1 for v in npm_proxies.values() if v)
     python_count = sum(1 for v in python_proxies.values() if v)
     git_count = sum(1 for v in git_proxies.values() if v)
     system_count = sum(1 for v in system_proxies.values() if v)
 
-    total_count = env_count + registry_count + npm_count + python_count + git_count + system_count
+    total_count = (
+        env_count + registry_count + npm_count + python_count + git_count + system_count
+    )
 
-    safe_print(f"检测汇总:")
+    safe_print("检测汇总:")
     safe_print(f"  环境变量代理: {env_count} 个")
     safe_print(f"  注册表代理: {registry_count} 个")
     safe_print(f"  npm代理: {npm_count} 个")
@@ -315,13 +331,15 @@ def generate_proxy_report(
     if env_count > 0:
         recommendations.append("清除环境变量代理:")
         for var in env_proxies:
-            if env_proxies[var]['exists']:
+            if env_proxies[var]["exists"]:
                 recommendations.append(f"  - 删除环境变量: {var}")
 
     if registry_count > 0:
         recommendations.append("清理注册表代理设置:")
         recommendations.append("  1. 运行命令: regedit")
-        recommendations.append("  2. 导航到: HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings")
+        recommendations.append(
+            "  2. 导航到: HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings"
+        )
         recommendations.append("  3. 删除或修改 ProxyServer、ProxyEnable 值")
         recommendations.append("  注意: 修改注册表有风险，请先备份")
 
@@ -350,7 +368,9 @@ def generate_proxy_report(
     recommendations.append("\n通用建议:")
     recommendations.append("1. 仅在公司网络要求时才设置代理")
     recommendations.append("2. 开发时建议禁用所有代理，避免本地连接问题")
-    recommendations.append("3. 使用 NO_PROXY 环境变量排除本地地址（127.0.0.1, localhost）")
+    recommendations.append(
+        "3. 使用 NO_PROXY 环境变量排除本地地址（127.0.0.1, localhost）"
+    )
     recommendations.append("4. 测试网络连接: curl -v http://localhost:8000/api/health")
 
     # 显示所有建议
@@ -385,8 +405,12 @@ def main():
 
     # 生成报告
     generate_proxy_report(
-        env_proxies, registry_proxies, npm_proxies,
-        python_proxies, git_proxies, system_proxies
+        env_proxies,
+        registry_proxies,
+        npm_proxies,
+        python_proxies,
+        git_proxies,
+        system_proxies,
     )
 
     # 提供快速修复命令
@@ -413,12 +437,12 @@ def main():
 
     # 检查是否有代理设置
     total_proxies = (
-        sum(1 for var in env_proxies if env_proxies[var]['exists']) +
-        len(registry_proxies) +
-        sum(1 for v in npm_proxies.values() if v) +
-        sum(1 for v in python_proxies.values() if v) +
-        sum(1 for v in git_proxies.values() if v) +
-        sum(1 for v in system_proxies.values() if v)
+        sum(1 for var in env_proxies if env_proxies[var]["exists"])
+        + len(registry_proxies)
+        + sum(1 for v in npm_proxies.values() if v)
+        + sum(1 for v in python_proxies.values() if v)
+        + sum(1 for v in git_proxies.values() if v)
+        + sum(1 for v in system_proxies.values() if v)
     )
 
     if total_proxies > 0:

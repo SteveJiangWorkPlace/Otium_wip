@@ -21,14 +21,16 @@ from sqlalchemy import (
     Text,
     create_engine,
 )
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import Session, relationship, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Session, relationship, sessionmaker
 from sqlalchemy.sql import func
 
 from config import settings
 
+
 # SQLAlchemy基类
-Base = declarative_base()
+class Base(DeclarativeBase):
+    pass
+
 
 # 数据库引擎和会话工厂
 _engine = None
@@ -144,7 +146,7 @@ class User(Base):
             "username": self.username,
             "email": self.email,
             "email_verified": self.email_verified,
-            "expiry_date": self.expiry_date.strftime("%Y-%m-%d") if self.expiry_date else None,
+            "expiry_date": (self.expiry_date.strftime("%Y-%m-%d") if self.expiry_date else None),
             "max_translations": self.max_translations,
             "daily_translation_limit": self.daily_translation_limit,
             "daily_ai_detection_limit": self.daily_ai_detection_limit,
@@ -238,13 +240,13 @@ def create_admin_user(db: Session) -> User:
 
     if admin_user:
         # 更新现有管理员用户
-        admin_user.password_hash = hash_password(settings.ADMIN_PASSWORD)
-        admin_user.expiry_date = datetime.strptime("2099-12-31", "%Y-%m-%d").date()
-        admin_user.max_translations = 99999
-        admin_user.daily_translation_limit = 999
-        admin_user.daily_ai_detection_limit = 999
-        admin_user.is_admin = True
-        admin_user.is_active = True
+        admin_user.password_hash = hash_password(settings.ADMIN_PASSWORD)  # type: ignore[assignment]
+        admin_user.expiry_date = datetime.strptime("2099-12-31", "%Y-%m-%d").date()  # type: ignore[assignment]
+        admin_user.max_translations = 99999  # type: ignore[assignment]
+        admin_user.daily_translation_limit = 999  # type: ignore[assignment]
+        admin_user.daily_ai_detection_limit = 999  # type: ignore[assignment]
+        admin_user.is_admin = True  # type: ignore[assignment]
+        admin_user.is_active = True  # type: ignore[assignment]
         logging.info(f"更新管理员用户: {settings.ADMIN_USERNAME}")
     else:
         # 创建新管理员用户

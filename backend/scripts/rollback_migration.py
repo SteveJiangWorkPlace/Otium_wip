@@ -32,7 +32,7 @@ def setup_logging():
 
 def export_users_to_json(db_session) -> dict:
     """从数据库导出用户数据到JSON格式"""
-    users = db_session.query(User).filter(User.is_admin is False).all()  # 排除管理员
+    users = db_session.query(User).filter(User.is_admin.is_(False)).all()  # 排除管理员
     users_data = {}
 
     for user in users:

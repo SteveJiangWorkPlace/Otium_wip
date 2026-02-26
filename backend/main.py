@@ -1,43 +1,110 @@
 import hashlib
 import logging
 import os
+import sys
 import time
 import warnings
-import requests
-from datetime import datetime
+
+from pydantic.warnings import ArbitraryTypeWarning
+
+warnings.filterwarnings("ignore", category=ArbitraryTypeWarning)
+
+# 设置控制台编码环境变量
+os.environ["PYTHONIOENCODING"] = "utf-8"
+os.environ["PYTHONUTF8"] = "1"
+
+# Windows控制台编码修复 - 确保UTF-8编码
+if sys.platform == "win32":
+    try:
+        # 重新配置标准流使用UTF-8编码
+        sys.stdout = open(
+            sys.stdout.fileno(),
+            mode="w",
+            encoding="utf-8",
+            errors="replace",
+            buffering=1,
+        )
+        sys.stderr = open(
+            sys.stderr.fileno(),
+            mode="w",
+            encoding="utf-8",
+            errors="replace",
+            buffering=1,
+        )
+    except Exception:
+        pass  # 如果失败，继续使用默认编码
+
+# 配置logging使用UTF-8编码并过滤非ASCII字符
+
+logging.basicConfig(encoding="utf-8")
+# 为所有处理器设置errors='replace'，避免编码错误
+for handler in logging.getLogger().handlers:
+    if hasattr(handler, "stream") and hasattr(handler.stream, "encoding"):
+        # 确保处理器使用UTF-8编码
+        pass
+
+
+# 添加自定义过滤器，替换非ASCII字符
+class ASCIIFilter(logging.Filter):
+    def filter(self, record):
+        if isinstance(record.msg, str):
+            # 替换非ASCII字符为'?'
+            record.msg = record.msg.encode("ascii", errors="replace").decode("ascii")
+        elif isinstance(record.args, tuple):
+            # 处理格式化参数中的字符串
+            new_args = []
+            for arg in record.args:
+                if isinstance(arg, str):
+                    new_args.append(arg.encode("ascii", errors="replace").decode("ascii"))
+                else:
+                    new_args.append(arg)
+            record.args = tuple(new_args)
+        return True
+
+
+# 将过滤器添加到根日志记录器
+logging.getLogger().addFilter(ASCIIFilter())
+
+# 已提前导入并配置ArbitraryTypeWarning警告过滤
+from datetime import datetime  # noqa: E402
 
 # import google.api_core.exceptions
 # from google.api_core.exceptions import ServiceUnavailable, DeadlineExceeded, InvalidArgument, PermissionDenied
 # 这些异常现在由 google.genai.errors 提供
-from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, Request, status
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer, OAuth2PasswordBearer
+from dotenv import load_dotenv  # noqa: E402
+from fastapi import Depends, FastAPI, HTTPException, Request, status  # noqa: E402
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from fastapi.responses import StreamingResponse  # noqa: E402
+from fastapi.security import (  # noqa: E402
+    HTTPAuthorizationCredentials,
+    HTTPBearer,
+    OAuth2PasswordBearer,
+)
 
 # 导入类型用于类型提示
-from jose import jwt
-from sqlalchemy import text
+from jose import jwt  # noqa: E402
+from sqlalchemy import text  # noqa: E402
 
 # 导入自定义模块
-from api_services import (
+from api_services import (  # noqa: E402
     chat_with_gemini,
+    chat_with_manus,
     check_gptzero,
     extract_annotations_with_context,
     generate_gemini_content_stream,
     generate_gemini_content_with_fallback,
     generate_safe_hash_for_cache,
 )
-from config import settings
-from exceptions import api_error_handler
-from models.database import get_session_local, init_database
-from prompts import (
+from config import settings, setup_logging  # noqa: E402
+from exceptions import api_error_handler  # noqa: E402
+from models.database import get_session_local, init_database  # noqa: E402
+from prompts import (  # noqa: E402
     SHORTCUT_ANNOTATIONS,
     build_academic_translate_prompt,
     build_english_refine_prompt,
     build_error_check_prompt,
 )
-from schemas import (
+from schemas import (  # noqa: E402
     AddUserRequest,
     AdminLoginRequest,
     AIChatRequest,
@@ -62,27 +129,13 @@ from schemas import (
     VerificationResponse,
     VerifyEmailRequest,
 )
-from services.email_service import email_service
-from services.verification_service import verification_service
-from user_services.user_service import UserService
-from utils import CacheManager, RateLimiter, TextValidator
-
-# 过滤Pydantic的ArbitraryTypeWarning警告
-
-
-warnings.filterwarnings(
-    "ignore", category=UserWarning, module="pydantic._internal._generate_schema"
-)
-warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
-
-# 配置日志
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+from services.email_service import email_service  # noqa: E402
+from services.verification_service import verification_service  # noqa: E402
+from user_services.user_service import UserService  # noqa: E402
+from utils import CacheManager, RateLimiter, TextValidator  # noqa: E402
 
 # 加载环境变量
 load_dotenv()
-
 
 
 def run_migrations_if_needed():
@@ -112,16 +165,17 @@ def run_migrations_if_needed():
         logging.info("运行数据库迁移...")
         command.upgrade(alembic_cfg, "head")
         logging.info("数据库迁移完成")
+        return  # 迁移成功，不需要运行后备方案
 
     except ImportError as e:
         logging.warning(f"alembic未安装，跳过迁移: {e}")
+        logging.info("运行email列检查后备方案...")
+        ensure_email_column_exists()
     except Exception as e:
         logging.error(f"数据库迁移失败: {e}", exc_info=True)
         logging.warning("迁移失败，应用将继续启动")
-
-    # 无论迁移是否成功，都尝试确保email列存在
-    logging.info("运行email列检查后备方案...")
-    ensure_email_column_exists()
+        logging.info("运行email列检查后备方案...")
+        ensure_email_column_exists()
 
 
 def ensure_email_column_exists():
@@ -188,10 +242,7 @@ def ensure_email_column_exists():
 
 
 # 日志配置
-log_level_str = os.environ.get("LOG_LEVEL", "INFO").upper()
-log_level = getattr(logging, log_level_str, logging.INFO)
-logging.basicConfig(level=log_level, format="%(asctime)s - %(levelname)s - %(message)s")
-logging.info(f"日志级别设置为: {log_level_str} ({log_level})")
+setup_logging()
 
 logger = logging.getLogger(__name__)
 
@@ -234,6 +285,18 @@ app.add_middleware(
 )
 
 
+# 添加UTF-8编码中间件，确保所有JSON响应使用UTF-8字符集
+@app.middleware("http")
+async def add_charset_to_json_response(request: Request, call_next):
+    response = await call_next(request)
+    content_type = response.headers.get("content-type", "")
+    if content_type.startswith("application/json"):
+        # 确保字符集为UTF-8
+        if "charset=" not in content_type:
+            response.headers["content-type"] = "application/json; charset=utf-8"
+    return response
+
+
 security = HTTPBearer()
 
 # ==========================================
@@ -255,7 +318,7 @@ ALGORITHM = "HS256"
 DEFAULT_SECRET_KEY = "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92"
 if SECRET_KEY == DEFAULT_SECRET_KEY:
     logging.warning(
-        "⚠️ SECRET_KEY使用的是默认值！在生产环境中应设置JWT_SECRET_KEY或SECRET_KEY环境变量来增强安全性"
+        "[警告] SECRET_KEY使用的是默认值！在生产环境中应设置JWT_SECRET_KEY或SECRET_KEY环境变量来增强安全性"
     )
 
 # ==========================================
@@ -329,7 +392,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
+        username: str | None = payload.get("sub")
         if username is None:
             raise credentials_exception
 
@@ -721,7 +784,9 @@ async def reset_password(request: ResetPasswordRequest):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=ErrorResponse(
-                error_code="USER_NOT_FOUND", message="用户不存在", details={"email": email}
+                error_code="USER_NOT_FOUND",
+                message="用户不存在",
+                details={"email": email},
             ).dict(),
         )
 
@@ -774,7 +839,9 @@ async def get_user_info(user: UserObject = Depends(get_current_user)):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=ErrorResponse(
-                error_code="USER_NOT_FOUND", message="用户不存在", details={"username": username}
+                error_code="USER_NOT_FOUND",
+                message="用户不存在",
+                details={"username": username},
             ).dict(),
         )
     return user_info
@@ -783,7 +850,9 @@ async def get_user_info(user: UserObject = Depends(get_current_user)):
 @app.post("/api/text/check")
 @api_error_handler
 async def check_text(
-    http_request: Request, request: CheckTextRequest, user: UserObject = Depends(get_current_user)
+    http_request: Request,
+    request: CheckTextRequest,
+    user: UserObject = Depends(get_current_user),
 ):
     """文本检查（纠错或翻译）"""
 
@@ -827,9 +896,13 @@ async def check_text(
     if request.operation == "error_check":
         prompt = build_error_check_prompt(request.text)
     elif request.operation == "translate_us":
-        prompt = build_academic_translate_prompt(request.text, "US", request.version)
+        prompt = build_academic_translate_prompt(
+            request.text, "US", request.version or "professional"
+        )
     elif request.operation == "translate_uk":
-        prompt = build_academic_translate_prompt(request.text, "UK", request.version)
+        prompt = build_academic_translate_prompt(
+            request.text, "UK", request.version or "professional"
+        )
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -907,7 +980,9 @@ async def check_text(
     if request.operation in ["translate_us", "translate_uk"]:
         try:
             remaining = user_service.record_usage(
-                username, operation_type=request.operation, text_length=len(request.text)
+                username,
+                operation_type=request.operation,
+                text_length=len(request.text),
             )
             response_data["remaining_translations"] = remaining
         except ValueError as e:
@@ -929,7 +1004,10 @@ async def check_text(
                 detail=ErrorResponse(
                     error_code="DATA_SAVE_ERROR",
                     message="系统错误：无法保存翻译记录",
-                    details={"original_error": str(e), "exception_type": "RuntimeError"},
+                    details={
+                        "original_error": str(e),
+                        "exception_type": "RuntimeError",
+                    },
                 ).dict(),
             ) from e
         except Exception as e:
@@ -940,7 +1018,10 @@ async def check_text(
                 detail=ErrorResponse(
                     error_code="INTERNAL_SERVER_ERROR",
                     message="系统内部错误",
-                    details={"original_error": str(e), "exception_type": e.__class__.__name__},
+                    details={
+                        "original_error": str(e),
+                        "exception_type": e.__class__.__name__,
+                    },
                 ).dict(),
             ) from e
 
@@ -1004,7 +1085,7 @@ async def translate_stream(
 
     # 根据操作类型构建prompt
     style = "US" if request.operation == "translate_us" else "UK"
-    prompt = build_academic_translate_prompt(request.text, style, request.version)
+    prompt = build_academic_translate_prompt(request.text, style, request.version or "professional")
 
     # 获取API密钥（优先从环境变量获取，其次从请求头获取）
     gemini_api_key = None
@@ -1190,7 +1271,9 @@ async def refine_stream(
         except Exception as e:
             logging.error(f"流式文本修改异常: {str(e)}", exc_info=True)
             error_chunk = StreamRefineTextChunk(
-                type="error", error=f"流式文本修改异常: {str(e)}", error_type="stream_error"
+                type="error",
+                error=f"流式文本修改异常: {str(e)}",
+                error_type="stream_error",
             )
             yield f"data: {error_chunk.json()}\n\n"
 
@@ -1209,7 +1292,9 @@ async def refine_stream(
 @app.post("/api/text/refine")
 @api_error_handler
 async def refine_text(
-    http_request: Request, request: RefineTextRequest, user: UserObject = Depends(get_current_user)
+    http_request: Request,
+    request: RefineTextRequest,
+    user: UserObject = Depends(get_current_user),
 ):
     """英文精修"""
 
@@ -1330,7 +1415,9 @@ async def refine_text(
 @app.post("/api/text/detect-ai")
 @api_error_handler
 async def detect_ai(
-    http_request: Request, request: AIDetectionRequest, user: UserObject = Depends(get_current_user)
+    http_request: Request,
+    request: AIDetectionRequest,
+    user: UserObject = Depends(get_current_user),
 ):
     """AI内容检测"""
 
@@ -1444,12 +1531,27 @@ async def detect_ai(
 @app.post("/api/chat")
 @api_error_handler
 async def chat_endpoint(
-    http_request: Request, request: AIChatRequest, user: UserObject = Depends(get_current_user)
+    http_request: Request,
+    request: AIChatRequest,
+    user: UserObject = Depends(get_current_user),
 ):
     """AI聊天对话"""
 
+    logging.info(
+        f"chat_endpoint called: deep_research_mode={request.deep_research_mode}, messages_count={len(request.messages)}"
+    )
+    # logging.info(f"DEBUG: Full request dict: {request.dict()}")  # 注释掉，避免GBK编码问题
+    logging.info(
+        f"DEBUG: Type of deep_research_mode: {type(request.deep_research_mode)}, Value: {request.deep_research_mode}"
+    )
     # 提取用户名
     username = user.username if hasattr(user, "username") else str(user)
+
+    # 调试日志：显示接收到的请求参数
+    logging.info(
+        f"chat_endpoint: 收到聊天请求，用户: {username}, 消息数量: {len(request.messages)}"
+    )
+    logging.info(f"chat_endpoint: deep_research_mode 值: {request.deep_research_mode}")
 
     # 速率限制检查
     allowed, wait_time = rate_limiter.is_allowed(username)
@@ -1469,7 +1571,9 @@ async def chat_endpoint(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=ErrorResponse(
-                error_code="USER_NOT_FOUND", message="用户不存在", details={"username": username}
+                error_code="USER_NOT_FOUND",
+                message="用户不存在",
+                details={"username": username},
             ).dict(),
         )
 
@@ -1503,7 +1607,111 @@ async def chat_endpoint(
 
     logging.info(f"使用{source}的Gemini API密钥进行聊天，用户: {username}")
 
-    # 调用聊天服务
+    logging.info(
+        f"chat_endpoint 请求数据: deep_research_mode={request.deep_research_mode}, messages_count={len(request.messages)}"
+    )
+    # 检查是否启用文献调研模式
+    logging.info(
+        f"DEBUG: request.deep_research_mode type: {type(request.deep_research_mode)}, value: {request.deep_research_mode}"
+    )
+    if request.deep_research_mode:
+        logging.info(f"文献调研模式已启用，用户: {username}")
+        logging.info(f"生成文献综述选项: {request.generate_literature_review}")
+
+        # 提取用户的最新消息作为prompt
+        prompt = ""
+        for msg in reversed(request.messages):
+            if msg.role == "user":
+                prompt = msg.content.strip()
+                break
+
+        if not prompt:
+            prompt = "请帮助我进行学术研究"  # 默认prompt
+
+        logging.info(f"文献调研原始prompt: {repr(prompt[:100])}...")
+
+        # 根据生成文献综述选项添加隐形指令
+        if request.generate_literature_review:
+            # 生成文献综述模式（保留完整引文格式）
+            final_prompt = f"""如果遇到需要选择或确认的情况，请基于最佳判断做出选择并继续执行，不要询问用户任何问题。
+请进行文献调研，同时保留完整的学术引文格式：
+1. 首先撰写一段综合性的文献综述，总结和评述所收集文献的主要观点、研究方法和结论。在适当的地方使用文内引用（作者, 年份）来引用参考文献。
+2. 为每篇文献提供完整的引文信息：作者、标题、年份、来源（期刊/会议名称）和链接（如果有）
+3. 为每篇文献提供简洁的摘要总结
+4. 可以使用markdown格式（如**加粗**、*斜体*）来强调重要内容，改善排版可读性
+5. 请以纯文本形式输出结果，不要输出文档文件或其他格式的文档。
+
+用户需求：{prompt}"""
+            logging.info("添加文献综述生成指令")
+        else:
+            # 普通文献信息模式（保留完整引文信息）
+            final_prompt = f"""如果遇到需要选择或确认的情况，请基于最佳判断做出选择并继续执行，不要询问用户任何问题。
+请进行文献调研，同时保留完整的学术引文格式：
+1. 为每篇文献提供完整的引文信息：作者、标题、年份、来源（期刊/会议名称）和链接（如果有）
+2. 为每篇文献提供简洁的摘要总结
+3. 可以使用markdown格式（如**加粗**、*斜体*）来强调重要内容，改善排版可读性
+4. 请以纯文本形式输出结果，不要输出文档文件或其他格式的文档。
+
+用户需求：{prompt}"""
+            logging.info("添加文献信息+摘要指令")
+
+        prompt = final_prompt
+        logging.info(f"最终prompt预览: {repr(prompt[:200])}...")
+
+        # 获取Manus API密钥
+        manus_api_key = os.environ.get("MANUS_API_KEY")
+        logging.info(
+            f"文献调研模式: MANUS_API_KEY exists: {manus_api_key is not None}, length: {len(manus_api_key) if manus_api_key else 0}"
+        )
+        if not manus_api_key:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ErrorResponse(
+                    error_code="API_KEY_MISSING",
+                    message="未提供Manus API密钥",
+                    details={"hint": "请设置MANUS_API_KEY环境变量"},
+                ).dict(),
+            )
+
+        # 使用Manus API进行通用对话
+        try:
+            result = chat_with_manus(prompt=prompt, api_key=manus_api_key)
+
+            if result.get("success"):
+                text = result.get("text", "")
+                # 如果文本为空，提供默认回复
+                if not text:
+                    text = "已处理您的请求，但没有生成具体的回复内容。"
+
+                return AIChatResponse(
+                    success=True,
+                    text=text,
+                    session_id=request.session_id,
+                    model_used="manus-ai",
+                    steps=result.get("steps", []),  # 传递Manus API步骤信息
+                )
+            else:
+                return AIChatResponse(
+                    success=False,
+                    text="",
+                    session_id=request.session_id,
+                    model_used="manus-ai",
+                    steps=[],  # 失败时返回空步骤列表
+                    error=result.get("error", "Manus API对话失败"),
+                )
+
+        except Exception as e:
+            logging.error(f"Manus API对话失败: {str(e)}", exc_info=True)
+            return AIChatResponse(
+                success=False,
+                text="",
+                session_id=request.session_id,
+                model_used="manus-ai",
+                steps=[],  # Manus API异常时返回空步骤列表
+                error=f"Manus API对话失败: {str(e)}",
+            )
+
+    # 普通聊天模式 - 调用聊天服务
     try:
         result = chat_with_gemini(messages=messages, api_key=api_key)
 
@@ -1513,6 +1721,7 @@ async def chat_endpoint(
                 text=result.get("text", ""),
                 session_id=request.session_id,
                 model_used=result.get("model_used", "unknown"),
+                steps=[],  # 普通聊天模式返回空步骤列表
             )
         else:
             return AIChatResponse(
@@ -1520,6 +1729,7 @@ async def chat_endpoint(
                 text="",
                 session_id=request.session_id,
                 model_used=result.get("model_used", "unknown"),
+                steps=[],  # 普通聊天模式失败时返回空步骤列表
                 error=result.get("error", "未知错误"),
             )
 
@@ -1570,7 +1780,11 @@ async def health_check():
             "status": "unhealthy",
             "timestamp": datetime.now().isoformat(),
             "error": str(e)[:100],
-            "checks": {"app": "error", "database": "unknown", "external_apis": "unknown"},
+            "checks": {
+                "app": "error",
+                "database": "unknown",
+                "external_apis": "unknown",
+            },
         }
 
 
@@ -1583,8 +1797,8 @@ async def health_check():
 @api_error_handler
 async def get_prompt_metrics():
     """获取提示词性能指标"""
-    from .prompt_cache import prompt_cache_manager
-    from .prompt_monitor import prompt_performance_monitor
+    from prompt_cache import prompt_cache_manager
+    from prompt_monitor import prompt_performance_monitor
 
     return {
         "timestamp": datetime.now().isoformat(),
@@ -1603,18 +1817,22 @@ async def get_prompt_metrics():
 @api_error_handler
 async def clear_prompt_cache():
     """清空提示词缓存"""
-    from .prompt_cache import prompt_cache_manager
+    from prompt_cache import prompt_cache_manager
 
     prompt_cache_manager.clear()
 
-    return {"success": True, "message": "提示词缓存已清空", "timestamp": datetime.now().isoformat()}
+    return {
+        "success": True,
+        "message": "提示词缓存已清空",
+        "timestamp": datetime.now().isoformat(),
+    }
 
 
 @app.post("/api/debug/prompt-metrics/reset")
 @api_error_handler
 async def reset_prompt_metrics():
     """重置提示词性能指标"""
-    from .prompt_monitor import prompt_performance_monitor
+    from prompt_monitor import prompt_performance_monitor
 
     prompt_performance_monitor.reset_metrics()
 
@@ -1629,7 +1847,7 @@ async def reset_prompt_metrics():
 @api_error_handler
 async def test_prompt_build():
     """测试提示词构建性能"""
-    from .prompts import test_prompt_build_performance
+    from prompts import test_prompt_build_performance
 
     return test_prompt_build_performance()
 
@@ -1683,7 +1901,8 @@ async def get_all_users(credentials: HTTPAuthorizationCredentials = Depends(secu
 @app.post("/api/admin/users/update")
 @api_error_handler
 async def update_user(
-    request: UpdateUserRequest, credentials: HTTPAuthorizationCredentials = Depends(security)
+    request: UpdateUserRequest,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
     """更新用户信息（管理员）"""
     token = credentials.credentials
@@ -1720,7 +1939,8 @@ async def update_user(
 @app.post("/api/admin/users/add")
 @api_error_handler
 async def add_user(
-    request: AddUserRequest, credentials: HTTPAuthorizationCredentials = Depends(security)
+    request: AddUserRequest,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
     """添加新用户（管理员）"""
     token = credentials.credentials

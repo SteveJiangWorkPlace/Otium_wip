@@ -29,7 +29,12 @@ def run_command(cmd, description):
         env["LC_ALL"] = "C.UTF-8"
         env["LANG"] = "C.UTF-8"
         result = subprocess.run(
-            cmd, capture_output=True, encoding="utf-8", errors="replace", check=False, env=env
+            cmd,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            env=env,
         )
         if result.returncode == 0:
             print(f"[OK] {description} completed successfully")

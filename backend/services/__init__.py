@@ -8,4 +8,9 @@ Contains all service modules for the application.
 from .email_service import EmailService, email_service
 from .verification_service import VerificationService, verification_service
 
-__all__ = ["email_service", "EmailService", "verification_service", "VerificationService"]
+__all__ = [
+    "email_service",
+    "EmailService",
+    "verification_service",
+    "VerificationService",
+]

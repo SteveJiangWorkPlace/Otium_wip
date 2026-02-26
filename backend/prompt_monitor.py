@@ -30,7 +30,7 @@ class PromptPerformanceMonitor:
     }
 
     @classmethod
-    def record_build_time(cls, func_name: str = None):
+    def record_build_time(cls, func_name: str | None = None):
         """
         记录构建时间的装饰器
 
@@ -220,7 +220,8 @@ class PromptPerformanceMonitor:
         Returns:
             性能历史记录列表
         """
-        return cls.metrics["performance_history"][-limit:]
+        history = cls.metrics["performance_history"]
+        return history[-limit:] if isinstance(history, list) else []
 
     @classmethod
     def reset_metrics(cls):

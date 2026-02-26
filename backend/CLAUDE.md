@@ -120,11 +120,11 @@ python scripts/verify_final_config.py     # Verify final configuration
 ### Windows编码兼容性
 **重要**: 所有Python脚本都设计为Windows兼容，并遵循以下编码规范：
 
-1. **避免Unicode符号**: 脚本输出中避免使用✓✗⚠等Unicode符号，改用：
-   - `[成功]` 替代 ✓
-   - `[失败]` 替代 ✗
-   - `[警告]` 替代 ⚠
-   - `[错误]` 替代 ❌
+1. **避免Unicode符号**: 脚本输出中避免使用Unicode符号，改用：
+   - `[成功]`
+   - `[失败]`
+   - `[警告]`
+   - `[错误]`
 
 2. **编码处理**: 脚本强制设置UTF-8编码：
    - 设置系统环境变量: `PYTHONIOENCODING=utf-8`, `PYTHONUTF8=1`
@@ -224,7 +224,7 @@ Key environment variables (see `.env.example` for full list):
 ### Deployment Architecture
 - **Frontend**: Netlify (static hosting) with automatic deployments from GitHub
 - **Backend**: Render (cloud service) with Python runtime
-- **Architecture**: User → Netlify (frontend) → Render (backend API) → External services (Gemini AI, GPTZero)
+- **Architecture**: User -> Netlify (frontend) -> Render (backend API) -> External services (Gemini AI, GPTZero)
 
 ### Frontend Deployment (Netlify)
 1. Connect GitHub repository to Netlify

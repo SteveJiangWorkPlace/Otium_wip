@@ -10,11 +10,12 @@
 5. 备份内容：文件的完整原始内容
 """
 
-import os
-import sys
 import argparse
+import os
 import shutil
+import sys
 from pathlib import Path
+
 
 def safe_edit_file(file_path, new_content, verbose=True):
     """
@@ -175,7 +176,7 @@ def list_backups(directory=".", verbose=True):
         if backup_files:
             print(f"找到 {len(backup_files)} 个备份文件:")
             for i, backup in enumerate(backup_files, 1):
-                status = "✓" if backup["exists"] else "✗"
+                status = "[成功]" if backup["exists"] else "[失败]"
                 print(f"{i}. {backup['backup']} -> {backup['original']} {status}")
         else:
             print("未找到备份文件")

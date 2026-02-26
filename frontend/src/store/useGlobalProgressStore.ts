@@ -51,7 +51,9 @@ export const useGlobalProgressStore = create<GlobalProgressState>((set) => ({
     set((state) => {
       // 检查是否为错误状态
       const errorKeywords = ['错误', '失败', '取消'];
-      const isError = errorKeywords.some(keyword => state.message && state.message.includes(keyword));
+      const isError = errorKeywords.some(
+        (keyword) => state.message && state.message.includes(keyword)
+      );
 
       return {
         // 保持可见，让状态继续显示

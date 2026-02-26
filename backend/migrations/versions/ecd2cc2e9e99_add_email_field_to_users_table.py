@@ -24,7 +24,12 @@ def upgrade() -> None:
     op.add_column("users", sa.Column("email", sa.String(length=255), nullable=True))
     op.add_column(
         "users",
-        sa.Column("email_verified", sa.Boolean(), nullable=True, server_default=sa.text("false")),
+        sa.Column(
+            "email_verified",
+            sa.Boolean(),
+            nullable=True,
+            server_default=sa.text("false"),
+        ),
     )
     op.create_index(op.f("ix_users_email"), "users", ["email"], unique=True)
 

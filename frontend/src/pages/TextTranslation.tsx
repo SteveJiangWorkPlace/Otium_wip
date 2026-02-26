@@ -276,10 +276,10 @@ const TextTranslation: React.FC = () => {
     inputText: '',
     loading: false,
     sessionId: null,
-    splitPosition: 70,
+    splitPosition: 60,
   };
 
-  const workspaceWidth = conversation.isExpanded ? 70 : 100;
+  const workspaceWidth = conversation.isExpanded ? 60 : 100;
 
   const handleEditText = (text: string) => {
     setEditableText(text);
@@ -364,9 +364,9 @@ const TextTranslation: React.FC = () => {
                   <div
                     className={styles.aiToggleButton}
                     onClick={() => toggleExpanded(pageKey)}
-                    title={conversation.isExpanded ? '隐藏AI助手' : '显示AI助手'}
+                    title={conversation.isExpanded ? '隐藏Otium' : '显示Otium'}
                   >
-                    <img src="/google-gemini.svg" alt="AI助手" className={styles.aiToggleIcon} />
+                    <img src="/google-gemini.svg" alt="Otium" className={styles.aiToggleIcon} />
                   </div>
                 </div>
 
@@ -375,7 +375,7 @@ const TextTranslation: React.FC = () => {
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
                     placeholder="请输入中文文本..."
-                    rows={16}
+                    rows={19}
                     resize="vertical"
                     fullWidth
                     maxLength={1000}
@@ -451,7 +451,7 @@ const TextTranslation: React.FC = () => {
                     value={editableText}
                     onChange={(e) => handleEditText(e.target.value)}
                     placeholder="翻译结果..."
-                    rows={16}
+                    rows={19}
                     resize="vertical"
                     fullWidth
                     className={styles.resultTextarea}
@@ -464,7 +464,7 @@ const TextTranslation: React.FC = () => {
 
         {/* AI面板 */}
         {conversation.isExpanded && (
-          <div className={styles.aiPanelContainer} style={{ width: '30%' }}>
+          <div className={styles.aiPanelContainer} style={{ width: '40%' }}>
             <AIChatPanel pageKey={pageKey} />
           </div>
         )}

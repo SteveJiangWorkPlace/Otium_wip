@@ -68,13 +68,13 @@ const DirectiveSelector: React.FC<DirectiveSelectorProps> = ({
         }}
       >
         <div style={{ marginBottom: 'var(--spacing-1)' }}>
-          {'•'} 如果AI率较高，初次修改建议选择&quot;去AI三板斧&quot;
+          {'-'} 如果AI率较高，初次修改建议选择&quot;去AI三板斧&quot;
         </div>
         <div style={{ marginBottom: 'var(--spacing-1)' }}>
-          {'•'} 如果修改后AI率仍不达标，可尝试选择其他指令继续优化
+          {'-'} 如果修改后AI率仍不达标，可尝试选择其他指令继续优化
         </div>
         <div style={{ marginBottom: 'var(--spacing-1)' }}>
-          • 快捷指令为全局修改，如需局部修改，可在文本中使用【】符号添加批注指令
+          - 快捷指令为全局修改，如需局部修改，可在文本中使用【】符号添加批注指令
         </div>
       </div>
 

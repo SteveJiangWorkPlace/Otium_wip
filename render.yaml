@@ -214,11 +214,11 @@ try:
         # 检查email列
         column_names = [col['name'] for col in columns]
         if 'email' in column_names:
-            print('✅ users表已包含email列')
+            print('[成功] users表已包含email列')
         else:
-            print('❌ users表缺少email列')
+            print('[失败] users表缺少email列')
     else:
-        print('❌ users表不存在')
+        print('[失败] users表不存在')
 
 except Exception as e:
     print(f'验证数据库时出错: {e}')

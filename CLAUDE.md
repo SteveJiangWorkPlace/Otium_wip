@@ -141,7 +141,30 @@ npm test                       # 运行所有测试
 npm test -- --testNamePattern="特定测试"  # 运行匹配的测试
 ```
 
-**重要：** 每次新增功能后必须检查并补充相应的单元测试。测试脚本应避免使用Unicode字符（如✓✗⚠），使用ASCII兼容标记如`[成功]`、`[失败]`、`[警告]`，确保在Windows命令行（GBK编码）下正常运行。
+**重要：** 每次新增功能后必须检查并补充相应的单元测试。测试脚本应避免使用Unicode字符（如[成功]、[失败]、[警告]），使用ASCII兼容标记如`[成功]`、`[失败]`、`[警告]`，确保在Windows命令行（GBK编码）下正常运行。
+
+**健康检查测试脚本：**
+```bash
+# 后端健康检查 - 测试后端服务是否正常运行
+python scripts/test_backend.py
+
+# 前端健康检查 - 测试前端项目结构是否完整
+python scripts/test_frontend.py
+
+# 使用批处理文件（Windows）
+scripts\run_backend_test.bat
+scripts\run_frontend_test.bat
+
+# 使用PowerShell脚本
+.\scripts\run_backend_test.ps1
+.\scripts\run_frontend_test.ps1
+```
+
+**健康检查测试内容：**
+- **后端测试**：检查服务运行状态、数据库连接、API功能、依赖安装
+- **前端测试**：检查项目结构、npm依赖、TypeScript配置、构建配置、API配置
+
+详细使用说明请参考 `scripts/TESTING_README.md`。
 
 ### 数据库迁移
 
@@ -195,7 +218,6 @@ Otium/
 │   ├── prompt_templates.py # 提示词模板系统（包含原始备份）
 │   ├── prompt_cache.py     # 提示词缓存管理器
 │   ├── prompt_monitor.py   # 性能监控系统
-│   ├── prompts_backup.py   # 原始提示词完整备份（安全回滚）
 │   ├── api_services.py     # 外部API集成（Gemini, GPTZero）
 │   ├── models/             # 数据库模型
 │   └── scripts/            # 工具脚本
@@ -311,7 +333,7 @@ python final_system_test.py
 ## 开发说明
 
 ### Windows命令行编码注意事项
-- **Windows命令行默认使用GBK编码**（代码页936），在编写Python脚本时应避免使用Unicode字符（如✓✗⚠）
+- **Windows命令行默认使用GBK编码**（代码页936），在编写Python脚本时应避免使用Unicode字符（如[成功]、[失败]、[警告]）
 - **建议使用ASCII兼容标记**：使用`[成功]`、`[失败]`、`[警告]`代替特殊符号
 - **PowerShell UTF-8编码**：为避免乱码，PowerShell启动时设置：`$OutputEncoding = [System.Text.Encoding]::UTF8`
 - **测试脚本兼容性**：所有测试脚本应确保在Windows命令行下正常运行
@@ -330,11 +352,10 @@ python final_system_test.py
 - **数据验证** (`schemas.py`)：Pydantic模型定义API请求/响应格式，确保类型安全
 - **异常处理** (`exceptions.py`)：统一错误处理和HTTP异常，提供结构化错误响应
 - **工具类** (`utils.py`)：UserLimitManager（用户限制管理）、RateLimiter（速率限制）、TextValidator（文本验证）等
-- **提示词系统** (`prompts.py`)：AI提示词构建（已优化，集成模板、缓存、监控）
+- **提示词系统** (`prompts.py`)：AI提示词构建（已优化，集成模板、缓存、监控，包含所有原始函数）
 - **提示词模板** (`prompt_templates.py`)：提示词模板系统（包含原始备份和修改版本）
 - **提示词缓存** (`prompt_cache.py`)：基于文本哈希的LRU缓存管理器，提升性能
 - **性能监控** (`prompt_monitor.py`)：性能监控系统，跟踪构建时间、缓存命中率
-- **原始备份** (`prompts_backup.py`)：原始提示词完整备份，支持安全回滚
 - **API服务** (`api_services.py`)：外部API集成（Gemini AI和GPTZero）
 - **主应用** (`main.py`)：API路由定义和FastAPI应用初始化
 

@@ -3,8 +3,8 @@
 最终系统测试脚本
 
 验证系统已按照用户最新要求正确配置：
-1. 所有主要提示词使用原始版本
-2. 快捷批注使用修改后的原始版本（移除"灵活表达"，修改"符号修正"，更新"人性化处理"）
+1. 所有主要提示词使用生产版本（基于原始完整版本）
+2. 快捷批注使用生产版本（修改后的原始版本：移除"灵活表达"，修改"符号修正"，更新"人性化处理"）
 3. 缓存机制保留
 4. 性能监控正常工作
 """
@@ -12,9 +12,10 @@
 import sys
 from pathlib import Path
 
-# 添加当前目录到Python路径
+# 添加当前目录和父目录到Python路径
 current_dir = Path(__file__).parent
-sys.path.insert(0, str(current_dir))
+sys.path.insert(0, str(current_dir.parent))  # backend目录
+sys.path.insert(0, str(current_dir))  # scripts目录
 
 print("=" * 80)
 print("最终系统测试")
@@ -29,19 +30,17 @@ try:
         DEFAULT_ANNOTATIONS_VERSION,
         DEFAULT_TEMPLATE_VERSION,
         ENGLISH_REFINE_TEMPLATE_VERSION,
+        SHORTCUT_ANNOTATIONS_ORIGINAL,
         TRANSLATION_TEMPLATE_VERSION,
         build_academic_translate_prompt,
+        build_academic_translate_prompt_original,
         build_english_refine_prompt,
+        build_english_refine_prompt_original,
         build_error_check_prompt,
+        build_error_check_prompt_original,
         get_cache_stats,
         get_prompt_stats,
         get_shortcut_annotations,
-    )
-    from prompts_backup import (
-        SHORTCUT_ANNOTATIONS_ORIGINAL,
-        build_academic_translate_prompt_original,
-        build_english_refine_prompt_original,
-        build_error_check_prompt_original,
     )
 
     print("[PASS] 模块导入成功")
@@ -57,43 +56,43 @@ print(f"   英文精修模板版本: {ENGLISH_REFINE_TEMPLATE_VERSION}")
 print(f"   快捷批注默认版本: {DEFAULT_ANNOTATIONS_VERSION}")
 
 config_correct = True
-if DEFAULT_TEMPLATE_VERSION != "original":
+if DEFAULT_TEMPLATE_VERSION != "production":
     print(
-        f"   [FAIL] DEFAULT_TEMPLATE_VERSION 应为 'original'，实际为 '{DEFAULT_TEMPLATE_VERSION}'"
+        f"   [FAIL] DEFAULT_TEMPLATE_VERSION 应为 'production'，实际为 '{DEFAULT_TEMPLATE_VERSION}'"
     )
     config_correct = False
 else:
-    print("   [PASS] 智能纠错使用原始版本")
+    print("   [PASS] 智能纠错使用生产版本")
 
-if TRANSLATION_TEMPLATE_VERSION != "original":
+if TRANSLATION_TEMPLATE_VERSION != "production":
     print(
-        f"   [FAIL] TRANSLATION_TEMPLATE_VERSION 应为 'original'，实际为 '{TRANSLATION_TEMPLATE_VERSION}'"
+        f"   [FAIL] TRANSLATION_TEMPLATE_VERSION 应为 'production'，实际为 '{TRANSLATION_TEMPLATE_VERSION}'"
     )
     config_correct = False
 else:
-    print("   [PASS] 学术翻译使用原始版本")
+    print("   [PASS] 学术翻译使用生产版本")
 
-if ENGLISH_REFINE_TEMPLATE_VERSION != "original":
+if ENGLISH_REFINE_TEMPLATE_VERSION != "production":
     print(
-        f"   [FAIL] ENGLISH_REFINE_TEMPLATE_VERSION 应为 'original'，实际为 '{ENGLISH_REFINE_TEMPLATE_VERSION}'"
+        f"   [FAIL] ENGLISH_REFINE_TEMPLATE_VERSION 应为 'production'，实际为 '{ENGLISH_REFINE_TEMPLATE_VERSION}'"
     )
     config_correct = False
 else:
-    print("   [PASS] 英文精修使用原始版本")
+    print("   [PASS] 英文精修使用生产版本")
 
-if DEFAULT_ANNOTATIONS_VERSION != "original_modified":
+if DEFAULT_ANNOTATIONS_VERSION != "production":
     print(
-        f"   [FAIL] DEFAULT_ANNOTATIONS_VERSION 应为 'original_modified'，实际为 '{DEFAULT_ANNOTATIONS_VERSION}'"
+        f"   [FAIL] DEFAULT_ANNOTATIONS_VERSION 应为 'production'，实际为 '{DEFAULT_ANNOTATIONS_VERSION}'"
     )
     config_correct = False
 else:
-    print("   [PASS] 快捷批注使用修改后的原始版本")
+    print("   [PASS] 快捷批注使用生产版本（修改后的原始版本）")
 
 # 测试2：主要提示词函数验证
 print("\n2. 主要提示词函数验证:")
 print("   测试智能纠错提示词...")
 original_error = build_error_check_prompt_original(test_text)
-current_error = build_error_check_prompt(test_text, template_version="original")
+current_error = build_error_check_prompt(test_text, template_version="production")
 
 if len(original_error) == len(current_error):
     print(f"   [PASS] 智能纠错提示词长度一致: {len(original_error)} 字符")
@@ -108,7 +107,7 @@ original_translation = build_academic_translate_prompt_original(
     test_text, style="US", version="professional"
 )
 current_translation = build_academic_translate_prompt(
-    test_text, style="US", version="professional", template_version="original"
+    test_text, style="US", version="professional", template_version="production"
 )
 
 if len(original_translation) == len(current_translation):
@@ -127,7 +126,7 @@ current_refine = build_english_refine_prompt(
     text_with_instructions=test_english_text,
     hidden_instructions="",
     annotations=None,
-    template_version="original",
+    template_version="production",
 )
 
 if len(original_refine) == len(current_refine):
@@ -141,22 +140,26 @@ else:
 # 测试3：快捷批注验证
 print("\n3. 快捷批注验证:")
 original_annotations = SHORTCUT_ANNOTATIONS_ORIGINAL
-current_annotations = get_shortcut_annotations("original_modified")
+current_annotations = get_shortcut_annotations("production")
 
 print(f"   原始批注数量: {len(original_annotations)}")
 print(f"   当前批注数量: {len(current_annotations)}")
 
 # 验证"灵活表达"已移除
 if "灵活表达" in original_annotations:
-    print("   [PASS] 原始版本包含'灵活表达'")
+    print("   [INFO] 原始版本包含'灵活表达'，检查是否已移除")
+    if "灵活表达" in current_annotations:
+        print("   [FAIL] 当前版本仍包含'灵活表达'（应已移除）")
+        config_correct = False
+    else:
+        print("   [PASS] 当前版本已移除'灵活表达'")
 else:
-    print("   [FAIL] 原始版本不包含'灵活表达'")
-
-if "灵活表达" in current_annotations:
-    print("   [FAIL] 当前版本仍包含'灵活表达'（应已移除）")
-    config_correct = False
-else:
-    print("   [PASS] 当前版本已移除'灵活表达'")
+    print("   [INFO] 原始版本不包含'灵活表达'（已满足移除要求）")
+    if "灵活表达" in current_annotations:
+        print("   [FAIL] 当前版本不应添加'灵活表达'")
+        config_correct = False
+    else:
+        print("   [PASS] 当前版本无'灵活表达'（符合要求）")
 
 # 验证"符号修正"已修改
 original_symbol = original_annotations.get("符号修正", "")
@@ -226,8 +229,8 @@ print("\n" + "=" * 80)
 if config_correct:
     print("[SUCCESS] 最终系统测试通过！所有用户要求已正确实现")
     print("\n系统配置摘要:")
-    print("1. [PASS] 所有主要提示词使用原始版本")
-    print("2. [PASS] 快捷批注使用修改后的原始版本:")
+    print("1. [PASS] 所有主要提示词使用生产版本")
+    print("2. [PASS] 快捷批注使用生产版本（修改后的原始版本）:")
     print("   - 移除'灵活表达'功能 [PASS]")
     print(
         "   - 修改'符号修正': '确保标点符号在引号外，同时用分号连接两个关系紧密的独立从句' [PASS]"

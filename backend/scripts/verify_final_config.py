@@ -12,9 +12,10 @@
 import sys
 from pathlib import Path
 
-# 添加当前目录到Python路径
+# 添加当前目录和父目录到Python路径
 current_dir = Path(__file__).parent
-sys.path.insert(0, str(current_dir))
+sys.path.insert(0, str(current_dir.parent))  # backend目录
+sys.path.insert(0, str(current_dir))  # scripts目录
 
 print("=" * 80)
 print("最终配置验证")
@@ -27,17 +28,15 @@ try:
         DEFAULT_ANNOTATIONS_VERSION,
         DEFAULT_TEMPLATE_VERSION,
         ENGLISH_REFINE_TEMPLATE_VERSION,
+        SHORTCUT_ANNOTATIONS_ORIGINAL,
         TRANSLATION_TEMPLATE_VERSION,
         build_academic_translate_prompt,
-        build_english_refine_prompt,
-        build_error_check_prompt,
-        get_shortcut_annotations,
-    )
-    from prompts_backup import (
-        SHORTCUT_ANNOTATIONS_ORIGINAL,
         build_academic_translate_prompt_original,
+        build_english_refine_prompt,
         build_english_refine_prompt_original,
+        build_error_check_prompt,
         build_error_check_prompt_original,
+        get_shortcut_annotations,
     )
 
     print("[PASS] 导入成功")

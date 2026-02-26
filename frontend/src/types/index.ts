@@ -40,6 +40,8 @@ export interface AIChatMessage {
 export interface AIChatRequest {
   messages: AIChatMessage[];
   session_id?: string;
+  deep_research_mode?: boolean; // 文献调研模式开关，使用Manus API进行文献调研式回复
+  generate_literature_review?: boolean; // 生成文献综述选项，控制文献调研输出格式
 }
 
 // AI聊天响应
@@ -49,6 +51,7 @@ export interface AIChatResponse {
   session_id?: string;
   model_used: string;
   error?: string;
+  steps?: string[]; // Manus API步骤信息，仅文献调研模式使用
 }
 
 // 流式翻译请求

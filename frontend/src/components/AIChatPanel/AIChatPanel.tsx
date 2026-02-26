@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import {
   useAIChatStore,
   type AIChatMessage as StoreAIChatMessage,
@@ -7,6 +7,7 @@ import { apiClient } from '../../api/client';
 import type { AIChatMessage as ApiAIChatMessage } from '../../types';
 import Button from '../ui/Button/Button';
 import Textarea from '../ui/Textarea/Textarea';
+// import { Switch } from 'antd';
 import styles from './AIChatPanel.module.css';
 
 interface AIChatPanelProps {
@@ -15,7 +16,21 @@ interface AIChatPanelProps {
 }
 
 const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) => {
-  const { conversations, toggleExpanded, addMessage, setInputText, setLoading } = useAIChatStore();
+  const {
+    conversations,
+    toggleExpanded,
+    addMessage,
+    setInputText,
+    setLoading,
+    deepResearchMode,
+    toggleDeepResearchMode,
+    generateLiteratureReview,
+    toggleGenerateLiteratureReview,
+  } = useAIChatStore();
+
+  const [processingStep, setProcessingStep] = useState<number>(0);
+  const [manusSteps, setManusSteps] = useState<string[]>([]);
+  const [currentManusStep, setCurrentManusStep] = useState<number>(0);
 
   const conversation = conversations[pageKey] || {
     isExpanded: false,
@@ -29,6 +44,24 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  // 从localStorage获取最新的文献调研结果（暂时未使用）
+  // const getLatestLiteratureResearch = (): string => {
+  //   try {
+  //     const storageKey = 'literature-research-storage';
+  //     const stored = localStorage.getItem(storageKey);
+  //     if (!stored) {
+  //       return '';
+  //     }
+  //     const data = JSON.parse(stored);
+  //     // 获取resultText字段
+  //     const resultText = data?.state?.resultText || '';
+  //     return resultText;
+  //   } catch (error) {
+  //     console.error('获取文献调研结果失败:', error);
+  //     return '';
+  //   }
+  // };
 
   // 滚动到底部
   const scrollToBottom = () => {
@@ -60,12 +93,116 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
     }
   }, [conversation.loading, conversation.messages.length]);
 
-  // 清理markdown符号但保留必要格式
+  // AI处理步骤文本 - 根据文献调研模式动态调整
+  const processingSteps = deepResearchMode
+    ? ['文献调研中，需耗费数分钟时间，请耐心等待...']
+    : ['正在处理您的请求...'];
+
+  // 处理AI思考状态的步骤显示
+  useEffect(() => {
+    let stepInterval: NodeJS.Timeout | null = null;
+
+    if (conversation.loading) {
+      // 启动步骤轮换
+      setProcessingStep(0);
+      stepInterval = setInterval(() => {
+        setProcessingStep((prev) => (prev + 1) % processingSteps.length);
+      }, 2000); // 每2秒切换到下一步骤
+    } else {
+      // 停止轮换，重置步骤
+      setProcessingStep(0);
+    }
+
+    return () => {
+      if (stepInterval) {
+        clearInterval(stepInterval);
+      }
+    };
+  }, [conversation.loading, processingSteps.length]);
+
+  // 处理Manus步骤进度显示
+  useEffect(() => {
+    let stepInterval: NodeJS.Timeout | null = null;
+
+    if (conversation.loading && manusSteps.length > 0) {
+      // 文献调研模式下显示Manus步骤进度
+      stepInterval = setInterval(() => {
+        setCurrentManusStep((prev) => {
+          // 如果已经是最后一个步骤，重置到第一个步骤（循环显示）
+          if (prev >= manusSteps.length) {
+            return 1;
+          }
+          return prev + 1;
+        });
+      }, 5000); // 每5秒切换到下一步骤
+    } else {
+      // 停止轮换，重置步骤
+      if (currentManusStep > 0) {
+        setCurrentManusStep(0);
+      }
+    }
+
+    return () => {
+      if (stepInterval) {
+        clearInterval(stepInterval);
+      }
+    };
+  }, [conversation.loading, manusSteps.length, currentManusStep]);
+
+  // 清理markdown符号但保留必要格式 - 统一处理所有模式
   const cleanMarkdown = (html: string): string => {
+    // 辅助函数：计算字符串的视觉长度（将制表符视为4个空格）
+    const visualLength = (str: string): number => {
+      let length = 0;
+      for (let i = 0; i < str.length; i++) {
+        if (str[i] === '\t') {
+          // 制表符：移动到下一个制表位（假设制表符大小为4）
+          length += 4 - (length % 4);
+        } else {
+          length++;
+        }
+      }
+      return length;
+    };
+
+    // 辅助函数：将制表符转换为空格（用于对齐）
+    const convertTabsToSpaces = (str: string): string => {
+      let result = '';
+      let column = 0;
+      for (let i = 0; i < str.length; i++) {
+        if (str[i] === '\t') {
+          const spacesNeeded = 4 - (column % 4);
+          result += ' '.repeat(spacesNeeded);
+          column += spacesNeeded;
+        } else {
+          result += str[i];
+          column++;
+        }
+      }
+      return result;
+    };
+
     // 先转换markdown格式为HTML
     let cleaned = html;
 
-    // 首先处理markdown表格
+    // 第一步：处理代码块（```language\ncode\n```）
+    // 使用占位符保存代码块，避免内部内容被其他规则处理
+    const codeBlockPlaceholders: string[] = [];
+    cleaned = cleaned.replace(/```(\w*)\n([\s\S]*?)```/g, (match, language, code) => {
+      // 清理代码前后的空白
+      const cleanedCode = code.trim();
+      // 为语言添加CSS类
+      const langClass = language ? ` language-${language}` : '';
+      // 创建占位符
+      const placeholder = `___CODE_BLOCK_${codeBlockPlaceholders.length}___`;
+      // 保存最终HTML
+      codeBlockPlaceholders.push(
+        `<pre><code class="ai-code-block${langClass}">${cleanedCode}</code></pre>`
+      );
+      return placeholder;
+    });
+
+    // 第二步：处理markdown表格
     cleaned = cleaned.replace(
       /\n(\|[^\n]+\|\s*\n)(\|[-\s:|]+\|.*\|\s*\n)((?:\|[^\n]+\|\s*\n)+)/g,
       (match, headerLine, separatorLine, dataLines) => {
@@ -112,32 +249,153 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
       }
     );
 
-    // 转换 **文本** 为 <strong>文本</strong>
+    // 第三步：转换粗体 **文本** 为 <strong>文本</strong>
     cleaned = cleaned.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
 
-    // 转换 *文本* 为 <em>文本</em>（但避免匹配行首的*）
-    // 只匹配前后有空格或标点的*，避免匹配数字中的*（如1*2）
-    cleaned = cleaned.replace(/(^|\s)\*(.*?)\*($|\s|\.|,|;|:|!|\?)/g, '$1<em>$2</em>$3');
+    // 第四步：转换斜体 *文本* 为 <em>文本</em>
+    // 匹配 *文本* 但不在数字中间（如 1*2），前后有空格或标点符号
+    cleaned = cleaned.replace(
+      /(^|[^\w*])\*(?![\s*])([^*\n]+?)(?<![\s*])\*($|[^\w*])/g,
+      '$1<em>$2</em>$3'
+    );
 
-    // 去除行首的markdown符号
-    cleaned = cleaned
-      .replace(/^\*\s+/gm, '') // 去除行首的 "* "
-      .replace(/^>\s+/gm, '') // 去除行首的 "> "
-      .replace(/^-\s+/gm, '') // 去除行首的 "- "
-      .replace(/^\d+\.\s+/gm, '') // 去除行首的 "1. "
-      .replace(/^#+\s+/gm, ''); // 去除行首的 "# "
+    // 第五步：处理标题
+    cleaned = cleaned.replace(/^###\s+(.+)$/gm, '<h3>$1</h3>');
+    cleaned = cleaned.replace(/^##\s+(.+)$/gm, '<h2>$1</h2>');
+    cleaned = cleaned.replace(/^#\s+(.+)$/gm, '<h1>$1</h1>');
 
-    // 去除残留的单独*符号（不在HTML标签内）
-    // 匹配前后有空格的单独*，且不是<em>或<strong>标签的一部分
-    cleaned = cleaned.replace(/(\s)\*(\s|$)/g, '$1$2');
-    cleaned = cleaned.replace(/^(\s)?\*(\s|$)/gm, '$1$2');
+    // 保留行首的markdown符号（列表和标题），因为项目符号或编号列表是允许的
+    // 注意：这里不再去除行首的 "* ", "- ", "1. ", "# " 等符号
 
-    // 为现有的HTML表格添加样式（如果AI直接返回了HTML表格）
+    // 第六步：处理链接：[文本](链接)
+    cleaned = cleaned.replace(
+      /\[([^\]]+?)\]\(([^)]+?)\)/g,
+      '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
+    );
+
+    // 第七步：处理内联代码：`代码`
+    cleaned = cleaned.replace(/`([^`\n]+?)`/g, '<code>$1</code>');
+
+    // 第八步：处理markdown列表（不生成HTML列表结构，直接处理每一行）
+    // 用户要求：不采用有序列表编号形式，直接保留原始文本格式
+    const linesForList = cleaned.split('\n');
+    const processedLines: string[] = [];
+
+    for (let i = 0; i < linesForList.length; i++) {
+      let line = linesForList[i];
+
+      // 检查是否是列表项
+      // 无序列表：*、-、+开头，后面跟空格 - 转换为•符号
+      // 有序列表：数字.或)开头，如1.、2.、1)、2)等 - 保持原样
+      const unorderedMatch = line.match(/^(\s*)([*\-+])\s+(.*)$/);
+      const orderedMatch = line.match(/^(\s*)(\d+[.)])\s+(.*)$/);
+
+      if (unorderedMatch || orderedMatch) {
+        const match = unorderedMatch || orderedMatch;
+        if (!match) continue;
+
+        const [, indent, marker, content] = match;
+
+        // 收集多行列表项内容
+        let itemContent = content;
+        let j = i + 1;
+        while (j < linesForList.length) {
+          const nextLine = linesForList[j];
+          // 检查下一行是否是同一列表项的延续（以空格开头，但不是新的列表项）
+          if (nextLine.match(/^\s+\S/) && !nextLine.match(/^\s*([*\-+]|\d+[.)])\s+/)) {
+            // 第一行文本起始位置在 indent + marker + ' ' 之后
+            const markerLength = marker.length;
+            const firstLineTextStart = visualLength(indent) + markerLength + 1; // 从0开始的视觉位置
+
+            // 计算第二行的前导空格数（视觉长度）
+            const leadingSpacesMatch = nextLine.match(/^(\s*)/);
+            const nextLineIndentStr = leadingSpacesMatch ? leadingSpacesMatch[1] : '';
+            const nextLineIndent = visualLength(nextLineIndentStr);
+
+            // 获取第二行文本内容（去除前导空格）
+            const nextLineText = nextLine.substring(nextLineIndentStr.length);
+
+            // 悬挂缩进：第二行必须对齐到第一行文本开始位置
+            // 强制对齐到第一行文本起始位置，忽略第二行原有的缩进
+            const targetIndent = firstLineTextStart;
+
+            // 基础缩进已经提供了 visualLength(indent) 的缩进
+            // 需要额外添加的缩进量
+            const additionalSpacesNeeded = targetIndent - visualLength(indent);
+
+            // 构建对齐的行：使用转换后的缩进（制表符转空格）确保精确对齐
+            const baseIndentSpaces = convertTabsToSpaces(indent);
+            const alignedLine =
+              baseIndentSpaces + ' '.repeat(additionalSpacesNeeded) + nextLineText;
+            itemContent += '\n' + alignedLine;
+            j++;
+            i++; // 跳过已处理的行
+          } else {
+            break;
+          }
+        }
+
+        // 对于无序列表，将符号替换为•
+        if (unorderedMatch) {
+          // 保持缩进，替换符号为•，统一使用空格缩进
+          const baseIndentSpaces = convertTabsToSpaces(indent);
+          line = baseIndentSpaces + '• ' + itemContent;
+        } else {
+          // 有序列表保持原样，统一使用空格缩进
+          const baseIndentSpaces = convertTabsToSpaces(indent);
+          line = baseIndentSpaces + marker + ' ' + itemContent;
+        }
+      }
+
+      processedLines.push(line);
+    }
+
+    // 重新组合行
+    cleaned = processedLines.join('\n');
+
+    // 第九步：为现有的HTML表格添加样式（如果AI直接返回了HTML表格）
     cleaned = cleaned.replace(
       /<table>/g,
       '<div class="ai-table-container"><table class="ai-table">'
     );
     cleaned = cleaned.replace(/<\/table>/g, '</table></div>');
+
+    // 第十步：处理换行符
+    // 先分割成行，然后处理
+    const lines = cleaned.split('\n');
+    const processedLinesForNewlines: string[] = [];
+    let previousWasEmpty = false;
+
+    for (let index = 0; index < lines.length; index++) {
+      const line = lines[index];
+      const isCodeBlock = line.startsWith('___CODE_BLOCK_') && line.endsWith('___');
+
+      if (isCodeBlock) {
+        // 代码块占位符，直接添加
+        processedLinesForNewlines.push(line);
+        previousWasEmpty = false;
+      } else if (line.trim() === '') {
+        // 空行：如果是第一个空行且不是最后一行，添加换行符\n
+        if (!previousWasEmpty && index < lines.length - 1) {
+          processedLinesForNewlines.push('');
+          previousWasEmpty = true;
+        }
+        // 如果是连续空行，跳过不添加额外的换行符
+      } else {
+        // 非空行，添加行内容
+        processedLinesForNewlines.push(line);
+        previousWasEmpty = false;
+      }
+    }
+
+    // 用换行符连接，使用white-space: pre-wrap显示
+    cleaned = processedLinesForNewlines.join('\n');
+
+    // 第十一步：恢复代码块占位符
+    codeBlockPlaceholders.forEach((html, index) => {
+      const placeholder = `___CODE_BLOCK_${index}___`;
+      cleaned = cleaned.replace(placeholder, html);
+    });
 
     // 保留HTML标签，其它markdown符号已处理
     return cleaned;
@@ -146,6 +404,10 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
   const handleSendMessage = async () => {
     const text = conversation.inputText.trim();
     if (!text || conversation.loading) return;
+
+    // 重置Manus步骤状态
+    setManusSteps([]);
+    setCurrentManusStep(0);
 
     // 添加用户消息
     const userMessage: StoreAIChatMessage = {
@@ -159,11 +421,13 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
     setLoading(pageKey, true);
 
     try {
-      // 构建消息列表（转换为API格式）
-      const messages: ApiAIChatMessage[] = conversation.messages.map((msg) => ({
-        role: msg.role,
-        content: msg.content,
-      }));
+      // 构建消息列表（转换为API格式），过滤掉空内容的消息
+      const messages: ApiAIChatMessage[] = conversation.messages
+        .map((msg) => ({
+          role: msg.role,
+          content: msg.content,
+        }))
+        .filter((msg) => msg.content && msg.content.trim().length > 0);
 
       // 添加当前用户消息（API格式）
       messages.push({
@@ -175,9 +439,20 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
       const response = await apiClient.chat({
         messages,
         session_id: conversation.sessionId || undefined,
+        deep_research_mode: deepResearchMode, // 传递深度调研模式状态
+        generate_literature_review: generateLiteratureReview, // 传递生成文献综述选项
       });
 
       if (response.success) {
+        // 如果有Manus步骤信息，更新状态
+        if (response.steps && response.steps.length > 0) {
+          setManusSteps(response.steps);
+          // 如果当前没有步骤进度，设置第一个步骤
+          if (currentManusStep === 0 && response.steps.length > 0) {
+            setCurrentManusStep(1);
+          }
+        }
+
         // 添加AI回复
         const aiMessage: StoreAIChatMessage = {
           role: 'assistant',
@@ -204,6 +479,9 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
       addMessage(pageKey, errorMessage);
     } finally {
       setLoading(pageKey, false);
+      // 重置Manus步骤状态
+      setManusSteps([]);
+      setCurrentManusStep(0);
     }
   };
 
@@ -218,7 +496,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
     return (
       <div className={`${styles.collapsedPanel} ${className}`}>
         <div className={styles.collapsedHeader}>
-          <h3 className={styles.collapsedTitle}>Otium AI助手</h3>
+          <h3 className={styles.collapsedTitle}>Otium</h3>
           <Button
             variant="ghost"
             size="small"
@@ -234,8 +512,35 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
 
   return (
     <div className={`${styles.panel} ${className}`} ref={containerRef}>
-      {/* 面板头部 - 已移除所有按钮，仅保留细线边框 */}
-      <div className={styles.header}></div>
+      {/* 面板头部 - 文献调研模式开关 */}
+      <div className={styles.header}>
+        <div className={styles.modeSwitch}>
+          <span className={styles.modeLabel}>文献调研模式</span>
+          <div
+            onClick={() => toggleDeepResearchMode()}
+            className={`${styles.appleSwitch} ${deepResearchMode ? styles.appleSwitchActive : ''}`}
+            title={deepResearchMode ? '关闭文献调研模式' : '开启文献调研模式'}
+            role="switch"
+            aria-checked={deepResearchMode}
+          >
+            <div className={styles.appleSwitchThumb}></div>
+          </div>
+        </div>
+        {deepResearchMode && (
+          <div className={styles.literatureReviewOption}>
+            <span className={styles.modeLabel}>生成文献综述</span>
+            <div
+              onClick={() => toggleGenerateLiteratureReview()}
+              className={`${styles.appleSwitch} ${generateLiteratureReview ? styles.appleSwitchActive : ''}`}
+              title={generateLiteratureReview ? '关闭生成文献综述' : '开启生成文献综述'}
+              role="switch"
+              aria-checked={generateLiteratureReview}
+            >
+              <div className={styles.appleSwitchThumb}></div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* 消息列表 */}
       <div className={styles.messagesContainer} ref={messagesContainerRef}>
@@ -252,11 +557,12 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
                   message.role === 'user' ? styles.userMessage : styles.assistantMessage
                 }`}
               >
-                <div className={styles.messageHeader}>
-                  <span className={styles.messageRole}>
-                    {message.role === 'user' ? '爱学习的孩子' : 'Otium'}
-                  </span>
-                </div>
+                {message.role === 'assistant' && (
+                  <div className={styles.messageHeader}>
+                    <img src="/logopic.svg" alt="Otium" className={styles.messageIcon} />
+                    <span className={styles.messageRole}>Otium</span>
+                  </div>
+                )}
                 {message.role === 'assistant' ? (
                   <div
                     className={styles.messageContent}
@@ -270,14 +576,50 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
             {conversation.loading && (
               <div className={`${styles.message} ${styles.assistantMessage}`}>
                 <div className={styles.messageHeader}>
+                  <img src="/logopic.svg" alt="Otium" className={styles.messageIcon} />
                   <span className={styles.messageRole}>Otium</span>
                 </div>
                 <div className={styles.messageContent}>
-                  <div className={styles.typingIndicator}>
-                    <span>.</span>
-                    <span>.</span>
-                    <span>.</span>
-                  </div>
+                  {/* 文献调研模式且有Manus步骤时显示步骤信息 */}
+                  {deepResearchMode && manusSteps.length > 0 ? (
+                    <div className={styles.manusStepsContainer}>
+                      <div className={styles.manusStepHeader}>
+                        <span className={styles.manusStepLabel}>文献调研进度</span>
+                        <span className={styles.manusStepCounter}>
+                          步骤 {currentManusStep}/{manusSteps.length}
+                        </span>
+                      </div>
+                      <div className={styles.manusStepContent}>
+                        {currentManusStep > 0 && manusSteps[currentManusStep - 1] ? (
+                          <div className={styles.currentManusStep}>
+                            {manusSteps[currentManusStep - 1]}
+                          </div>
+                        ) : (
+                          <div className={styles.manusStepLoading}>正在启动文献调研...</div>
+                        )}
+                      </div>
+                      {manusSteps.length > 1 && (
+                        <div className={styles.manusStepsProgress}>
+                          <div
+                            className={styles.manusStepsProgressBar}
+                            style={{ width: `${(currentManusStep / manusSteps.length) * 100}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    // 普通模式或没有Manus步骤时显示处理步骤
+                    <div className={styles.processingStepsContainer}>
+                      <div className={styles.processingStepContent}>
+                        {processingSteps[processingStep]}
+                      </div>
+                      <div className={styles.typingIndicator}>
+                        <span>.</span>
+                        <span>.</span>
+                        <span>.</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -289,31 +631,23 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
       {/* 输入区域 */}
       <div className={styles.inputContainer}>
         <div className={styles.inputActions}>
-          {/* AI状态栏 */}
-          <div className={styles.aiStatusBar}></div>
           <div style={{ position: 'relative', width: '100%' }}>
             <Textarea
               value={conversation.inputText}
               onChange={(e) => setInputText(pageKey, e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="输入您的问题..."
-              rows={3}
+              placeholder={
+                deepResearchMode
+                  ? '输入文献调研需求，如：主题、时间跨度、文献篇数等具体要求'
+                  : '输入您的问题...'
+              }
+              rows={4}
               resize="vertical"
               disabled={conversation.loading}
               className={styles.textarea}
             />
-            <button
-              className={styles.sendButton}
-              onClick={handleSendMessage}
-              disabled={!conversation.inputText.trim() || conversation.loading}
-              title="发送"
-            >
-              <div className={styles.sendArrow}>↑</div>
-            </button>
           </div>
         </div>
-        {/* 底部预留位置 */}
-        <div className={styles.aiStatusBar}></div>
       </div>
     </div>
   );

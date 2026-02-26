@@ -7,9 +7,18 @@
 
 import hashlib
 import time
-from typing import Any
+from typing import Any, TypedDict, cast
 
 from utils import CacheManager
+
+
+class _CacheStats(TypedDict):
+    """缓存统计数据类型"""
+
+    hits: int
+    misses: int
+    total_requests: int
+    creation_times: dict[str, float]
 
 
 class PromptCacheManager:
@@ -27,8 +36,8 @@ class PromptCacheManager:
         self.cache_manager = CacheManager(ttl=ttl, max_entries=max_entries)
         self.ttl = ttl
         self.max_entries = max_entries
-        self.access_times = {}  # 记录访问时间用于LRU
-        self.cache_stats = {
+        self.access_times: dict[str, float] = {}  # 记录访问时间用于LRU
+        self.cache_stats: _CacheStats = {
             "hits": 0,
             "misses": 0,
             "total_requests": 0,
@@ -86,14 +95,19 @@ class PromptCacheManager:
             # 缓存命中
             self.cache_stats["hits"] += 1
             self.access_times[cache_key] = time.time()
-            return cached_value
+            return cast(str, cached_value)
         else:
             # 缓存未命中
             self.cache_stats["misses"] += 1
             return None
 
     def set(
-        self, text: str, style: str, version: str, prompt: str, template_version: str = "compact"
+        self,
+        text: str,
+        style: str,
+        version: str,
+        prompt: str,
+        template_version: str = "compact",
     ):
         """
         缓存提示词

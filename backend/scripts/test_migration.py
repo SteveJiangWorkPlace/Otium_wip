@@ -38,7 +38,10 @@ def test_user_service():
     # 测试1: 添加用户
     logging.info("\n测试1: 添加用户")
     success, message = user_service.add_user(
-        username="test_user1", password="test123", expiry_date="2026-12-31", max_translations=100
+        username="test_user1",
+        password="test123",
+        expiry_date="2026-12-31",
+        max_translations=100,
     )
     logging.info(f"添加用户结果: {success}, {message}")
 

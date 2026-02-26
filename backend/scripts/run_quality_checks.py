@@ -29,7 +29,12 @@ def run_command(cmd, description):
         env["LC_ALL"] = "C.UTF-8"
         env["LANG"] = "C.UTF-8"
         result = subprocess.run(
-            cmd, capture_output=True, encoding="utf-8", errors="replace", check=False, env=env
+            cmd,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            env=env,
         )
         if result.returncode == 0:
             print(f"[OK] {description} passed")
@@ -82,7 +87,8 @@ def main():
 
     # 2. isort 导入排序检查
     checks_passed &= run_command(
-        [sys.executable, "-m", "isort", "--check-only", "--diff", "."], "isort import sorting check"
+        [sys.executable, "-m", "isort", "--check-only", "--diff", "."],
+        "isort import sorting check",
     )
 
     # 3. Flake8 代码风格检查
@@ -98,7 +104,14 @@ def main():
 
     # 6. Mypy 类型检查（可选，因为可能有一些类型问题）
     mypy_result = run_command(
-        [sys.executable, "-m", "mypy", "--explicit-package-bases", "--ignore-missing-imports", "."],
+        [
+            sys.executable,
+            "-m",
+            "mypy",
+            "--explicit-package-bases",
+            "--ignore-missing-imports",
+            ".",
+        ],
         "Mypy type checking",
     )
     if not mypy_result:

@@ -126,7 +126,7 @@ const GlobalProgressBar: React.FC = () => {
   useEffect(() => {
     // 优先级1: 错误状态（最高优先级）
     const errorKeywords = ['错误', '失败', '取消'];
-    const hasError = errorKeywords.some(keyword => message && message.includes(keyword));
+    const hasError = errorKeywords.some((keyword) => message && message.includes(keyword));
 
     if (hasError) {
       // 错误状态 - 使用幽默文案
@@ -180,7 +180,7 @@ const GlobalProgressBar: React.FC = () => {
   const getCurrentIconPath = () => {
     // 首先检查错误状态（优先级最高）
     const errorKeywords = ['错误', '失败', '取消'];
-    const hasError = errorKeywords.some(keyword => message && message.includes(keyword));
+    const hasError = errorKeywords.some((keyword) => message && message.includes(keyword));
 
     if (hasError) {
       // 错误状态 - 显示休息图标
@@ -199,7 +199,7 @@ const GlobalProgressBar: React.FC = () => {
 
   // 检查是否为错误状态
   const errorKeywords = ['错误', '失败', '取消'];
-  const isErrorState = errorKeywords.some(keyword => message && message.includes(keyword));
+  const isErrorState = errorKeywords.some((keyword) => message && message.includes(keyword));
 
   const currentIconPath = getCurrentIconPath();
 

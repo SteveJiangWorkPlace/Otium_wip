@@ -44,16 +44,172 @@
 
 .header {
   width: 100%;
-  height: 18px;
+  height: 40px;
   background-color: transparent;
-  border: 1px solid transparent;
-  border-radius: 12px;
+  border-bottom: 1px solid var(--color-gray-200);
   display: flex;
   align-items: center;
-  justify-content: center;
-  margin-bottom: var(--spacing-md);
+  justify-content: flex-start;
+  padding: 0 var(--spacing-4);
   box-sizing: border-box;
   flex-shrink: 0;
+}
+
+.modeSwitch {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  font-size: var(--font-size-sm);
+}
+
+.modeLabel {
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
+}
+
+.modeHint {
+  color: var(--color-primary-600);
+  font-size: var(--font-size-xs);
+  margin-left: var(--spacing-2);
+  font-style: italic;
+}
+
+/* 文献综述选项样式 */
+.literatureReviewOption {
+  margin-left: var(--spacing-8);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  font-size: var(--font-size-sm);
+}
+
+.checkboxLabel {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  gap: var(--spacing-2);
+  transition: color 0.2s ease;
+}
+
+.checkboxLabel:hover {
+  color: var(--color-text-primary);
+}
+
+.checkboxInput {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+  height: 0;
+  width: 0;
+}
+
+.checkboxCustom {
+  position: relative;
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  background-color: var(--color-white);
+  border: 1px solid var(--color-gray-400);
+  border-radius: var(--border-radius-sm);
+  transition: all 0.2s ease;
+}
+
+.checkboxLabel:hover .checkboxCustom {
+  border-color: var(--color-gray-600);
+}
+
+.checkboxInput:checked + .checkboxCustom {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.checkboxInput:checked + .checkboxCustom::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 5px;
+  width: 4px;
+  height: 8px;
+  border: solid var(--color-white);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.checkboxText {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: inherit;
+}
+
+.toggleButton {
+  padding: var(--spacing-1) var(--spacing-3);
+  border: 1px solid var(--color-gray-300);
+  border-radius: var(--border-radius-sm);
+  background-color: var(--color-gray-100);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.toggleButton:hover {
+  background-color: var(--color-gray-200);
+  border-color: var(--color-gray-400);
+}
+
+.toggleButtonActive {
+  background-color: var(--color-primary-500);
+  color: white;
+  border-color: var(--color-primary-600);
+}
+
+.toggleButtonActive:hover {
+  background-color: var(--color-primary-600);
+}
+
+/* 苹果风格开关 */
+.appleSwitch {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 20px;
+  border-radius: 10px;
+  background-color: var(--color-gray-300);
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.appleSwitch:hover {
+  background-color: var(--color-gray-400);
+}
+
+.appleSwitchActive {
+  background-color: var(--color-primary);
+}
+
+.appleSwitchActive:hover {
+  background-color: var(--color-primary);
+}
+
+.appleSwitchThumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background-color: var(--color-white);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: transform 0.3s ease;
+}
+
+.appleSwitchActive .appleSwitchThumb {
+  transform: translateX(20px);
 }
 
 .headerRight {
@@ -72,13 +228,13 @@
 .messagesList {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-3xl);
+  gap: var(--spacing-4);
 }
 
 .message {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-lg);
+  gap: 0;
   max-width: 100%;
   animation: fadeIn 0.3s ease;
 }
@@ -98,16 +254,14 @@
   align-self: flex-end;
   align-items: flex-end;
   margin-right: 0;
+  width: 100%;
 }
 
 .assistantMessage {
   align-self: flex-start;
   align-items: flex-start;
   margin-left: 0;
-}
-
-.userMessage .messageHeader {
-  flex-direction: row-reverse;
+  width: 100%;
 }
 
 .messageHeader {
@@ -118,24 +272,44 @@
   margin-bottom: 0;
 }
 
+.messageIcon {
+  height: 1em;
+  width: auto;
+  display: inline-block;
+  vertical-align: middle;
+}
+
 .messageRole {
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-bold);
   color: var(--color-text-primary);
-  border: 1px solid var(--color-black);
-  border-radius: 12px;
-  padding: 1px 8px;
   display: inline-block;
+  margin-left: 4px;
 }
 
 .messageContent {
-  padding: var(--spacing-md) var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-5) var(--spacing-4) var(--spacing-5);
   font-size: var(--font-size-base);
-  line-height: var(--line-height-normal);
+  line-height: 1.6;
   word-break: break-word;
   white-space: pre-wrap;
   color: var(--color-text-primary);
-  max-width: 95%;
+  max-width: 100%;
+  overflow-wrap: break-word;
+  tab-size: 4;
+}
+
+.messageContent p {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.messageContent p:first-child {
+  margin-top: 0;
+}
+
+.messageContent p:last-child {
+  margin-bottom: 0;
 }
 
 .userMessage .messageContent {
@@ -205,77 +379,36 @@
 }
 
 .inputContainer {
-  padding: var(--spacing-2xl) var(--spacing-lg);
+  padding: var(--spacing-14) var(--spacing-lg);
   background-color: var(--color-gray-50);
   flex-shrink: 0;
 }
 
 .textarea {
-  margin: 0 0 var(--spacing-md) 0;
+  margin: 0 0 var(--spacing-4) 0;
   border-radius: 24px !important;
   background-color: white;
+  min-height: 150px;
+  height: 100%;
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
 }
 
 .textarea :global(textarea) {
   border-radius: 24px !important;
   background-color: white;
-  padding-right: 48px !important;
+  padding-left: var(--spacing-4) !important;
+  padding-right: var(--spacing-4) !important;
+  min-height: 150px;
+  height: 100%;
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
 }
 
 .inputActions {
   position: relative;
   width: 95%;
   margin: 0 auto;
-}
-
-.aiStatusBar {
-  width: 100%;
-  height: 18px;
-  background-color: transparent;
-  border: 1px solid transparent;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: var(--spacing-md);
-  box-sizing: border-box;
-}
-
-.sendButton {
-  position: absolute;
-  bottom: var(--spacing-3);
-  right: var(--spacing-3);
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background-color: var(--color-gray-200);
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-  padding: 0;
-  z-index: 2;
-}
-
-.sendButton:hover {
-  background-color: var(--color-gray-300);
-}
-
-.sendButton:disabled {
-  background-color: var(--color-gray-100);
-  cursor: not-allowed;
-}
-
-.sendButton:disabled .sendArrow {
-  color: var(--color-gray-400);
-}
-
-.sendArrow {
-  color: var(--color-gray-700);
-  font-size: 16px;
-  transform: translateY(-1px);
 }
 
 .typingIndicator {
@@ -342,6 +475,39 @@
   color: var(--color-text-primary);
 }
 
+/* 文献综述按钮样式 */
+.literatureReviewButtonContainer {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: var(--spacing-1);
+  width: 100%;
+}
+
+.literatureReviewButton {
+  background-color: var(--color-white);
+  color: var(--color-blue-700);
+  border: 1px solid var(--color-blue-200);
+  font-size: var(--font-size-sm);
+  font-weight: normal;
+  height: 24px;
+  padding: 0 var(--spacing-4);
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+.literatureReviewButton:hover {
+  background-color: var(--color-gray-100);
+  border-color: var(--color-gray-300);
+  color: var(--color-blue-800);
+}
+
+.literatureReviewButton:disabled {
+  background-color: var(--color-gray-100);
+  color: var(--color-gray-500);
+  border-color: var(--color-gray-300);
+  cursor: not-allowed;
+}
+
 /* 响应式设计 */
 @media (max-width: 768px) {
   .panel {
@@ -378,4 +544,143 @@
   .inputContainer {
     padding: var(--spacing-md);
   }
+}
+
+/* Manus步骤显示样式 */
+.manusStepsContainer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  background-color: var(--color-gray-50);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--border-radius-md);
+  padding: var(--spacing-3);
+  margin: var(--spacing-2) 0;
+}
+
+.manusStepHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-1);
+}
+
+.manusStepLabel {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary-600);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.manusStepCounter {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  background-color: var(--color-gray-200);
+  border-radius: var(--border-radius-sm);
+  padding: var(--spacing-1) var(--spacing-2);
+}
+
+.manusStepContent {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+}
+
+.currentManusStep {
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+  color: var(--color-text-primary);
+  padding: var(--spacing-2);
+  background-color: var(--color-white);
+  border-radius: var(--border-radius-sm);
+  border-left: 3px solid var(--color-primary-500);
+  width: 100%;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.manusStepLoading {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+.manusStepsProgress {
+  height: 4px;
+  background-color: var(--color-gray-200);
+  border-radius: var(--border-radius-sm);
+  overflow: hidden;
+  margin-top: var(--spacing-2);
+}
+
+.manusStepsProgressBar {
+  height: 100%;
+  background-color: var(--color-primary-500);
+  border-radius: var(--border-radius-sm);
+  transition: width 0.5s ease;
+}
+
+/* 处理步骤容器 */
+.processingStepsContainer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.processingStepContent {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  padding: var(--spacing-1) 0;
+  min-height: 24px;
+}
+
+/* AI列表样式 */
+.ai-list {
+  margin: var(--spacing-md) 0;
+  padding-left: var(--spacing-6);
+  list-style-type: none;
+}
+
+ul.ai-list,
+ol.ai-list {
+  margin-top: var(--spacing-xs);
+  margin-bottom: var(--spacing-xs);
+  padding-left: var(--spacing-4);
+}
+
+ul.ai-list li,
+ol.ai-list li {
+  margin-bottom: var(--spacing-xs);
+  line-height: var(--line-height-normal);
+  position: relative;
+}
+
+ul.ai-list li::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-bold);
+}
+
+ul.ai-list li {
+  padding-left: var(--spacing-4);
+}
+
+ol.ai-list {
+  counter-reset: list-counter;
+}
+
+ol.ai-list li {
+  counter-increment: list-counter;
+  padding-left: var(--spacing-6);
+}
+
+ol.ai-list li::before {
+  content: counter(list-counter, decimal) ".";
+  position: absolute;
+  left: var(--spacing-2);
+  font-weight: var(--font-weight-normal);
 }

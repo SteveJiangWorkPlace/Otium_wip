@@ -4,7 +4,7 @@
 - **前端**：Netlify（静态网站托管）
 - **后端**：Render（云服务）
 
-## 🎯 部署概述
+## [部署概述]
 
 ### 部署架构
 ```
@@ -16,7 +16,7 @@
 - **后端**：Render账户（免费层足够，但注意限制）
 - **域名**：可选，可以使用Netlify和Render提供的免费子域名
 
-## 🌐 Netlify 前端部署
+## [Netlify 前端部署]
 
 ### 1. 准备工作
 1. 注册 [Netlify](https://www.netlify.com/) 账户
@@ -45,7 +45,7 @@ REACT_APP_API_BASE_URL=https://your-render-backend.onrender.com
 - 每个Pull Request自动生成预览部署
 - 便于测试和代码审查
 
-## 🔧 Render 后端部署
+## [Render 后端部署]
 
 ### 1. 准备工作
 1. 注册 [Render](https://render.com/) 账户
@@ -129,7 +129,7 @@ DATABASE_URL=postgresql://user:password@host:port/database
 - 连接GitHub仓库后，每次推送自动部署
 - 支持回滚到之前的版本
 
-## 🗄️ 数据库配置
+## [数据库配置]
 
 ### Render PostgreSQL（推荐）
 1. 在Render控制台创建 "PostgreSQL" 数据库
@@ -150,7 +150,7 @@ cd backend
 python scripts/migrate_json_to_database.py
 ```
 
-## 🔄 CI/CD 配置（可选）
+## [CI/CD 配置（可选）]
 
 ### GitHub Actions
 项目包含基本的CI/CD配置（计划中），可以：
@@ -166,7 +166,7 @@ npm run build
 netlify deploy --prod
 ```
 
-## 🔐 安全部署检查清单
+## [安全部署检查清单]
 
 ### 生产环境必做
 - [ ] 修改默认管理员密码
@@ -182,7 +182,7 @@ netlify deploy --prod
 - [ ] 设置性能监控
 - [ ] 创建警报机制
 
-## 🐛 常见部署问题
+## [常见部署问题]
 
 ### 问题1：CORS错误
 **症状**：前端无法访问后端API
@@ -221,7 +221,7 @@ netlify deploy --prod
 4. 考虑使用SendGrid替代QQ邮箱（Render集成更好）
 5. 检查Render日志中的SMTP错误信息
 
-## 📈 性能优化
+## [性能优化]
 
 ### 前端优化
 1. **代码分割**：React.lazy动态导入
@@ -233,7 +233,7 @@ netlify deploy --prod
 2. **缓存机制**：实现API响应缓存
 3. **异步处理**：长时间任务异步执行
 
-## 🌍 多环境部署
+## [多环境部署]
 
 ### 环境分类
 1. **开发环境**：本地开发

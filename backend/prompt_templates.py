@@ -258,7 +258,7 @@ You are an expert academic editor specializing in academic papers and scholarly 
 **TYPE 1: LOCAL INSTRUCTIONS (in 【】 or [])**
 - These are ATTACHED to specific sentences
 - ONLY modify the sentence that IMMEDIATELY PRECEDES the instruction marker
-- Example: "This is a sentence.【make it more formal】" → ONLY modify "This is a sentence."
+- Example: "This is a sentence.【make it more formal】" -> ONLY modify "This is a sentence."
 - NEVER apply these instructions to any other sentence in the document
 - The instruction ONLY affects the ONE sentence or phrase it is directly attached to
 
@@ -277,7 +277,7 @@ Sentence B and all other sentences should NOT be affected by instruction X.
 Example 1:
 Input: "The study shows significant results.【use more academic vocabulary】 The data supports this conclusion."
 Correct Output: "The study **demonstrates substantial findings**. The data supports this conclusion."
-Wrong Output: "The study **demonstrates substantial findings**. The data **corroborates this assertion**." ← WRONG! The instruction should NOT affect the second sentence.
+Wrong Output: "The study **demonstrates substantial findings**. The data **corroborates this assertion**." <- WRONG! The instruction should NOT affect the second sentence.
 
 
 **PROCESSING STEPS:**
@@ -312,7 +312,7 @@ Now, please refine the following text, remembering that local instructions ONLY 
 # **TYPE 1: LOCAL INSTRUCTIONS (in 【】 or [])**
 # - These are ATTACHED to specific sentences
 # - ONLY modify the sentence that IMMEDIATELY PRECEDES the instruction marker
-# - Example: "This is a sentence.【make it more formal】" → ONLY modify "This is a sentence."
+# - Example: "This is a sentence.【make it more formal】" -> ONLY modify "This is a sentence."
 # - NEVER apply these instructions to any other sentence in the document
 # - The instruction ONLY affects the ONE sentence or phrase it is directly attached to
 #
@@ -331,7 +331,7 @@ Now, please refine the following text, remembering that local instructions ONLY 
 # Example 1:
 # Input: "The study shows significant results.【use more academic vocabulary】 The data supports this conclusion."
 # Correct Output: "The study **demonstrates substantial findings**. The data supports this conclusion."
-# Wrong Output: "The study **demonstrates substantial findings**. The data **corroborates this assertion**." ← WRONG! The instruction should NOT affect the second sentence.
+# Wrong Output: "The study **demonstrates substantial findings**. The data **corroborates this assertion**." <- WRONG! The instruction should NOT affect the second sentence.
 #
 #
 # **PROCESSING STEPS:**
@@ -429,16 +429,16 @@ SHORTCUT_ANNOTATIONS_PRODUCTION = {
    - Replace with: This could help show, Maybe this will point to, I feel like this shows, What I get from this is
 
 2. **Simplify Academic Vocabulary**:
-   - Find: utilize, employ → Replace with: use, make use of
-   - Find: examine, investigate, analyze → Replace with: look into, check out, figure out, get a handle on
-   - Find: furthermore, moreover, additionally → Replace with: also, on top of that, and another thing is
-   - Find: consequently, therefore, thus → Replace with: so, because of that, which is why
-   - Find: methodology, framework → Replace with: approach, way of doing things, setup, basic idea
-   - Find: necessitates, requires → Replace with: needs, means I have to
-   - Find: a pursuit of this scope → Replace with: doing something this big, this kind of project
+   - Find: utilize, employ -> Replace with: use, make use of
+   - Find: examine, investigate, analyze -> Replace with: look into, check out, figure out, get a handle on
+   - Find: furthermore, moreover, additionally -> Replace with: also, on top of that, and another thing is
+   - Find: consequently, therefore, thus -> Replace with: so, because of that, which is why
+   - Find: methodology, framework -> Replace with: approach, way of doing things, setup, basic idea
+   - Find: necessitates, requires -> Replace with: needs, means I have to
+   - Find: a pursuit of this scope -> Replace with: doing something this big, this kind of project
 
 3. **Inject Conversational Elements**:
-   - Use contractions (it is → it's, I will → I'll, I would → I'd)
+   - Use contractions (it is -> it's, I will -> I'll, I would -> I'd)
    - Add filler words: just, really, kind of, sort of
    - Occasionally use informal starters: "The thing is," "What I'm trying to say is,"
 
@@ -486,29 +486,29 @@ The final text should be a natural blend of formal knowledge and a more personal
 # 24.    intend to""",
 #     "人性化处理": """Revise the English text to make it sound more like a thoughtful but less confident human wrote it. You will achieve this by performing the following actions on a random selection of targets (do not change everything, aim for a 40-70% replacement rate):
 # 1. Reduce Formality and Confidence: Identify strong, confident, or goal-oriented phrases and replace them with more personal, uncertain, or hopeful alternatives.
-# •    Find: I will, I plan to, I aim to, my objective is to
-# •    Replace with: I hope to, I would like to, I'm thinking about trying to, I want to see if I can, it might be cool to
-# •    Find: This will establish, This will demonstrate, This analysis reveals
-# •    Replace with: This could help show, Maybe this will point to, I feel like this shows, What I get from this is
+# -    Find: I will, I plan to, I aim to, my objective is to
+# -    Replace with: I hope to, I would like to, I'm thinking about trying to, I want to see if I can, it might be cool to
+# -    Find: This will establish, This will demonstrate, This analysis reveals
+# -    Replace with: This could help show, Maybe this will point to, I feel like this shows, What I get from this is
 # 2. Simplify Academic and Professional Vocabulary: Find standard academic or overly formal words and replace them with simpler, more common or colloquial equivalents.
-# •    Find: utilize, employ
-# •    Replace with: use, make use of
-# •    Find: examine, investigate, analyze
-# •    Replace with: look into, check out, figure out, get a handle on
-# •    Find: furthermore, moreover, additionally
-# •    Replace with: also, on top of that, and another thing is
-# •    Find: consequently, therefore, thus
-# •    Replace with: so, because of that, which is why
-# •    Find: methodology, framework
-# •    Replace with: approach, way of doing things, setup, basic idea
-# •    Find: necessitates, requires
-# •    Replace with: needs, means I have to
-# •    Find: a pursuit of this scope
-# •    Replace with: doing something this big, this kind of project
+# -    Find: utilize, employ
+# -    Replace with: use, make use of
+# -    Find: examine, investigate, analyze
+# -    Replace with: look into, check out, figure out, get a handle on
+# -    Find: furthermore, moreover, additionally
+# -    Replace with: also, on top of that, and another thing is
+# -    Find: consequently, therefore, thus
+# -    Replace with: so, because of that, which is why
+# -    Find: methodology, framework
+# -    Replace with: approach, way of doing things, setup, basic idea
+# -    Find: necessitates, requires
+# -    Replace with: needs, means I have to
+# -    Find: a pursuit of this scope
+# -    Replace with: doing something this big, this kind of project
 # 3. Inject Colloquial Elements:
-# •    Introduce conversational filler words like just, really, kind of, sort of.
-# •    Use contractions (it is -> it's, I will -> I'll, I would -> I'd).
-# •    Occasionally use informal sentence starters like \"The thing is,\" or \"What I'm trying to say is,\".
+# -    Introduce conversational filler words like just, really, kind of, sort of.
+# -    Use contractions (it is -> it's, I will -> I'll, I would -> I'd).
+# -    Occasionally use informal sentence starters like \"The thing is,\" or \"What I'm trying to say is,\".
 # Crucial Rule: The final text should be a mixture. It should not be completely informal. The desired effect is that of a person who knows the formal language but whose natural, less certain voice is breaking through. Preserve the core ideas of the original text."""
 # }
 # =================================================================

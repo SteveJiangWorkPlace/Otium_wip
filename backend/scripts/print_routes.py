@@ -6,7 +6,14 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# 添加backend目录到Python路径
+script_dir = os.path.dirname(os.path.abspath(__file__))
+backend_dir = os.path.dirname(script_dir)  # backend目录
+project_root = os.path.dirname(backend_dir)  # 项目根目录
+
+# 添加backend和project_root到Python路径
+sys.path.insert(0, backend_dir)
+sys.path.insert(0, project_root)
 
 from main import app
 

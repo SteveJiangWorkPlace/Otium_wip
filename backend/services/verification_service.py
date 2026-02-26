@@ -10,6 +10,7 @@
 import logging
 import random
 import string
+from typing import cast
 
 from config import settings
 from utils import CacheManager
@@ -136,7 +137,9 @@ class VerificationService:
             # 删除令牌，防止重复使用
             self.reset_token_cache.cache.pop(key, None)
             logger.debug(f"使用重置令牌: {token} -> {email}")
-            return email
+            # 类型断言：email不为None
+            assert email is not None
+            return cast(str, email)
 
         return None
 
@@ -161,7 +164,7 @@ class VerificationService:
             Tuple[bool, Optional[str]]: (是否有效, 邮箱地址或None)
         """
         key = f"verified:{token}"
-        email = self.verified_cache.get(key)
+        email: str | None = self.verified_cache.get(key)
 
         if not email:
             return False, None
@@ -179,12 +182,14 @@ class VerificationService:
             Optional[str]: 邮箱地址或None（如果令牌无效）
         """
         key = f"verified:{token}"
-        email = self.verified_cache.get(key)
+        email: str | None = self.verified_cache.get(key)
 
         if email:
             # 删除令牌，防止重复使用
             self.verified_cache.cache.pop(key, None)
             logger.debug(f"使用已验证令牌: {token} -> {email}")
+            # 类型断言：email不为None
+            assert email is not None
             return email
 
         return None

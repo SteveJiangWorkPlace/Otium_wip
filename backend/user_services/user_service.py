@@ -42,7 +42,7 @@ class UserService:
         from models.database import get_session_local
 
         SessionLocal = get_session_local()
-        return SessionLocal()
+        return SessionLocal()  # type: ignore[no-any-return]
 
     def authenticate_user(self, username: str, password: str | None = None) -> tuple[bool, str]:
         """验证用户（对应原is_user_allowed方法）"""
@@ -65,7 +65,7 @@ class UserService:
             logging.info(f"用户数据: {user.to_dict()}")
 
             if password is not None:
-                if not verify_password(password, user.password_hash):
+                if not verify_password(password, user.password_hash):  # type: ignore[arg-type]
                     logging.error("密码不匹配！")
                     return False, "密码错误"
 
@@ -95,7 +95,7 @@ class UserService:
         if hasattr(username, "username"):
             username = username.username
         elif not isinstance(username, str | int):
-            username = str(username)
+            username = str(username)  # type: ignore[unreachable]
 
         # 使用线程锁确保原子操作
         with self._lock:
@@ -111,11 +111,12 @@ class UserService:
                 today = datetime.utcnow().date()
 
                 # 根据操作类型确定每日限制（使用用户特定的限制值）
+                daily_limit: int
                 if operation_type in ["translate_us", "translate_uk"]:
-                    daily_limit = user.daily_translation_limit
+                    daily_limit = user.daily_translation_limit  # type: ignore[assignment]
                     limit_type = "翻译"
                 elif operation_type == "ai_detection":
-                    daily_limit = user.daily_ai_detection_limit
+                    daily_limit = user.daily_ai_detection_limit  # type: ignore[assignment]
                     limit_type = "AI检测"
                 else:
                     daily_limit = 10  # 默认限制
@@ -189,7 +190,7 @@ class UserService:
         if hasattr(username, "username"):
             username = username.username
         elif not isinstance(username, str | int):
-            username = str(username)
+            username = str(username)  # type: ignore[unreachable]
 
         db = self._get_db_session()
         try:
@@ -258,13 +259,13 @@ class UserService:
                 return False, "用户不存在"
 
             if password:
-                user.password_hash = hash_password(password)
+                user.password_hash = hash_password(password)  # type: ignore[assignment]
 
             if daily_translation_limit is not None:
-                user.daily_translation_limit = daily_translation_limit
+                user.daily_translation_limit = daily_translation_limit  # type: ignore[assignment]
 
             if daily_ai_detection_limit is not None:
-                user.daily_ai_detection_limit = daily_ai_detection_limit
+                user.daily_ai_detection_limit = daily_ai_detection_limit  # type: ignore[assignment]
 
             db.commit()
             return True, ""
@@ -330,7 +331,7 @@ class UserService:
             result = []
 
             for user in users:
-                user_info = self.get_user_info(user.username)
+                user_info = self.get_user_info(user.username)  # type: ignore[arg-type]
                 if user_info:
                     result.append(user_info)
 
@@ -413,7 +414,7 @@ class UserService:
             if user.is_admin:
                 return False, "不能禁用管理员用户"
 
-            user.is_active = False
+            user.is_active = False  # type: ignore[assignment]
             db.commit()
             return True, "用户已禁用"
 
@@ -433,7 +434,7 @@ class UserService:
             if not user:
                 return False, "用户不存在"
 
-            user.is_active = True
+            user.is_active = True  # type: ignore[assignment]
             db.commit()
             return True, "用户已启用"
 
@@ -550,8 +551,8 @@ class UserService:
             if existing_email:
                 return False, "邮箱已被其他用户使用"
 
-            user.email = email
-            user.email_verified = email_verified
+            user.email = email  # type: ignore[assignment]
+            user.email_verified = email_verified  # type: ignore[assignment]
             db.commit()
 
             logging.info(f"用户邮箱更新成功: {username} -> {email}")
@@ -583,7 +584,7 @@ class UserService:
             if not user.email:
                 return False, "用户没有设置邮箱"
 
-            user.email_verified = True
+            user.email_verified = True  # type: ignore[assignment]
             db.commit()
 
             logging.info(f"用户邮箱验证成功: {username}")
@@ -617,7 +618,7 @@ class UserService:
                 return False, "用户已被禁用", None
 
             logging.info(f"密码重置请求: {email} -> {user.username}")
-            return True, "重置请求已接受", user.username
+            return True, "重置请求已接受", user.username  # type: ignore[return-value]
 
         except Exception as e:
             logging.error(f"处理密码重置请求失败: {str(e)}")
@@ -650,7 +651,7 @@ class UserService:
                 return False, "用户已被禁用"
 
             # 更新密码
-            user.password_hash = hash_password(new_password)
+            user.password_hash = hash_password(new_password)  # type: ignore[assignment]
             db.commit()
 
             logging.info(f"密码重置成功: {username}")
@@ -750,4 +751,4 @@ class UserService:
 
 # 向后兼容的别名
 # 注意：为了保持完全兼容，我们提供is_user_allowed方法
-UserService.is_user_allowed = UserService.authenticate_user
+UserService.is_user_allowed = UserService.authenticate_user  # type: ignore[attr-defined]

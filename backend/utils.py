@@ -18,6 +18,7 @@ import time
 import uuid
 from collections import deque
 from datetime import datetime
+from typing import Any
 
 from config import is_expired
 
@@ -324,9 +325,9 @@ class UserLimitManager:
     def update_user(
         self,
         username: str,
-        expiry_date: str = None,
-        max_translations: int = None,
-        password: str = None,
+        expiry_date: str | None = None,
+        max_translations: int | None = None,
+        password: str | None = None,
     ):
         """更新用户信息"""
         if username not in self.allowed_users:
@@ -382,7 +383,7 @@ class RateLimiter:
         self.time_window = time_window
         self.calls = {}  # {user_id: deque()}
 
-    def is_allowed(self, user_id):
+    def is_allowed(self, user_id: Any):
         """检查是否允许调用"""
         # 添加类型检查和转换
         if hasattr(user_id, "username"):
@@ -409,12 +410,12 @@ class RateLimiter:
         wait_time = int(max(0, next_available - current_time))
         return False, wait_time
 
-    def reset(self, user_id: str):
+    def reset(self, user_id: Any):
         """重置指定用户的限制器"""
         # 添加类型检查和转换
         if hasattr(user_id, "username"):
             user_id = user_id.username
-        elif not isinstance(user_id, str | int):
+        elif not isinstance(user_id, str):
             user_id = str(user_id)
 
         if user_id in self.calls:
@@ -443,23 +444,35 @@ class TextValidator:
         text_length = len(text)
 
         if text_length < min_chars:
-            return False, f"文本过短，{api_name} 要求至少 {min_chars} 字符，当前 {text_length} 字符"
+            return (
+                False,
+                f"文本过短，{api_name} 要求至少 {min_chars} 字符，当前 {text_length} 字符",
+            )
 
         if text_length > max_chars:
-            return False, f"文本过长，{api_name} 限制为 {max_chars} 字符，当前 {text_length} 字符"
+            return (
+                False,
+                f"文本过长，{api_name} 限制为 {max_chars} 字符，当前 {text_length} 字符",
+            )
 
         return True, "验证通过"
 
     @staticmethod
     def validate_for_gemini(text):
         return TextValidator._validate_base(
-            text, TextValidator.GEMINI_MIN_CHARS, TextValidator.GEMINI_MAX_CHARS, "Gemini API"
+            text,
+            TextValidator.GEMINI_MIN_CHARS,
+            TextValidator.GEMINI_MAX_CHARS,
+            "Gemini API",
         )
 
     @staticmethod
     def validate_for_gptzero(text):
         return TextValidator._validate_base(
-            text, TextValidator.GPTZERO_MIN_CHARS, TextValidator.GPTZERO_MAX_CHARS, "GPTZero API"
+            text,
+            TextValidator.GPTZERO_MIN_CHARS,
+            TextValidator.GPTZERO_MAX_CHARS,
+            "GPTZero API",
         )
 
 
@@ -471,12 +484,12 @@ class TextValidator:
 class CacheManager:
     """简单的内存缓存管理器"""
 
-    def __init__(self, ttl=3600, max_entries=100):
-        self.cache = {}
+    def __init__(self, ttl: int = 3600, max_entries: int = 100) -> None:
+        self.cache: dict[str, dict[str, Any]] = {}
         self.ttl = ttl
         self.max_entries = max_entries
 
-    def get(self, key):
+    def get(self, key: str) -> Any | None:
         """获取缓存"""
         if key in self.cache:
             entry = self.cache[key]
@@ -486,7 +499,7 @@ class CacheManager:
                 del self.cache[key]
         return None
 
-    def set(self, key, value):
+    def set(self, key: str, value: Any) -> None:
         """设置缓存"""
         # 如果缓存满了，删除最旧的条目
         if len(self.cache) >= self.max_entries:

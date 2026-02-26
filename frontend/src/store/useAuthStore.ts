@@ -5,7 +5,7 @@ import { useTranslationStore } from './useTranslationStore';
 import { useCorrectionStore } from './useCorrectionStore';
 import { useModificationStore } from './useModificationStore';
 import { useDetectionStore } from './useDetectionStore';
-import { useAIChatStore } from './useAIChatStore';
+// import { useAIChatStore } from './useAIChatStore';
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -58,14 +58,14 @@ export const useAuthStore = create<AuthState>()(
           useModificationStore.getState().clear();
           useDetectionStore.getState().clear();
 
-          // 清除AI聊天所有页面的对话
-          const aiChatStore = useAIChatStore.getState();
-          const conversations = aiChatStore.conversations;
-          if (conversations) {
-            Object.keys(conversations).forEach((page) => {
-              aiChatStore.clearConversation(page);
-            });
-          }
+          // 清除AI聊天所有页面的对话 - 暂时注释掉以避免循环依赖
+          // const aiChatStore = useAIChatStore.getState();
+          // const conversations = aiChatStore.conversations;
+          // if (conversations) {
+          //   Object.keys(conversations).forEach((page) => {
+          //     aiChatStore.clearConversation(page);
+          //   });
+          // }
         } catch (error) {
           console.error('重置store时出错:', error);
         }

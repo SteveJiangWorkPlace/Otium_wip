@@ -44,16 +44,16 @@ DEFAULT_ANNOTATIONS_VERSION = "production"  # 快捷批注使用生产版本（�
       - Replace with: This could help show, Maybe this will point to, I feel like this shows, What I get from this is
 
    2. **Simplify Academic Vocabulary**:
-      - Find: utilize, employ → Replace with: use, make use of
-      - Find: examine, investigate, analyze → Replace with: look into, check out, figure out, get a handle on
-      - Find: furthermore, moreover, additionally → Replace with: also, on top of that, and another thing is
-      - Find: consequently, therefore, thus → Replace with: so, because of that, which is why
-      - Find: methodology, framework → Replace with: approach, way of doing things, setup, basic idea
-      - Find: necessitates, requires → Replace with: needs, means I have to
-      - Find: a pursuit of this scope → Replace with: doing something this big, this kind of project
+      - Find: utilize, employ -> Replace with: use, make use of
+      - Find: examine, investigate, analyze -> Replace with: look into, check out, figure out, get a handle on
+      - Find: furthermore, moreover, additionally -> Replace with: also, on top of that, and another thing is
+      - Find: consequently, therefore, thus -> Replace with: so, because of that, which is why
+      - Find: methodology, framework -> Replace with: approach, way of doing things, setup, basic idea
+      - Find: necessitates, requires -> Replace with: needs, means I have to
+      - Find: a pursuit of this scope -> Replace with: doing something this big, this kind of project
 
    3. **Inject Conversational Elements**:
-      - Use contractions (it is → it's, I will → I'll, I would → I'd)
+      - Use contractions (it is -> it's, I will -> I'll, I would -> I'd)
       - Add filler words: just, really, kind of, sort of
       - Occasionally use informal starters: "The thing is," "What I'm trying to say is,"
 
@@ -85,9 +85,9 @@ DEFAULT_ANNOTATIONS_VERSION = "production"  # 快捷批注使用生产版本（�
    - 记录构建时间、缓存命中率、提示词长度等指标
    - 低开销装饰器实现
 
-4. **`prompts_backup.py`** (14,365字节)
-   - 完整备份所有原始提示词函数
-   - 支持快速回滚和对比测试
+4. **`prompts_backup.py`** (14,365字节) - **已整合到 prompts.py**
+   - 原完整备份所有原始提示词函数（现已直接整合到 prompts.py 中）
+   - 支持快速回滚和对比测试（现在直接使用 prompts.py 中的原始函数）
 
 #### 修改的文件
 5. **`prompts.py`** (18,060字节) - **主要修改**
@@ -151,36 +151,36 @@ class PromptCacheManager:
 根据 `translation_test_report.txt` 的测试结果：
 
 1. **新提示词 vs 原始提示词**:
-   - 提示词长度减少: 51.4% (2822 → 1372字符)
+   - 提示词长度减少: 51.4% (2822 -> 1372字符)
    - 翻译质量: 文本相似度69%，核心意思相同
-   - AI检测率: 略有增加 (0.33% → 1.70%)，但仍低于2%
-   - 总耗时: 略有增加 (11.92秒 → 14.18秒)
+   - AI检测率: 略有增加 (0.33% -> 1.70%)，但仍低于2%
+   - 总耗时: 略有增加 (11.92秒 -> 14.18秒)
 
 2. **用户决策**: 基于测试结果，决定使用原始提示词版本，但保留特定修改的快捷批注
 
 ## 用户要求完整实现清单
 
-### ✅ 已完成的要求
-1. **主要提示词使用生产版本（基于原始版本）**: ✓
+### [完成] 已完成的要求
+1. **主要提示词使用生产版本（基于原始版本）**: [完成]
    - 智能纠错: 使用生产版本（基于原始版本）
    - 学术翻译: 使用生产版本（基于原始版本）
    - 英文精修: 使用生产版本（基于原始版本）
 
-2. **快捷批注特定修改**: ✓
-   - 移除"灵活表达"功能 ✓
-   - 修改"符号修正"提示词 ✓
-   - "人性化处理"使用用户提供的新版本 ✓
-   - "去AI词汇"保持632字符原始完整内容 ✓
+2. **快捷批注特定修改**: [完成]
+   - 移除"灵活表达"功能 [完成]
+   - 修改"符号修正"提示词 [完成]
+   - "人性化处理"使用用户提供的新版本 [完成]
+   - "去AI词汇"保持632字符原始完整内容 [完成]
 
-3. **保留缓存机制**: ✓
+3. **保留缓存机制**: [完成]
    - 提示词缓存系统完整保留
    - 支持TTL和LRU淘汰策略
 
-4. **保留性能监控**: ✓
+4. **保留性能监控**: [完成]
    - 性能监控系统正常工作
    - 提供调试端点
 
-### 🔄 可选配置
+### [可选] 可选配置
 系统仍支持多种模板版本架构，但压缩版本已注释掉，可通过修改配置常量切换：
 
 ```python
@@ -231,9 +231,9 @@ DEFAULT_ANNOTATIONS_VERSION = "production"  # 或 "original"
 ```
 
 ### 6. 回滚到原始提示词
-使用 `prompts_backup.py` 中的原始函数：
+使用 `prompts.py` 中的原始函数（现在已整合到主文件中）：
 ```python
-from prompts_backup import (
+from prompts import (
     build_error_check_prompt_original,
     build_academic_translate_prompt_original,
     build_english_refine_prompt_original,
@@ -245,26 +245,26 @@ from prompts_backup import (
 
 ### 多重备份策略
 1. **注释备份**: 在 `prompt_templates.py` 中用注释完整保留原始提示词
-2. **备份文件**: `prompts_backup.py` 完整保存所有原始提示词函数
+2. **内置备份**: `prompts.py` 中直接包含所有原始提示词函数（原 prompts_backup.py 已整合）
 3. **Git记录**: 所有修改都有Git提交记录
 4. **版本控制**: 支持快速切换不同模板版本
 
 ### 回滚机制
 1. **配置回滚**: 修改配置常量即可切换版本
-2. **函数回滚**: 直接调用 `prompts_backup.py` 中的原始函数
+2. **函数回滚**: 直接调用 `prompts.py` 中的原始函数（如 `build_error_check_prompt_original` 等）
 3. **文件回滚**: 恢复 `prompts.py` 到之前的版本
 
 ## 性能改进总结
 
 虽然最终决定使用原始提示词版本，但优化架构已经建立：
 
-### ✅ 已实现的架构改进
+### [完成] 已实现的架构改进
 1. **模板化系统**: 支持多版本模板，便于未来优化
 2. **缓存机制**: 提示词缓存减少重复构建开销
 3. **性能监控**: 实时监控系统性能指标
 4. **模块化设计**: 清晰的代码结构，便于维护
 
-### 📊 实测性能数据（测试环境）
+### [数据] 实测性能数据（测试环境）
 1. **提示词构建时间**: < 1ms（缓存命中时）
 2. **缓存命中率**: 相似文本场景可达60-80%
 3. **系统开销**: 监控系统开销极小
@@ -290,5 +290,5 @@ from prompts_backup import (
 ---
 
 **报告生成时间**: 2026-02-14
-**验证状态**: ✅ 所有用户要求已验证通过
+**验证状态**: [完成] 所有用户要求已验证通过
 **系统状态**: 就绪，可投入生产使用
