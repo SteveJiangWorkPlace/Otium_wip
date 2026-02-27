@@ -553,7 +553,7 @@ async def generate_gemini_content_stream(
                     "error": f"流式翻译超时: {timeout_seconds}秒内未完成",
                     "error_type": "timeout",
                 }
-                return  # 结束生成器
+                return  # 流式翻译超时，结束生成器
             if hasattr(chunk, "text"):
                 chunk_text = chunk.text
             elif hasattr(chunk, "candidates") and chunk.candidates:
@@ -1063,6 +1063,14 @@ def convert_urls_to_markdown(text: str) -> str:
     )
 
     def replace_url(match):
+        """替换URL为Markdown链接格式的回调函数
+
+        Args:
+            match: re.Match对象，包含匹配的URL
+
+        Returns:
+            str: Markdown格式的链接 [标题](URL)
+        """
         url = match.group(0)
         # 移除末尾的标点符号（句号、逗号、括号等）
         while url and url[-1] in '.,;:!?)\'"<>':
@@ -1115,6 +1123,14 @@ def convert_urls_to_markdown(text: str) -> str:
 
     # 查找所有URL并替换
     def process_text_segment(segment):
+        """处理文本片段，将URL转换为Markdown链接
+
+        Args:
+            segment (str): 文本片段
+
+        Returns:
+            str: 处理后的文本片段
+        """
         # 如果已经是Markdown链接格式，跳过
         if re.search(r'\[.*?\]\(https?://[^)]+\)', segment):
             return segment
@@ -1381,7 +1397,7 @@ def chat_with_manus(
         # 设置超时（对话可能需要较长时间，匹配Render的1800秒超时）
         timeout = 1200  # 20分钟超时，匹配Gunicorn的1800秒超时
         logging.info(
-            f"Manus API超时设置: POST请求超时={timeout}秒, 最大轮询次数=720次(60分钟), 轮询超时=300秒, pending状态超时=1200秒"
+            f"Manus API超时设置: POST请求超时={timeout}秒, 最大轮询次数=200次(10分钟), 轮询超时=300秒, pending状态超时=1200秒"
         )
         response = requests.post(url, json=data, headers=headers, timeout=timeout)
         response.raise_for_status()
@@ -1410,7 +1426,7 @@ def chat_with_manus(
         else:
             task_status_url = f"https://api.manus.ai/v1/tasks/{task_id}"
             logging.info(f"使用构建的任务状态URL: {task_status_url}")
-        max_poll_attempts = 1200  # 最多尝试1200次（60分钟，每3秒一次）
+        max_poll_attempts = 200  # 最多尝试200次（10分钟，每3秒一次），避免Render负载均衡器超时
         poll_interval = 3  # 每3秒轮询一次，保持连接活跃
 
         # 存储收集到的assistant文本和步骤信息

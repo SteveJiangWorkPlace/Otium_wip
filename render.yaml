@@ -15,6 +15,7 @@ services:
     buildCommand: pip install -r backend/requirements.txt
     startCommand: cd backend && gunicorn --bind 0.0.0.0:$PORT --workers 4 --worker-class uvicorn.workers.UvicornWorker --timeout 1800 main:app
     healthCheckPath: /api/health
+    timeout: 1800  # 负载均衡器超时设置，与Gunicorn超时保持一致
     envVars:
       # ==================== 应用配置 ====================
       - key: ENVIRONMENT

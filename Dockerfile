@@ -51,5 +51,5 @@ CMD gunicorn \
     --worker-class uvicorn.workers.UvicornWorker \
     --access-logfile - \
     --error-logfile - \
-    --timeout 120 \
+    --timeout 1800 \  # 与render.yaml保持一致，支持文献调研长时间任务
     main:app
