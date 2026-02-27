@@ -207,6 +207,29 @@ axiosInstance.interceptors.response.use(
       }
     }
 
+    // 503/502/504 服务器错误自动重试（用于处理Render冷启动）
+    if (status === 503 || status === 502 || status === 504) {
+      const maxRetries = 4;
+      const retryCount = (error.config as any)?._retryCount || 0;
+
+      if (retryCount < maxRetries) {
+        // 固定间隔重试：25, 50, 75, 100秒（总等待时间250秒，约4.2分钟）
+        const retryIntervals = [25, 50, 75, 100];
+        const retryAfter = retryIntervals[retryCount];
+        console.log(
+          `服务器错误 ${status}，${retryAfter}秒后重试 (${retryCount + 1}/${maxRetries})`
+        );
+
+        const newConfig = {
+          ...error.config,
+          _retryCount: retryCount + 1,
+        };
+
+        await new Promise((resolve) => setTimeout(resolve, retryAfter * 1000));
+        return axiosInstance.request(newConfig);
+      }
+    }
+
     // 401 错误统一跳转登录
     if (status === 401) {
       // 调用logout函数清除所有认证状态和store状态

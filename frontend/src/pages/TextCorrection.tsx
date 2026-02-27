@@ -5,7 +5,7 @@ import { useCorrectionStore } from '../store/useCorrectionStore';
 import { useGlobalProgressStore } from '../store/useGlobalProgressStore';
 import { useAIChatStore } from '../store/useAIChatStore';
 import { apiClient } from '../api/client';
-import { cleanTextFromMarkdown } from '../utils/textCleaner';
+import { cleanTextFromMarkdown, renderMarkdownAsHtml } from '../utils/textCleaner';
 import Card from '../components/ui/Card/Card';
 import Textarea from '../components/ui/Textarea/Textarea';
 import Button from '../components/ui/Button/Button';
@@ -164,17 +164,19 @@ const TextCorrection: React.FC = () => {
   };
 
   const renderHighlightedText = (text: string) => {
-    // 处理**text**格式的粗体标记（如果后端未清理）
-    let highlightedText = text.replace(
-      /\*\*(.*?)\*\*/g,
+    // 先将markdown符号转换为HTML（处理粗体、斜体、换行等）
+    let highlightedText = renderMarkdownAsHtml(text);
+
+    // 将粗体标签（<strong>和<b>）转换为高亮标记，用于突出显示修改部分
+    highlightedText = highlightedText.replace(
+      /<strong>(.*?)<\/strong>/g,
       '<mark style="background-color: var(--color-black); color: var(--color-white); padding: 2px 4px; border-radius: 4px;">$1</mark>'
     );
-    // 处理<b>text</b>格式的HTML粗体标签（后端已清理markdown）
     highlightedText = highlightedText.replace(
       /<b>(.*?)<\/b>/g,
       '<mark style="background-color: var(--color-black); color: var(--color-white); padding: 2px 4px; border-radius: 4px;">$1</mark>'
     );
-    // 保持<i>text</i>斜体标签不变
+    // 保持<i>和<em>斜体标签不变
     return { __html: highlightedText };
   };
 

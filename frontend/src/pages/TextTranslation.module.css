@@ -520,3 +520,110 @@
     transform: translate(-50%, -50%) scale(0.9);
   }
 }
+
+/* 翻译结果样式 */
+.resultTitleRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.resultActions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.formatToggleContainer {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.formatToggleLabel {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.formatToggle {
+  position: relative;
+  display: inline-block;
+  width: 52px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--color-gray-300);
+  border-radius: 14px;
+  background-color: var(--color-gray-200);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  overflow: hidden;
+  /* 隐藏按钮文本 */
+  text-indent: -9999px;
+  white-space: nowrap;
+}
+
+.formatToggle:hover {
+  border-color: var(--color-gray-400);
+}
+
+/* 开关滑块 */
+.formatToggle::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background-color: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: all var(--transition-fast);
+}
+
+/* 开关打开状态 - 显示编辑模式 */
+.formatToggle[data-state="on"] {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.formatToggle[data-state="on"]::before {
+  transform: translateX(24px);
+}
+
+/* 开关关闭状态 - 显示预览模式（格式化文本） */
+.formatToggle[data-state="off"] {
+  background-color: var(--color-gray-200);
+  border-color: var(--color-gray-300);
+}
+
+.formatToggle[data-state="off"]::before {
+  transform: translateX(0);
+}
+
+.formattedResult {
+  padding: var(--spacing-3);
+  background-color: var(--color-gray-50);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-md);
+  min-height: 300px;
+  max-height: 400px;
+  overflow-y: auto;
+  line-height: var(--line-height-relaxed);
+  font-size: var(--font-size-sm);
+}
+
+.formattedResult strong {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.formattedResult em {
+  font-style: italic;
+  color: var(--color-text-primary);
+}
+
+.formattedResult br {
+  margin-bottom: var(--spacing-2);
+}

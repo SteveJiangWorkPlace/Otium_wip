@@ -5,7 +5,7 @@ import { useTranslationStore } from '../store/useTranslationStore';
 import { useGlobalProgressStore } from '../store/useGlobalProgressStore';
 import { useAIChatStore } from '../store/useAIChatStore';
 import { apiClient } from '../api/client';
-import { cleanTextFromMarkdown } from '../utils/textCleaner';
+import { cleanTextFromMarkdown, renderMarkdownAsHtml } from '../utils/textCleaner';
 import type { StreamTranslationRequest } from '../types';
 import Card from '../components/ui/Card/Card';
 import Textarea from '../components/ui/Textarea/Textarea';
@@ -52,6 +52,9 @@ const TextTranslation: React.FC = () => {
   // 复制通知状态
   const [copyNotification, setCopyNotification] = useState<string | null>(null);
   const notificationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 格式化显示状态
+  const [showFormatted, setShowFormatted] = useState<boolean>(true);
 
   // AI聊天状态
   const { conversations, toggleExpanded, setCurrentPage } = useAIChatStore();
@@ -138,8 +141,6 @@ const TextTranslation: React.FC = () => {
                 addSentence(chunk.text, chunk.index);
                 setCurrentSentenceIndex(chunk.index);
                 setTotalSentences(chunk.total || 0);
-                // 同时更新部分文本，用于实时显示，每句换行
-                appendPartialText(chunk.text, true);
               }
               break;
             case 'complete':
@@ -440,22 +441,45 @@ const TextTranslation: React.FC = () => {
               {translatedText && (
                 <Card variant="ghost" padding="medium" className={styles.resultCard}>
                   <div className={styles.resultHeader}>
-                    <h3 className={styles.resultTitle}>
-                      {englishType === 'us' ? '美式' : '英式'}翻译结果
-                    </h3>
-                    <Button variant="ghost" size="small" onClick={handleCopyResult}>
-                      复制结果
-                    </Button>
+                    <div className={styles.resultTitleRow}>
+                      <h3 className={styles.resultTitle}>
+                        {englishType === 'us' ? '美式' : '英式'}翻译结果
+                      </h3>
+                      <div className={styles.resultActions}>
+                        <div className={styles.formatToggleContainer}>
+                          <span className={styles.formatToggleLabel}>
+                            {showFormatted ? '点击切换编辑模式' : '点击切换预览模式'}
+                          </span>
+                          <button
+                            className={styles.formatToggle}
+                            onClick={() => setShowFormatted(!showFormatted)}
+                            title={showFormatted ? '点击切换到编辑模式' : '点击切换到预览模式'}
+                            data-state={showFormatted ? 'off' : 'on'}
+                            aria-label={showFormatted ? '点击切换到编辑模式' : '点击切换到预览模式'}
+                          />
+                        </div>
+                        <Button variant="ghost" size="small" onClick={handleCopyResult}>
+                          复制结果
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                  <Textarea
-                    value={editableText}
-                    onChange={(e) => handleEditText(e.target.value)}
-                    placeholder="翻译结果..."
-                    rows={19}
-                    resize="vertical"
-                    fullWidth
-                    className={styles.resultTextarea}
-                  />
+                  {showFormatted ? (
+                    <div
+                      className={styles.formattedResult}
+                      dangerouslySetInnerHTML={{ __html: renderMarkdownAsHtml(editableText) }}
+                    />
+                  ) : (
+                    <Textarea
+                      value={editableText}
+                      onChange={(e) => handleEditText(e.target.value)}
+                      placeholder="翻译结果..."
+                      rows={19}
+                      resize="vertical"
+                      fullWidth
+                      className={styles.resultTextarea}
+                    />
+                  )}
                 </Card>
               )}
             </div>

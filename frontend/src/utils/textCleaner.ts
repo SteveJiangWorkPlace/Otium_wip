@@ -52,3 +52,35 @@ export const cleanTextFromMarkdown = (text: string): string => {
 
   return cleaned;
 };
+
+/**
+ * 将markdown格式文本转换为HTML用于显示
+ * 处理粗体、斜体等基本markdown格式
+ */
+export const renderMarkdownAsHtml = (text: string): string => {
+  if (!text) return '';
+
+  let html = text;
+
+  // 转义HTML特殊字符
+  html = html
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+
+  // 处理粗体：**text** 和 __text__
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/__(.*?)__/g, '<strong>$1</strong>');
+
+  // 处理斜体：*text* 和 _text_
+  // 更精确的匹配，避免匹配乘号等
+  html = html.replace(/(^|\s|\()\*(.*?)\*($|\s|\.|,|;|:|!|\?|\))/g, '$1<em>$2</em>$3');
+  html = html.replace(/(^|\s|\()_(.*?)_($|\s|\.|,|;|:|!|\?|\))/g, '$1<em>$2</em>$3');
+
+  // 处理换行：将换行符转换为<br>
+  html = html.replace(/\n/g, '<br>');
+
+  return html;
+};

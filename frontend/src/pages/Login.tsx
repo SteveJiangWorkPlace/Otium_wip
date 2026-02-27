@@ -45,42 +45,74 @@ const Login: React.FC = () => {
     }
 
     setLoading(true);
-    try {
-      // 将 response 强制标记为 any 类型，绕过 TS 检查
-      const response = (await apiClient.login({ username, password })) as any;
 
-      if (response) {
-        // 这样写 TS 就不会报错了
-        const userInfo = response.user || response.user_info || { username };
-        const token = response.token || response.access_token;
+    const maxRetries = 4;
+    let retryCount = 0;
+    let success = false;
 
-        setAuth(token, userInfo);
-        // 登录成功后重置所有store状态，确保干净的工作区
-        resetAllStores();
-
-        // 尝试跳转
-        navigate('/');
-
-        // 保底强制跳转
-        setTimeout(() => {
-          if (window.location.pathname === '/login') {
-            window.location.href = '/';
-          }
-        }, 1000);
-      }
-    } catch (error) {
-      console.error('登录过程出错:', error);
-      let errorMessage = '登录失败，请检查用户名和密码';
+    // 错误消息提取函数（复用原有逻辑）
+    const extractErrorMessage = (error: unknown): string => {
       if (error instanceof Error) {
-        errorMessage = error.message;
+        return error.message;
       } else if (error && typeof error === 'object' && 'response' in error) {
         const axiosError = error as any;
-        errorMessage = axiosError.response?.data?.detail || errorMessage;
+        return axiosError.response?.data?.detail || '登录失败，请检查用户名和密码';
       }
-      setLoginError(errorMessage);
-    } finally {
-      setLoading(false);
+      return '登录失败，请检查用户名和密码';
+    };
+
+    while (retryCount <= maxRetries && !success) {
+      try {
+        const response = (await apiClient.login({ username, password })) as any;
+
+        if (response) {
+          // 登录成功逻辑（保持不变）
+          const userInfo = response.user || response.user_info || { username };
+          const token = response.token || response.access_token;
+
+          setAuth(token, userInfo);
+          resetAllStores();
+          navigate('/');
+
+          setTimeout(() => {
+            if (window.location.pathname === '/login') {
+              window.location.href = '/';
+            }
+          }, 1000);
+
+          success = true;
+        }
+      } catch (error) {
+        retryCount++;
+
+        if (retryCount > maxRetries) {
+          // 最终失败处理
+          let errorMessage = '登录失败，请检查用户名和密码';
+
+          // 检查是否为服务器错误
+          if (error && typeof error === 'object') {
+            const status = (error as any).response?.status;
+            if (status === 503 || status === 502 || status === 504) {
+              errorMessage = '服务器正在启动中，请稍后重试（已自动重试多次）';
+            } else {
+              errorMessage = extractErrorMessage(error);
+            }
+          }
+
+          setLoginError(errorMessage);
+        } else {
+          // 固定间隔重试：25, 50, 75, 100秒（总等待时间250秒，约4.2分钟）
+          const retryIntervals = [25, 50, 75, 100];
+          const waitTime = retryIntervals[retryCount - 1] * 1000;
+          console.log(
+            `登录失败，${retryIntervals[retryCount - 1]}秒后重试 (${retryCount}/${maxRetries})`
+          );
+          await new Promise((resolve) => setTimeout(resolve, waitTime));
+        }
+      }
     }
+
+    setLoading(false);
   };
 
   return (

@@ -1,3 +1,29 @@
+"""
+Alembic数据库迁移环境配置文件
+
+此文件由Alembic迁移工具自动生成和维护，提供数据库迁移执行环境。
+包含数据库连接配置、模型元数据引用和迁移执行逻辑。
+
+主要功能：
+1. 配置数据库连接（从config.get_database_url动态获取）
+2. 设置SQLAlchemy模型元数据用于自动生成迁移
+3. 提供迁移执行上下文和日志配置
+4. 支持开发和生产环境的不同数据库配置
+
+文件结构：
+- 路径设置：添加项目根目录到Python路径
+- 模型导入：导入Base模型和目标元数据
+- 配置读取：从alembic.ini文件读取配置
+- 引擎创建：根据配置创建数据库引擎
+- 迁移执行：提供运行迁移的上下文
+
+注意事项：
+- 此文件由Alembic维护，手动修改需谨慎
+- 数据库URL通过get_database_url()动态获取
+- 目标元数据来自models.database.Base.metadata
+- 支持SQLite（开发）和PostgreSQL（生产）
+"""
+
 import os
 import sys
 from logging.config import fileConfig

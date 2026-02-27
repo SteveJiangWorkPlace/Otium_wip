@@ -185,7 +185,45 @@ class UserService:
                 db.close()
 
     def get_user_info(self, username: str) -> dict[str, Any] | None:
-        """获取用户信息"""
+        """
+        获取指定用户的详细信息
+
+        根据用户名查询用户完整信息，包括基本信息、今日使用统计和账户状态。
+        如果用户不存在，返回None。
+
+        Args:
+            username: 要查询的用户名（字符串）
+
+        Returns:
+            dict[str, Any] | None: 用户信息字典，包含以下字段：
+                - id: 用户ID
+                - username: 用户名
+                - email: 邮箱地址
+                - is_admin: 是否为管理员
+                - is_active: 账户是否激活
+                - expiry_date: 账户过期日期
+                - daily_translation_limit: 每日翻译限制
+                - daily_ai_detection_limit: 每日AI检测限制
+                - daily_translation_used: 今日已使用翻译次数
+                - daily_ai_detection_used: 今日已使用AI检测次数
+                - created_at: 创建时间
+                如果用户不存在，返回None
+
+        Raises:
+            无: 函数内部处理所有异常，确保总是返回有效结果
+
+        Examples:
+            >>> service = UserService()
+            >>> info = service.get_user_info("test_user")
+            >>> print(info["username"])
+            "test_user"
+
+        Notes:
+            - 用户名支持多种类型输入（字符串、整数、用户对象）
+            - 自动进行类型转换，确保查询正确性
+            - 只返回今日使用统计，历史统计不再包含
+            - 数据库连接在函数内部管理，调用者无需担心资源泄漏
+        """
         # 添加类型检查和转换
         if hasattr(username, "username"):
             username = username.username
@@ -284,7 +322,44 @@ class UserService:
         daily_translation_limit: int = 10,
         daily_ai_detection_limit: int = 10,
     ) -> tuple[bool, str]:
-        """添加新用户"""
+        """
+        添加新用户到系统
+
+        创建新的用户账户，设置密码哈希、每日使用限制和账户基本信息。
+        自动创建关联的用户使用记录表，确保账户完整初始化。
+
+        Args:
+            username: 新用户的用户名，必须唯一
+            password: 用户的明文密码，函数内部会进行哈希处理
+            daily_translation_limit: 每日翻译次数限制，默认10次
+            daily_ai_detection_limit: 每日AI检测次数限制，默认10次
+
+        Returns:
+            tuple[bool, str]: 操作结果元组，包含：
+                - 布尔值：操作是否成功
+                - 字符串：成功时为空字符串，失败时为错误消息
+
+        Raises:
+            无: 函数内部捕获所有异常并转换为错误消息返回
+
+        Examples:
+            >>> service = UserService()
+            >>> success, message = service.add_user("newuser", "password123")
+            >>> print(f"成功: {success}, 消息: {message}")
+            成功: True, 消息: ""
+
+            >>> success, message = service.add_user("existing_user", "password")
+            >>> print(f"成功: {success}, 消息: {message}")
+            成功: False, 消息: "用户已存在"
+
+        Notes:
+            - 用户密码使用SHA256哈希算法存储，不保存明文
+            - 默认设置账户过期时间为2099-12-31（长期有效）
+            - 不再使用总翻译次数限制（max_translations设为0）
+            - 自动创建UserUsage记录表，用于跟踪每日使用统计
+            - 用户默认为非管理员、已激活状态
+            - 用户名重复时会返回"用户已存在"错误
+        """
         db = self._get_db_session()
         try:
             # 检查用户是否已存在
@@ -307,7 +382,7 @@ class UserService:
                 is_active=True,
             )
             db.add(new_user)
-            db.flush()  # 获取用户ID
+            db.flush()  # 立即将用户数据写入数据库以生成ID，用于后续关联记录创建
 
             # 创建使用记录
             usage = UserUsage(user_id=new_user.id)
@@ -324,7 +399,51 @@ class UserService:
             db.close()
 
     def get_all_users(self) -> list[dict[str, Any]]:
-        """获取所有用户信息"""
+        """
+        获取系统中所有用户的完整信息列表
+
+        查询数据库中的所有用户记录，按创建时间倒序排列，返回每个用户的详细信息。
+        每个用户信息通过get_user_info方法获取，确保数据格式一致。
+
+        Args:
+            无: 此方法不接受参数
+
+        Returns:
+            list[dict[str, Any]]: 用户信息字典列表，每个字典包含以下字段：
+                - id: 用户ID
+                - username: 用户名
+                - email: 邮箱地址
+                - is_admin: 是否为管理员
+                - is_active: 账户是否激活
+                - expiry_date: 账户过期日期
+                - daily_translation_limit: 每日翻译限制
+                - daily_ai_detection_limit: 每日AI检测限制
+                - daily_translation_used: 今日已使用翻译次数
+                - daily_ai_detection_used: 今日已使用AI检测次数
+                - created_at: 创建时间
+                如果系统中没有用户，返回空列表
+
+        Raises:
+            无: 函数内部处理所有异常，确保总是返回有效结果
+
+        Examples:
+            >>> service = UserService()
+            >>> all_users = service.get_all_users()
+            >>> print(f"总用户数: {len(all_users)}")
+            总用户数: 5
+
+            >>> for user in all_users[:2]:
+            >>>     print(user["username"])
+            "user1"
+            "user2"
+
+        Notes:
+            - 返回列表按用户创建时间倒序排列（最近创建的在前）
+            - 每个用户信息通过get_user_info方法获取，确保数据一致性
+            - 空数据库时返回空列表，而非None
+            - 数据库连接在函数内部管理，调用者无需担心资源泄漏
+            - 主要用于管理员界面显示所有用户信息
+        """
         db = self._get_db_session()
         try:
             users = db.query(User).order_by(User.created_at.desc()).all()
@@ -403,7 +522,40 @@ class UserService:
             db.close()
 
     def deactivate_user(self, username: str) -> tuple[bool, str]:
-        """禁用用户"""
+        """
+        禁用指定用户的账户
+
+        将用户的is_active字段设为False，使其无法登录和使用系统功能。
+        管理员账户无法被禁用，确保系统管理功能始终可用。
+
+        Args:
+            username: 要禁用的用户名
+
+        Returns:
+            tuple[bool, str]: 操作结果元组，包含：
+                - 布尔值：操作是否成功
+                - 字符串：成功时返回"用户已禁用"，失败时返回错误消息
+
+        Raises:
+            无: 函数内部捕获所有异常并转换为错误消息返回
+
+        Examples:
+            >>> service = UserService()
+            >>> success, message = service.deactivate_user("inactive_user")
+            >>> print(f"成功: {success}, 消息: {message}")
+            成功: True, 消息: "用户已禁用"
+
+            >>> success, message = service.deactivate_user("admin")
+            >>> print(f"成功: {success}, 消息: {message}")
+            成功: False, 消息: "不能禁用管理员账户"
+
+        Notes:
+            - 管理员账户（is_admin=True）不能被禁用，保护系统管理功能
+            - 已禁用的用户再次禁用会返回成功（幂等操作）
+            - 禁用用户后，其账户将无法登录和使用任何API功能
+            - 可以通过activate_user方法重新激活账户
+            - 主要用于处理违规账户或临时停用
+        """
         db = self._get_db_session()
         try:
             user = db.query(User).filter(User.username == username).first()
@@ -426,7 +578,40 @@ class UserService:
             db.close()
 
     def activate_user(self, username: str) -> tuple[bool, str]:
-        """启用用户"""
+        """
+        启用指定用户的账户
+
+        将用户的is_active字段设为True，恢复其登录和使用系统功能的权限。
+        可以重新激活之前被禁用的用户账户。
+
+        Args:
+            username: 要启用的用户名
+
+        Returns:
+            tuple[bool, str]: 操作结果元组，包含：
+                - 布尔值：操作是否成功
+                - 字符串：成功时返回"用户已启用"，失败时返回错误消息
+
+        Raises:
+            无: 函数内部捕获所有异常并转换为错误消息返回
+
+        Examples:
+            >>> service = UserService()
+            >>> success, message = service.activate_user("reactivated_user")
+            >>> print(f"成功: {success}, 消息: {message}")
+            成功: True, 消息: "用户已启用"
+
+            >>> success, message = service.activate_user("nonexistent_user")
+            >>> print(f"成功: {success}, 消息: {message}")
+            成功: False, 消息: "用户不存在"
+
+        Notes:
+            - 只能启用已存在的用户账户
+            - 已启用的用户再次启用会返回成功（幂等操作）
+            - 启用用户后，其账户将恢复正常的登录和API使用权限
+            - 通常与deactivate_user配合使用，用于账户状态管理
+            - 主要用于恢复被临时禁用的账户
+        """
         db = self._get_db_session()
         try:
             user = db.query(User).filter(User.username == username).first()
@@ -503,7 +688,7 @@ class UserService:
                 is_active=True,
             )
             db.add(new_user)
-            db.flush()  # 获取用户ID
+            db.flush()  # 立即将用户数据写入数据库以生成ID，用于后续关联记录创建
 
             # 创建使用记录
             usage = UserUsage(user_id=new_user.id)

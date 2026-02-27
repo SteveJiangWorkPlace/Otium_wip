@@ -213,7 +213,40 @@ def create_error_response(
     status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR,
     details: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """创建统一的错误响应"""
+    """
+    创建标准化的错误响应字典
+
+    根据提供的错误信息构建统一的错误响应格式，确保所有API错误返回一致的
+    数据结构。该函数将错误代码、消息、状态码和详细信息封装成标准格式。
+
+    Args:
+        error_code: 错误代码字符串，如 "VALIDATION_ERROR"、"RATE_LIMIT_EXCEEDED" 等
+        message: 人类可读的错误描述信息
+        status_code: HTTP状态码，默认500（服务器内部错误）
+        details: 可选的额外错误详细信息字典，用于调试或提供上下文
+
+    Returns:
+        dict[str, Any]: 标准化的错误响应字典，包含以下字段：
+            - error_code: 错误代码
+            - message: 错误消息
+            - details: 错误详情（如果提供了details参数）
+
+    Raises:
+        无: 函数内部不会抛出异常，确保总是返回有效的字典
+
+    Examples:
+        >>> create_error_response("VALIDATION_ERROR", "输入文本过长", 400)
+        {"error_code": "VALIDATION_ERROR", "message": "输入文本过长", "details": {}}
+
+        >>> create_error_response("API_ERROR", "服务暂时不可用", 503, {"retry_after": 60})
+        {"error_code": "API_ERROR", "message": "服务暂时不可用", "details": {"retry_after": 60}}
+
+    Notes:
+        - 该函数不实际设置HTTP状态码，仅创建响应内容字典
+        - 状态码参数主要用于记录和调试目的
+        - 所有外部API错误都应使用此函数创建统一格式的响应
+        - 前端应用依赖此格式进行错误处理和显示
+    """
     return ErrorResponse(error_code=error_code, message=message, details=details or {}).dict()
 
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -25,6 +25,27 @@ const AdminRoute: React.FC<{ children: React.ReactElement }> = ({ children }) =>
 };
 
 const App: React.FC = () => {
+  // 应用启动时验证token
+  useEffect(() => {
+    const validateStoredToken = async () => {
+      const token = localStorage.getItem('auth_token') || localStorage.getItem('admin_token');
+      if (token) {
+        try {
+          await apiClient.getCurrentUser();
+          console.log('应用启动：token验证成功');
+        } catch (error) {
+          console.log('应用启动：token已失效，清除登录状态');
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('admin_token');
+          localStorage.removeItem('token');
+          useAuthStore.getState().logout();
+        }
+      }
+    };
+
+    validateStoredToken();
+  }, []);
+
   return (
     <ToastProvider>
       <Router>

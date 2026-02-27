@@ -225,7 +225,28 @@ settings = Settings()
 
 
 def setup_logging():
-    """设置日志配置"""
+    """设置应用日志配置
+
+    根据配置文件设置日志级别和处理器，支持控制台和文件输出。
+    日志级别从settings.LOG_LEVEL读取，支持标准日志级别字符串。
+
+    Returns:
+        None: 函数直接配置logging模块，无返回值
+
+    Raises:
+        ValueError: 当日志级别字符串无效时可能抛出
+
+    Examples:
+        >>> setup_logging()
+        [INFO] 日志级别设置为: INFO (20)
+        [INFO] 应用环境: development
+        [INFO] 调试模式: False
+
+    Notes:
+        - 日志级别字符串需为logging模块支持的级别（DEBUG、INFO、WARNING、ERROR、CRITICAL）
+        - 当LOG_TO_CONSOLE为True时启用控制台输出
+        - 当LOG_FILE不为空时启用文件输出，文件编码为UTF-8
+    """
     log_level_str = settings.LOG_LEVEL
     log_level = getattr(logging, log_level_str, logging.INFO)
 
@@ -266,7 +287,37 @@ def setup_logging():
 
 
 def is_expired(expiry_date_str: str) -> bool:
-    """检查日期是否已过期"""
+    """检查给定日期字符串是否已过期
+
+    解析日期字符串并与当前日期比较，支持多种常见日期格式。
+    当无法解析日期格式时返回False（默认为未过期）。
+
+    Args:
+        expiry_date_str: 日期字符串，支持以下格式：
+            - 标准格式: "YYYY-MM-DD"
+            - 其他格式: "YYYY/MM/DD", "DD-MM-YYYY", "DD/MM/YYYY",
+                      "MM-DD-YYYY", "MM/DD/YYYY"
+
+    Returns:
+        bool: True表示日期已过期，False表示未过期或无法解析
+
+    Raises:
+        无: 函数内部处理所有异常，不会向外抛出
+
+    Examples:
+        >>> is_expired("2026-02-27")
+        False  # 如果今天是2026-02-27
+        >>> is_expired("2024-12-31")
+        True   # 过去日期
+        >>> is_expired("invalid-date")
+        False  # 无法解析，默认未过期
+
+    Notes:
+        - 使用datetime.strptime解析日期，性能开销小
+        - 当解析失败时会尝试所有支持的格式
+        - 所有异常都被捕获，避免服务中断
+        - 解析失败时会记录错误日志
+    """
     from datetime import datetime
 
     try:

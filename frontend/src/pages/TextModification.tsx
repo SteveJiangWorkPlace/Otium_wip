@@ -5,7 +5,7 @@ import { useModificationStore } from '../store/useModificationStore';
 import { useGlobalProgressStore } from '../store/useGlobalProgressStore';
 import { useAIChatStore } from '../store/useAIChatStore';
 import { apiClient } from '../api/client';
-import { cleanTextFromMarkdown } from '../utils/textCleaner';
+import { cleanTextFromMarkdown, renderMarkdownAsHtml } from '../utils/textCleaner';
 import type { StreamRefineTextRequest } from '../types';
 import Card from '../components/ui/Card/Card';
 import Textarea from '../components/ui/Textarea/Textarea';
@@ -164,8 +164,6 @@ const TextModification: React.FC = () => {
                 addSentence(chunk.text, chunk.index);
                 setCurrentSentenceIndex(chunk.index);
                 setTotalSentences(chunk.total || 0);
-                // 同时更新部分文本，用于实时显示，每句换行
-                appendPartialText(chunk.text, true);
               }
               break;
             case 'complete':
@@ -239,18 +237,22 @@ const TextModification: React.FC = () => {
   };
 
   const renderAnnotatedText = (text: string) => {
-    // 处理**text**格式的粗体标记（如果后端未清理）
-    let highlightedText = text.replace(
-      /\*\*(.*?)\*\*/g,
+    // 先使用markdown渲染函数处理基本格式
+    let html = renderMarkdownAsHtml(text);
+
+    // 对于批注显示模式，将粗体(<strong>)转换为高亮标记(<mark>)
+    // 这样可以保持粗体文本的高亮效果
+    html = html.replace(
+      /<strong>(.*?)<\/strong>/g,
       '<mark style="background-color: var(--color-black); color: var(--color-white); padding: 2px 4px; border-radius: 4px;">$1</mark>'
     );
-    // 处理<b>text</b>格式的HTML粗体标签（后端已清理markdown）
-    highlightedText = highlightedText.replace(
+    // 同时处理可能存在的<b>标签
+    html = html.replace(
       /<b>(.*?)<\/b>/g,
       '<mark style="background-color: var(--color-black); color: var(--color-white); padding: 2px 4px; border-radius: 4px;">$1</mark>'
     );
-    // 保持<i>text</i>斜体标签不变
-    return { __html: highlightedText };
+
+    return { __html: html };
   };
 
   const conversation = conversations[pageKey] || {

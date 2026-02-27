@@ -1,7 +1,16 @@
 #!/usr/bin/env python3
 """
-检查项目中所有文件的Unicode字符
+模块名称：check_unicode.py
+功能描述：检查项目中所有文件的Unicode字符，识别可能引起Windows命令行兼容性问题的字符
+创建时间：2026-02-27
+作者：项目团队
+版本：1.0.0
+
+此工具扫描项目中的Python、TypeScript、Markdown等文件，检测包含Unicode字符的文件。
+主要用于确保脚本在Windows命令行（GBK编码）下的兼容性。
 """
+
+
 
 import os
 import re
@@ -40,8 +49,34 @@ unicode_regex = re.compile(combined_pattern)
 EXTENSIONS = {".md", ".txt", ".py", ".tsx", ".ts", ".js", ".jsx", ".css", ".json"}
 
 
-def check_file(filepath):
-    """检查单个文件的Unicode字符"""
+def check_file(filepath: Path) -> int:
+    """检查单个文件的Unicode字符
+
+    读取指定文件内容，使用正则表达式匹配预定义的Unicode字符范围，
+    发现Unicode字符时显示其位置和上下文信息。
+
+    Args:
+        filepath: 要检查的文件路径（Path对象）
+
+    Returns:
+        int: 文件中发现的Unicode字符数量，0表示未发现
+
+    Raises:
+        Exception: 文件读取错误，但函数内部会捕获并返回0
+
+    Examples:
+        >>> from pathlib import Path
+        >>> check_file(Path("test.md"))
+        3  # 发现3个Unicode字符
+        >>> check_file(Path("test.py"))
+        0  # 未发现Unicode字符
+
+    Notes:
+        - 使用UTF-8编码读取文件
+        - 匹配的Unicode范围包括：项目符号、箭头、杂项符号、装饰符号、
+          勾号、叉号、惊叹号、箭头、符号和象形文字、表情符号等
+        - 每个文件最多显示前5个匹配字符及其上下文
+    """
     try:
         with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
             content = f.read()
@@ -64,7 +99,31 @@ def check_file(filepath):
         return 0
 
 
-def main():
+def main() -> int:
+    """扫描项目文件，检查并报告Unicode字符
+
+    递归扫描项目中的所有代码文件（Python、TypeScript、Markdown等），
+    检测包含Unicode字符的文件。主要用于确保脚本在Windows命令行
+    （默认GBK编码）下的兼容性。
+
+    Returns:
+        int: 返回退出码，0表示无Unicode字符问题，1表示发现Unicode字符
+
+    Raises:
+        无: 函数内部处理所有异常，总是返回有效的退出码
+
+    Examples:
+        >>> # 在项目根目录运行检查
+        >>> import subprocess
+        >>> result = subprocess.run(["python", "check_unicode.py"])
+        >>> print(f"退出码: {result.returncode}")
+
+    Notes:
+        - 工具支持的文件扩展名：.md、.txt、.py、.tsx、.ts、.js、.jsx、.css、.json
+        - 排除的目录：.git、__pycache__、node_modules、.pytest_cache、venv、.venv
+        - 每个文件最多显示前5个Unicode字符及其上下文
+        - 建议将找到的Unicode字符替换为ASCII兼容的替代字符
+    """
     project_root = Path(".")
 
     total_issues = 0

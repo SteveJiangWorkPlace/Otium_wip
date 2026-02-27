@@ -39,8 +39,22 @@ class PromptPerformanceMonitor:
         """
 
         def decorator(func: Callable):
+            """记录构建时间的装饰器工厂函数
+
+            Args:
+                func: 被装饰的函数
+            """
             @wraps(func)
             def wrapper(*args, **kwargs):
+                """包装函数，记录执行时间并更新性能指标
+
+                Args:
+                    *args: 传递给被装饰函数的位置参数
+                    **kwargs: 传递给被装饰函数的关键字参数
+
+                Returns:
+                    Any: 被装饰函数的返回值
+                """
                 start_time = time.time()
                 result = func(*args, **kwargs)
                 end_time = time.time()
@@ -225,7 +239,27 @@ class PromptPerformanceMonitor:
 
     @classmethod
     def reset_metrics(cls):
-        """重置所有性能指标"""
+        """重置所有性能指标到初始状态
+
+        将监控器的所有统计计数器归零，清空历史记录。
+        用于开发调试或需要重新开始统计的场景。
+
+        Returns:
+            None: 方法无返回值，直接修改类级别metrics字典
+
+        Raises:
+            无: 方法内部不会抛出异常
+
+        Examples:
+            >>> PromptPerformanceMonitor.reset_metrics()
+            >>> PromptPerformanceMonitor.metrics["cache_hits"]
+            0  # 所有计数器已重置
+
+        Notes:
+            - 重置会清除以下数据：构建时间记录、缓存命中/未命中次数、提示词长度记录等
+            - 生产环境中慎用，会丢失所有历史性能数据
+            - 可通过API端点 /api/debug/prompt-metrics 查看当前指标
+        """
         cls.metrics = {
             "build_times": [],
             "cache_hits": 0,

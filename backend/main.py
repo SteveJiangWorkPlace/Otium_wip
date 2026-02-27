@@ -1,3 +1,11 @@
+"""
+文件名称：main.py
+功能描述：FastAPI主应用文件，包含所有API路由定义和核心业务逻辑
+创建时间：2026-02-27
+作者：项目团队
+版本：1.0.0
+"""
+
 import hashlib
 import logging
 import os
@@ -46,7 +54,20 @@ for handler in logging.getLogger().handlers:
 
 # 添加自定义过滤器，替换非ASCII字符
 class ASCIIFilter(logging.Filter):
+    """日志过滤器，确保日志输出只包含ASCII字符
+
+    在Windows环境下，控制台编码可能不是UTF-8，这会导致非ASCII字符显示乱码。
+    此过滤器将所有非ASCII字符替换为'?'，确保日志输出在Windows命令行中正常显示。
+    """
     def filter(self, record):
+        """过滤日志记录，替换非ASCII字符
+
+        Args:
+            record (logging.LogRecord): 日志记录对象
+
+        Returns:
+            bool: 总是返回True，表示记录应该被处理
+        """
         if isinstance(record.msg, str):
             # 替换非ASCII字符为'?'
             record.msg = record.msg.encode("ascii", errors="replace").decode("ascii")
@@ -68,8 +89,6 @@ logging.getLogger().addFilter(ASCIIFilter())
 # 已提前导入并配置ArbitraryTypeWarning警告过滤
 from datetime import datetime  # noqa: E402
 
-# import google.api_core.exceptions
-# from google.api_core.exceptions import ServiceUnavailable, DeadlineExceeded, InvalidArgument, PermissionDenied
 # 这些异常现在由 google.genai.errors 提供
 from dotenv import load_dotenv  # noqa: E402
 from fastapi import Depends, FastAPI, HTTPException, Request, status  # noqa: E402
@@ -417,7 +436,20 @@ logger.info("API密钥配置：优先使用环境变量，其次使用请求头�
 
 # 1. 先在 get_current_user 函数外面定义这个"无敌类"
 class UserObject(dict):
+    """特殊的字典类，支持属性式访问
+
+    继承自dict，同时允许通过属性语法访问字典键值。
+    主要用于调试和测试场景，提供更友好的API。
+    """
     def __getattr__(self, name):
+        """通过属性语法获取字典值
+
+        Args:
+            name (str): 属性名，对应字典的键
+
+        Returns:
+            Any: 字典中对应键的值，如果键不存在则返回None
+        """
         return self.get(name)
 
 
@@ -1748,6 +1780,11 @@ async def chat_endpoint(
                     chunk_size = settings.CHUNK_SIZE_BYTES
 
                     def generate_chunks():
+                        """生成JSON字符串的分块
+
+                        Yields:
+                            bytes: 编码为UTF-8的JSON字符串分块
+                        """
                         for i in range(0, len(json_str), chunk_size):
                             chunk = json_str[i:i + chunk_size]
                             yield chunk.encode('utf-8')

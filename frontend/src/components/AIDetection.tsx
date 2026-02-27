@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, Button, Icon } from './ui';
 import { AIDetectionResponse } from '../types';
 import { apiClient } from '../api/client';
-import { cleanTextFromMarkdown } from '../utils/textCleaner';
+import { cleanTextFromMarkdown, renderMarkdownAsHtml } from '../utils/textCleaner';
 import styles from './AIDetection.module.css';
 
 interface AIDetectionProps {
@@ -99,6 +99,8 @@ const AIDetection: React.FC<AIDetectionProps> = ({
     if (!result?.full_text) return { __html: '' };
 
     let text = result.full_text;
+    // 先将markdown符号转换为HTML
+    text = renderMarkdownAsHtml(text);
 
     if (result.detailed_scores && Array.isArray(result.detailed_scores)) {
       const highAISentences = result.detailed_scores
@@ -107,10 +109,12 @@ const AIDetection: React.FC<AIDetectionProps> = ({
         .map((s) => s.sentence);
 
       highAISentences.forEach((sentence) => {
-        const escaped = sentence.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // 将句子也转换为HTML，以便在转换后的文本中匹配
+        const htmlSentence = renderMarkdownAsHtml(sentence);
+        const escaped = htmlSentence.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         text = text.replace(
           new RegExp(escaped, 'g'),
-          `<mark style="background-color: var(--color-black); color: var(--color-white); padding: 2px 4px; border-radius: 4px;">${sentence}</mark>`
+          `<mark style="background-color: var(--color-black); color: var(--color-white); padding: 2px 4px; border-radius: 4px;">${htmlSentence}</mark>`
         );
       });
     }

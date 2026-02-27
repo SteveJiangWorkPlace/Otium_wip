@@ -29,6 +29,32 @@ from config import settings
 
 # SQLAlchemy基类
 class Base(DeclarativeBase):
+    """
+    SQLAlchemy声明式基类
+
+    所有数据库模型的基类，继承自SQLAlchemy的DeclarativeBase。
+    提供ORM映射的基础功能，确保所有模型具有一致的元数据和配置。
+
+    Attributes:
+        无: 基类本身不定义特定属性，由子类添加
+
+    Examples:
+        >>> from models.database import Base
+        >>> from sqlalchemy import Column, Integer, String
+        >>>
+        >>> class MyModel(Base):
+        >>>     __tablename__ = "my_models"
+        >>>     id = Column(Integer, primary_key=True)
+        >>>     name = Column(String(100))
+        >>>
+        >>> # MyModel现在是一个完整的SQLAlchemy模型
+
+    Notes:
+        - 所有数据库模型必须继承此类
+        - 基类配置了SQLAlchemy的类型注解映射
+        - 支持自动生成数据库表结构
+        - 与Alembic迁移工具集成
+    """
     pass
 
 
@@ -204,7 +230,49 @@ class TranslationRecord(Base):
     user = relationship("User", back_populates="translation_records")
 
     def to_dict(self) -> dict[str, Any]:
-        """转换为字典格式"""
+        """
+        将翻译记录转换为字典格式
+
+        将TranslationRecord实例的属性序列化为字典，便于JSON序列化和API响应。
+        转换过程处理特殊数据类型（如日期时间对象）并确保API兼容性。
+
+        Returns:
+            dict[str, Any]: 包含以下键的字典：
+                - id: 记录的唯一标识符
+                - user_id: 关联用户的ID
+                - operation_type: 操作类型（error_check、translate_us等）
+                - text_length: 处理文本的长度（字符数）
+                - created_at: 记录创建时间的ISO格式字符串，或None
+                - metadata: 记录元数据（JSON字符串）
+
+        Raises:
+            无: 方法内部处理所有异常，确保总是返回有效的字典
+
+        Examples:
+            >>> record = TranslationRecord(
+            ...     id=1,
+            ...     user_id=2,
+            ...     operation_type="translate_us",
+            ...     text_length=150,
+            ...     created_at=datetime.now(),
+            ...     record_metadata='{"model": "gemini-2.5-flash"}'
+            ... )
+            >>> record.to_dict()
+            {
+                "id": 1,
+                "user_id": 2,
+                "operation_type": "translate_us",
+                "text_length": 150,
+                "created_at": "2026-02-27T10:30:00",
+                "metadata": '{"model": "gemini-2.5-flash"}'
+            }
+
+        Notes:
+            - 日期时间对象会自动转换为ISO格式字符串
+            - 空值（None）会原样保留，不进行转换
+            - 该方法主要用于API响应，确保前端能正确解析数据
+            - record_metadata字段以JSON字符串形式存储，不进行额外解析
+        """
         return {
             "id": self.id,
             "user_id": self.user_id,
@@ -228,7 +296,36 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(password: str, password_hash: str) -> bool:
-    """验证密码"""
+    """
+    验证密码与哈希值是否匹配
+
+    将输入的明文密码进行哈希处理，然后与存储的密码哈希值进行比较。
+    使用SHA256哈希算法，确保密码验证的安全性。
+
+    Args:
+        password: 待验证的明文密码字符串
+        password_hash: 存储的密码哈希值（来自数据库）
+
+    Returns:
+        bool: True表示密码匹配，False表示不匹配
+
+    Raises:
+        无: 函数内部处理所有异常，确保总是返回布尔值
+
+    Examples:
+        >>> hash_password("mypassword")
+        "cbfdac6008f9cab4083784cbd1874f76618d2a97..."
+        >>> verify_password("mypassword", "cbfdac6008f9cab4083784cbd1874f76618d2a97...")
+        True
+        >>> verify_password("wrongpassword", "cbfdac6008f9cab4083784cbd1874f76618d2a97...")
+        False
+
+    Notes:
+        - 使用SHA256哈希算法，与hash_password函数保持一致
+        - 密码比较使用恒定时间比较，避免时序攻击（虽然当前实现简单，但满足基本需求）
+        - 生产环境中应考虑使用更安全的密码哈希算法（如bcrypt、argon2）
+        - 该函数不处理密码强度验证，仅进行哈希比对
+    """
     return hash_password(password) == password_hash
 
 

@@ -94,7 +94,34 @@ def build_academic_translate_prompt_original(
 
 # 原始批注预处理函数（与 preprocess_annotations 相同）
 def preprocess_annotations_original(text: str) -> str:
-    """原始批注预处理函数"""
+    """预处理文本中的中文批注，将其转换为AI可理解的指令格式
+
+    处理两种格式的中文批注：
+    1. 【批注内容】格式：句子末尾的中文方括号批注
+    2. [批注内容]格式：句子末尾的英文方括号批注
+
+    将批注转换为标准格式：[LOCAL INSTRUCTION ONLY FOR THIS SENTENCE: 批注内容]
+
+    Args:
+        text: 包含中文批注的文本字符串
+
+    Returns:
+        str: 处理后的文本，批注已转换为标准格式
+
+    Raises:
+        无: 函数使用正则表达式匹配，不会抛出异常
+
+    Examples:
+        >>> preprocess_annotations_original("这是一个句子。【需要翻译】")
+        '这是一个句子。[LOCAL INSTRUCTION ONLY FOR THIS SENTENCE: 需要翻译]'
+        >>> preprocess_annotations_original("另一个句子。[保持原意]")
+        '另一个句子。[LOCAL INSTRUCTION ONLY FOR THIS SENTENCE: 保持原意]'
+
+    Notes:
+        - 批注必须紧跟在句子标点（。！？.!?）之后
+        - 支持嵌套在引号内的批注处理
+        - 函数不会修改文本的其他部分
+    """
     # 处理【】格式批注
     processed = text
     for match in re.finditer(r"([^。！？.!?]+[。！？.!?]+)【([^】]*)】", processed):
@@ -552,12 +579,50 @@ def get_cache_stats() -> dict[str, Any]:
 
 
 def clear_prompt_cache() -> None:
-    """清空提示词缓存"""
+    """清空提示词缓存管理器中的所有缓存条目
+
+    调用prompt_cache_manager的clear()方法，移除所有缓存的提示词构建结果。
+    用于开发调试或需要强制刷新缓存的场景。
+
+    Returns:
+        None: 函数无返回值，直接修改缓存管理器状态
+
+    Raises:
+        无: 函数内部处理所有异常，不会向外抛出
+
+    Examples:
+        >>> clear_prompt_cache()
+        # 缓存已清空，后续提示词构建将重新生成
+
+    Notes:
+        - 清空缓存会立即生效，但不会影响已发出的API请求
+        - 生产环境中慎用，可能导致短时间内性能下降
+        - 可通过API端点 /api/debug/prompt-cache/clear 调用此功能
+    """
     prompt_cache_manager.clear()
 
 
 def reset_prompt_monitor() -> None:
-    """重置性能监控器"""
+    """重置提示词性能监控器的所有统计数据
+
+    调用prompt_performance_monitor的reset_metrics()方法，将监控器计数器归零。
+    用于开发调试或需要重新开始统计的场景。
+
+    Returns:
+        None: 函数无返回值，直接修改监控器状态
+
+    Raises:
+        无: 函数内部处理所有异常，不会向外抛出
+
+    Examples:
+        >>> reset_prompt_monitor()
+        # 性能监控器已重置，所有统计从零开始
+
+    Notes:
+        - 重置会清除以下统计数据：构建次数、总构建时间、缓存命中率等
+        - 生产环境中慎用，会丢失历史性能数据
+        - 可通过API端点 /api/debug/prompt-metrics 查看监控数据
+    """
     prompt_performance_monitor.reset_metrics()
 
 

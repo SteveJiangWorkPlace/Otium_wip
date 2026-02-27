@@ -130,7 +130,29 @@ class PromptCacheManager:
         self.cache_stats["creation_times"][cache_key] = current_time
 
     def clear(self):
-        """清空缓存"""
+        """清空所有缓存条目并重置统计信息
+
+        清空底层的CacheManager缓存，同时清除访问时间记录和统计计数器。
+        调用后缓存管理器将处于初始状态，所有后续请求将从缓存未命中开始。
+
+        Returns:
+            None: 方法无返回值，直接修改缓存管理器内部状态
+
+        Raises:
+            无: 方法内部处理所有异常，不会向外抛出
+
+        Examples:
+            >>> cache_manager = PromptCacheManager()
+            >>> cache_manager.set("key", "value")
+            >>> cache_manager.clear()
+            >>> cache_manager.get("key")
+            None  # 缓存已清空，返回None
+
+        Notes:
+            - 清空缓存会影响性能，可能导致短时间内缓存命中率下降
+            - 访问时间记录和统计计数器会同时重置
+            - 生产环境中慎用，建议仅在调试或维护时调用
+        """
         self.cache_manager.clear()
         self.access_times.clear()
         self.cache_stats["creation_times"].clear()
