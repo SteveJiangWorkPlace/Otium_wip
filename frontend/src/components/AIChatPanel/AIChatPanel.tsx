@@ -5,7 +5,7 @@ import {
 } from '../../store/useAIChatStore';
 import { apiClient } from '../../api/client';
 import type { AIChatMessage as ApiAIChatMessage } from '../../types';
-import { BackgroundTaskStatus, BackgroundTaskType } from '../../types';
+import { BackgroundTaskStatus } from '../../types';
 import Button from '../ui/Button/Button';
 import Textarea from '../ui/Textarea/Textarea';
 // import { Switch } from 'antd';
@@ -501,7 +501,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
       if (response.success && response.task_id) {
         // 这是后台任务响应，需要轮询任务状态
         // 使用非空断言，因为我们已经检查了response.task_id存在
-        const taskId = response.task_id!;
+        const taskId = response.task_id as number;
         setBackgroundTaskId(taskId);
 
         // 创建AbortController用于取消轮询
