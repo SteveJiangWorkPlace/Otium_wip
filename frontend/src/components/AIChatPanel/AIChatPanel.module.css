@@ -300,8 +300,8 @@
 }
 
 .messageContent p {
-  margin-top: 0.5em;
-  margin-bottom: 0.5em;
+  margin-top: 0.25em;
+  margin-bottom: 0.25em;
 }
 
 .messageContent p:first-child {
@@ -309,6 +309,28 @@
 }
 
 .messageContent p:last-child {
+  margin-bottom: 0;
+}
+
+/* 标题样式 - 控制标题与内容之间的间距 */
+.messageContent h1,
+.messageContent h2,
+.messageContent h3 {
+  margin-top: 0.25em;
+  margin-bottom: 0.25em;
+  line-height: 1.3;
+  font-weight: var(--font-weight-semibold);
+}
+
+.messageContent h1:first-child,
+.messageContent h2:first-child,
+.messageContent h3:first-child {
+  margin-top: 0;
+}
+
+.messageContent h1:last-child,
+.messageContent h2:last-child,
+.messageContent h3:last-child {
   margin-bottom: 0;
 }
 

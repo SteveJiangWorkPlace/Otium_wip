@@ -416,6 +416,9 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
 
     cleaned = normalizedLines.join('\n');
 
+    // 第十三步：最终清理，确保不超过两个连续换行符（一个空行）
+    cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
+
     // 保留HTML标签，其它markdown符号已处理
     return cleaned;
   };
