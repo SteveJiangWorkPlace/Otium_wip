@@ -67,7 +67,22 @@ def login():
 
 
 def make_authenticated_request(url, method="POST", token=None, **kwargs):
-    """发送认证请求"""
+    """
+    发送带JWT认证的HTTP请求。
+
+    Args:
+        url (str): 目标URL
+        method (str, optional): HTTP方法，默认"POST"
+        token (str, optional): JWT令牌，如果提供则添加到Authorization头
+        **kwargs: 传递给requests请求的额外参数
+
+    Returns:
+        requests.Response or None: 成功时返回Response对象，失败时返回None
+
+    Raises:
+        requests.exceptions.Timeout: 请求超时
+        requests.exceptions.RequestException: 其他请求异常
+    """
     headers = kwargs.get("headers", {})
     if token:
         headers["Authorization"] = f"Bearer {token}"
@@ -95,7 +110,20 @@ def make_authenticated_request(url, method="POST", token=None, **kwargs):
 
 
 def test_error_correction(token, text):
-    """测试智能纠错功能"""
+    """
+    测试智能纠错功能，验证API响应结构和内容。
+
+    Args:
+        token (str): 用户认证令牌
+        text (str): 要测试的文本内容
+
+    Returns:
+        bool: 测试是否通过
+
+    Note:
+        - 会打印详细的测试过程和结果
+        - 检查响应中的corrected_text或result字段
+    """
     print("\n" + "=" * 60)
     print("测试智能纠错功能")
     print("=" * 60)
@@ -144,7 +172,22 @@ def test_error_correction(token, text):
 
 
 def test_translation(token, text, style="US", version="professional"):
-    """测试翻译功能"""
+    """
+    测试学术翻译功能，支持不同风格和版本。
+
+    Args:
+        token (str): 用户认证令牌
+        text (str): 要翻译的文本
+        style (str, optional): 翻译风格，可选"US"或"UK"，默认"US"
+        version (str, optional): 版本类型，可选"basic"或"professional"，默认"professional"
+
+    Returns:
+        bool: 测试是否通过
+
+    Note:
+        - 会验证翻译结果的格式和完整性
+        - 检查translated_text或result字段
+    """
     print("\n" + "=" * 60)
     print(f"测试学术翻译功能 (风格: {style}, 版本: {version})")
     print("=" * 60)
@@ -195,7 +238,20 @@ def test_translation(token, text, style="US", version="professional"):
 
 
 def test_ai_detection(token, text):
-    """测试AI检测功能"""
+    """
+    测试AI文本检测功能，验证GPTZero API集成。
+
+    Args:
+        token (str): 用户认证令牌
+        text (str): 要检测的文本
+
+    Returns:
+        bool: 测试是否通过
+
+    Note:
+        - 检查响应中的ai_probability、classification、confidence字段
+        - 打印完整的JSON响应用于调试
+    """
     print("\n" + "=" * 60)
     print("测试AI检测功能")
     print("=" * 60)
@@ -237,7 +293,24 @@ def test_ai_detection(token, text):
 
 
 def main():
-    """主测试函数"""
+    """
+    执行完整的系统功能测试流程。
+
+    测试步骤:
+        1. 读取测试文本文件
+        2. 用户登录获取JWT令牌
+        3. 测试智能纠错功能
+        4. 测试翻译功能（基础版和专业版，US/UK风格）
+        5. 测试AI检测功能
+        6. 生成测试报告
+
+    Returns:
+        None: 测试失败时会调用sys.exit(1)
+
+    Note:
+        - 测试失败会退出程序并返回错误码
+        - 成功时打印所有测试通过的确认信息
+    """
     print("=" * 80)
     print("全平台功能测试")
     print(f"测试时间: {time.strftime('%Y-%m-%d %H:%M:%S')}")

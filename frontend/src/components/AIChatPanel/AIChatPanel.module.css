@@ -680,7 +680,7 @@ ol.ai-list li {
 }
 
 ul.ai-list li::before {
-  content: "•";
+  content: '•';
   position: absolute;
   left: 0;
   color: var(--color-text-primary);
@@ -701,8 +701,236 @@ ol.ai-list li {
 }
 
 ol.ai-list li::before {
-  content: counter(list-counter, decimal) ".";
+  content: counter(list-counter, decimal) '.';
   position: absolute;
   left: var(--spacing-2);
   font-weight: var(--font-weight-normal);
+}
+
+/* ==================== 后台任务样式 ==================== */
+
+/* 后台任务容器 */
+.backgroundTaskContainer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  background-color: var(--color-gray-50);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--border-radius-md);
+  padding: var(--spacing-4);
+  margin: var(--spacing-2) 0;
+}
+
+/* 后台任务头部 */
+.backgroundTaskHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: var(--spacing-2);
+  border-bottom: 1px solid var(--color-gray-200);
+}
+
+.backgroundTaskLabel {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary-600);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.backgroundTaskId {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  background-color: var(--color-gray-200);
+  border-radius: var(--border-radius-sm);
+  padding: var(--spacing-1) var(--spacing-2);
+}
+
+/* 后台任务内容 */
+.backgroundTaskContent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.backgroundTaskStatus {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+/* 后台任务步骤 */
+.backgroundTaskSteps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  background-color: var(--color-white);
+  border: 1px solid var(--color-gray-100);
+  border-radius: var(--border-radius-sm);
+  padding: var(--spacing-3);
+}
+
+.backgroundTaskStepLabel {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-gray-700);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--spacing-1);
+}
+
+.backgroundTaskStepContent {
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+  color: var(--color-text-primary);
+  padding: var(--spacing-2);
+  background-color: var(--color-gray-50);
+  border-radius: var(--border-radius-sm);
+  border-left: 3px solid var(--color-primary-500);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.backgroundTaskStepProgress {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+  margin-top: var(--spacing-1);
+}
+
+/* 后台任务说明 */
+.backgroundTaskNote {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  font-style: italic;
+  margin-top: var(--spacing-2);
+  padding-top: var(--spacing-2);
+  border-top: 1px dashed var(--color-gray-300);
+}
+
+/* 后台任务进度条 */
+.backgroundTaskProgress {
+  height: 6px;
+  background-color: var(--color-gray-200);
+  border-radius: var(--border-radius-sm);
+  overflow: hidden;
+  margin-top: var(--spacing-3);
+}
+
+.backgroundTaskProgressBar {
+  height: 100%;
+  background-color: var(--color-primary-500);
+  border-radius: var(--border-radius-sm);
+  transition: width 0.5s ease;
+}
+
+/* 后台任务成功状态 */
+.backgroundTaskCompleted {
+  border-color: var(--color-success-500);
+  background-color: var(--color-success-50);
+}
+
+.backgroundTaskCompleted .backgroundTaskLabel {
+  color: var(--color-success-700);
+}
+
+.backgroundTaskCompleted .backgroundTaskStepContent {
+  border-left-color: var(--color-success-500);
+}
+
+.backgroundTaskCompleted .backgroundTaskProgressBar {
+  background-color: var(--color-success-500);
+}
+
+/* 后台任务失败状态 */
+.backgroundTaskFailed {
+  border-color: var(--color-error-500);
+  background-color: var(--color-error-50);
+}
+
+.backgroundTaskFailed .backgroundTaskLabel {
+  color: var(--color-error-700);
+}
+
+.backgroundTaskFailed .backgroundTaskStepContent {
+  border-left-color: var(--color-error-500);
+}
+
+.backgroundTaskFailed .backgroundTaskProgressBar {
+  background-color: var(--color-error-500);
+}
+
+/* ==================== 后台任务进度反馈系统样式 ==================== */
+
+/* 后台任务状态行 */
+.backgroundTaskStatusRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-1);
+  font-size: var(--font-size-sm);
+}
+
+.backgroundTaskStatusLabel {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  min-width: 60px;
+}
+
+.backgroundTaskStatusValue {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  text-align: right;
+}
+
+/* 步骤描述容器 */
+.backgroundTaskStepDescription {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  background-color: var(--color-white);
+  border: 1px solid var(--color-gray-100);
+  border-radius: var(--border-radius-sm);
+  padding: var(--spacing-3);
+  margin-top: var(--spacing-2);
+}
+
+/* 进度信息行 */
+.backgroundTaskProgressInfo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-2);
+  font-size: var(--font-size-sm);
+}
+
+.backgroundTaskProgressInfo span:first-child {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+.backgroundTaskProgressInfo span:last-child {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary-600);
+}
+
+/* 进度条容器 */
+.backgroundTaskProgressBarContainer {
+  height: 6px;
+  background-color: var(--color-gray-200);
+  border-radius: var(--border-radius-sm);
+  overflow: hidden;
+  margin-bottom: var(--spacing-2);
+}
+
+/* 步骤信息行 */
+.backgroundTaskStepInfo {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+  text-align: center;
+  padding: var(--spacing-1) 0;
+  background-color: var(--color-gray-100);
+  border-radius: var(--border-radius-sm);
 }

@@ -42,7 +42,36 @@ class TestUserLimitManager:
     @patch.dict(os.environ, {"ALLOWED_USERS": "{}"}, clear=True)
     @patch("utils.logging")
     def test_initialization_with_empty_env(self, mock_logging):
-        """测试使用空环境变量初始化"""
+        """
+        测试UserLimitManager使用空环境变量初始化的情况
+
+        验证当环境变量ALLOWED_USERS为空时，UserLimitManager能够正确初始化并自动
+        添加管理员用户。同时检查弃用警告是否被正确记录。
+
+        Args:
+            mock_logging: 模拟的logging模块，用于验证警告日志记录
+
+        Returns:
+            无: 测试函数使用assert语句验证预期行为，无显式返回值
+
+        Raises:
+            无: 测试函数内部不会抛出异常，所有断言失败会由pytest捕获
+
+        Examples:
+            >>> # 当环境变量ALLOWED_USERS为空时：
+            >>> # UserLimitManager应该初始化成功
+            >>> # 管理员用户admin应该被自动添加
+            >>> # 弃用警告应该被记录
+            >>> test_instance = TestUserLimitManager()
+            >>> test_instance.setup_method()
+            >>> test_instance.test_initialization_with_empty_env(mock_logging)
+
+        Notes:
+            - 此测试验证UserLimitManager的向后兼容性
+            - 即使环境变量为空，管理员用户也应该被自动添加
+            - 弃用警告是预期的，因为UserLimitManager已标记为弃用
+            - 测试使用模拟对象隔离外部依赖（环境变量和logging）
+        """
         manager = UserLimitManager()
         assert manager.usage_db_path is not None
         # 管理员用户应该被自动添加
@@ -62,7 +91,36 @@ class TestUserLimitManager:
         },
     )
     def test_load_allowed_users(self):
-        """测试加载允许的用户"""
+        """
+        测试UserLimitManager加载有效的环境变量用户配置
+
+        验证当环境变量ALLOWED_USERS包含有效的JSON格式用户数据时，UserLimitManager
+        能够正确解析并加载用户信息，包括用户名、过期日期、最大翻译次数和密码。
+
+        Args:
+            无: 函数使用环境变量模拟，不接受参数
+
+        Returns:
+            无: 测试函数使用assert语句验证预期行为，无显式返回值
+
+        Raises:
+            无: 测试函数内部不会抛出异常，所有断言失败会由pytest捕获
+
+        Examples:
+            >>> # 当环境变量包含有效的用户配置时：
+            >>> # UserLimitManager应该正确加载testuser用户
+            >>> # 用户信息（过期日期、最大翻译次数、密码）应该正确解析
+            >>> # 管理员用户admin应该被自动添加
+            >>> test_instance = TestUserLimitManager()
+            >>> test_instance.setup_method()
+            >>> test_instance.test_load_allowed_users()
+
+        Notes:
+            - 使用patch.dict模拟环境变量，确保测试隔离性
+            - 验证JSON解析的正确性和数据类型转换
+            - 管理员用户总是被自动添加，无论环境变量中是否定义
+            - 密码以明文形式存储，仅用于测试目的
+        """
         manager = UserLimitManager()
         assert "testuser" in manager.allowed_users
         assert manager.allowed_users["testuser"]["expiry_date"] == "2026-12-31"
@@ -78,7 +136,36 @@ class TestUserLimitManager:
     )
     @patch("utils.logging")
     def test_load_allowed_users_invalid_date(self, mock_logging):
-        """测试加载无效日期格式的用户"""
+        """
+        测试UserLimitManager处理无效日期格式的容错能力
+
+        验证当环境变量中的用户过期日期格式无效时，UserLimitManager能够优雅地
+        处理异常，使用默认日期（2099-12-31）替换无效日期，并记录适当的警告信息。
+
+        Args:
+            mock_logging: 模拟的logging模块，用于验证警告日志记录
+
+        Returns:
+            无: 测试函数使用assert语句验证预期行为，无显式返回值
+
+        Raises:
+            无: 测试函数内部不会抛出异常，所有断言失败会由pytest捕获
+
+        Examples:
+            >>> # 当用户日期格式无效时（如"invalid-date"）：
+            >>> # UserLimitManager应该仍然加载用户
+            >>> # 无效日期应该被替换为默认值2099-12-31
+            >>> # 警告信息应该被记录到日志
+            >>> test_instance = TestUserLimitManager()
+            >>> test_instance.setup_method()
+            >>> test_instance.test_load_allowed_users_invalid_date(mock_logging)
+
+        Notes:
+            - 验证系统的容错能力和错误恢复机制
+            - 默认日期2099-12-31表示用户账户永久有效
+            - 警告日志有助于问题诊断和监控
+            - 日期格式错误不应导致整个系统崩溃
+        """
         manager = UserLimitManager()
         assert "testuser" in manager.allowed_users
         # 无效日期应被替换为默认值
@@ -88,7 +175,37 @@ class TestUserLimitManager:
     @patch.dict(os.environ, {"ALLOWED_USERS": "invalid-json"}, clear=True)
     @patch("utils.logging")
     def test_load_allowed_users_invalid_json(self, mock_logging):
-        """测试加载无效JSON格式"""
+        """
+        测试UserLimitManager处理无效JSON格式的容错能力
+
+        验证当环境变量ALLOWED_USERS包含无效的JSON格式时，UserLimitManager能够
+        优雅地处理JSON解析异常，回退到默认用户配置，并记录适当的警告信息。
+
+        Args:
+            mock_logging: 模拟的logging模块，用于验证警告日志记录
+
+        Returns:
+            无: 测试函数使用assert语句验证预期行为，无显式返回值
+
+        Raises:
+            无: 测试函数内部不会抛出异常，所有断言失败会由pytest捕获
+
+        Examples:
+            >>> # 当环境变量包含无效JSON格式（如"invalid-json"）时：
+            >>> # UserLimitManager应该回退到默认配置
+            >>> # 默认用户（test, test_user, admin）应该存在
+            >>> # 警告信息应该被记录到日志
+            >>> test_instance = TestUserLimitManager()
+            >>> test_instance.setup_method()
+            >>> test_instance.test_load_allowed_users_invalid_json(mock_logging)
+
+        Notes:
+            - 验证系统的容错能力和错误恢复机制
+            - 默认配置提供基本的用户账户（test, test_user, admin）
+            - 警告日志有助于问题诊断和监控
+            - JSON解析错误不应导致整个系统崩溃
+            - 这是UserLimitManager的重要安全特性
+        """
         manager = UserLimitManager()
         # 应回退到默认配置
         assert "test" in manager.allowed_users
@@ -97,7 +214,37 @@ class TestUserLimitManager:
         mock_logging.warning.assert_called()
 
     def test_load_usage_data_file_exists(self):
-        """测试加载存在的使用数据文件"""
+        """
+        测试UserLimitManager加载已存在的使用数据文件
+
+        验证当使用数据JSON文件存在时，UserLimitManager能够正确读取和解析文件内容，
+        返回包含用户翻译次数的字典数据。
+
+        Args:
+            无: 函数使用临时文件和模拟数据，不接受参数
+
+        Returns:
+            无: 测试函数使用assert语句验证预期行为，无显式返回值
+
+        Raises:
+            无: 测试函数内部不会抛出异常，所有断言失败会由pytest捕获
+
+        Examples:
+            >>> # 当使用数据文件存在时：
+            >>> # UserLimitManager应该正确读取文件内容
+            >>> # 返回的数据应该与写入的数据完全一致
+            >>> # 用户翻译次数应该正确解析
+            >>> test_instance = TestUserLimitManager()
+            >>> test_instance.setup_method()
+            >>> test_instance.test_load_usage_data_file_exists()
+
+        Notes:
+            - 使用临时目录和文件确保测试隔离性和安全性
+            - 验证JSON文件的读取、解析和数据一致性
+            - 路径覆盖允许测试特定文件而非默认路径
+            - UTF-8编码确保中文文本正确处理
+            - 这是UserLimitManager数据持久化的重要测试
+        """
         # 创建测试数据文件
         test_data = {"user1": {"translations": 5}, "user2": {"translations": 10}}
         os.makedirs(self.temp_dir, exist_ok=True)
@@ -110,7 +257,36 @@ class TestUserLimitManager:
         assert data == test_data
 
     def test_load_usage_data_file_not_exists(self):
-        """测试加载不存在的使用数据文件"""
+        """
+        测试UserLimitManager处理不存在的使用数据文件
+
+        验证当使用数据JSON文件不存在时，UserLimitManager能够优雅地处理文件
+        不存在的情况，返回空字典而非抛出异常。
+
+        Args:
+            无: 函数使用不存在的文件路径，不接受参数
+
+        Returns:
+            无: 测试函数使用assert语句验证预期行为，无显式返回值
+
+        Raises:
+            无: 测试函数内部不会抛出异常，所有断言失败会由pytest捕获
+
+        Examples:
+            >>> # 当使用数据文件不存在时：
+            >>> # UserLimitManager应该返回空字典{}
+            >>> # 不应抛出FileNotFoundError或其他异常
+            >>> # 这是首次运行系统或文件丢失时的预期行为
+            >>> test_instance = TestUserLimitManager()
+            >>> test_instance.setup_method()
+            >>> test_instance.test_load_usage_data_file_not_exists()
+
+        Notes:
+            - 验证系统的容错能力和优雅降级机制
+            - 返回空字典表示没有使用记录，这是合理的默认值
+            - 避免异常传播确保系统稳定性
+            - 这是UserLimitManager首次部署或文件损坏时的重要行为
+        """
         manager = UserLimitManager()
         manager.usage_db_path = os.path.join(self.temp_dir, "nonexistent.json")
         data = manager.load_usage_data()

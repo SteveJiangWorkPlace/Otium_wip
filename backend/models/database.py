@@ -283,6 +283,97 @@ class TranslationRecord(Base):
         }
 
 
+class BackgroundTask(Base):
+    """后台任务表（用于处理长时间运行的任务）"""
+
+    __tablename__ = "background_tasks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    task_type = Column(
+        String(50), nullable=False
+    )  # "chat_deep_research", "chat_regular"等
+    status = Column(
+        String(20), default="pending", nullable=False
+    )  # pending, processing, completed, failed
+    request_data = Column(Text, nullable=True)  # JSON字符串：原始请求数据
+    result_data = Column(Text, nullable=True)  # JSON字符串：处理结果
+    error_message = Column(Text, nullable=True)  # 错误信息
+    attempts = Column(Integer, default=0)  # 尝试次数
+    max_attempts = Column(Integer, default=3)  # 最大尝试次数
+    started_at = Column(DateTime, nullable=True)  # 任务开始处理的UTC时间戳，用于计算执行时长和监控任务进度
+    completed_at = Column(DateTime, nullable=True)  # 完成时间
+
+    # 进度跟踪字段
+    progress_percentage = Column(Integer, default=0)  # 进度百分比（0-100）
+    current_step = Column(Integer, default=0)  # 当前步骤索引（从0开始）
+    total_steps = Column(Integer, default=1)  # 总步骤数
+    step_description = Column(String(500), nullable=True)  # 当前步骤描述
+    step_details = Column(Text, nullable=True)  # 详细进度信息（JSON字符串）
+
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    # 关系
+    user = relationship("User")
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        将后台任务转换为字典格式
+
+        将BackgroundTask实例的属性序列化为字典，便于JSON序列化和API响应。
+        转换过程处理特殊数据类型（如日期时间对象）并确保API兼容性。
+
+        Returns:
+            dict[str, Any]: 包含以下键的字典：
+                - id: 任务ID
+                - user_id: 关联用户的ID
+                - task_type: 任务类型
+                - status: 任务状态
+                - request_data: 原始请求数据（JSON字符串）
+                - result_data: 处理结果（JSON字符串）
+                - error_message: 错误信息
+                - attempts: 尝试次数
+                - max_attempts: 最大尝试次数
+                - started_at: 开始处理时间的ISO格式字符串，或None
+                - completed_at: 完成时间的ISO格式字符串，或None
+                - created_at: 创建时间的ISO格式字符串，或None
+                - updated_at: 更新时间ISO格式字符串，或None
+        """
+        import json
+
+        # 尝试解析JSON数据
+        request_json = None
+        result_json = None
+        try:
+            if self.request_data:
+                request_json = json.loads(self.request_data)
+        except (json.JSONDecodeError, TypeError):
+            request_json = self.request_data
+
+        try:
+            if self.result_data:
+                result_json = json.loads(self.result_data)
+        except (json.JSONDecodeError, TypeError):
+            result_json = self.result_data
+
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "task_type": self.task_type,
+            "status": self.status,
+            "request_data": request_json,
+            "result_data": result_json,
+            "error_message": self.error_message,
+            "attempts": self.attempts,
+            "max_attempts": self.max_attempts,
+            "started_at": self.started_at.isoformat() if self.started_at else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 # ==========================================
 # 数据库工具函数
 # ==========================================

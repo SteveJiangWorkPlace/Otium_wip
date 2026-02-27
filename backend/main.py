@@ -104,6 +104,7 @@ from fastapi.security import (  # noqa: E402
 # 导入类型用于类型提示
 from jose import jwt  # noqa: E402
 from sqlalchemy import text  # noqa: E402
+from sqlalchemy.orm import Session  # noqa: E402
 
 # 导入自定义模块
 from api_services import (  # noqa: E402
@@ -117,7 +118,7 @@ from api_services import (  # noqa: E402
 )
 from config import settings, setup_logging  # noqa: E402
 from exceptions import api_error_handler  # noqa: E402
-from models.database import get_session_local, init_database  # noqa: E402
+from models.database import get_db, get_session_local, init_database, User  # noqa: E402
 from prompts import (  # noqa: E402
     SHORTCUT_ANNOTATIONS,
     build_academic_translate_prompt,
@@ -130,6 +131,7 @@ from schemas import (  # noqa: E402
     AIChatRequest,
     AIChatResponse,
     AIDetectionRequest,
+    BackgroundTaskResponse,
     CheckEmailResponse,
     CheckTextRequest,
     CheckUsernameResponse,
@@ -145,6 +147,8 @@ from schemas import (  # noqa: E402
     StreamRefineTextRequest,
     StreamTranslationChunk,
     StreamTranslationRequest,
+    TaskPollRequest,
+    TaskStatusResponse,
     UpdateUserRequest,
     VerificationResponse,
     VerifyEmailRequest,
@@ -153,6 +157,9 @@ from services.email_service import email_service  # noqa: E402
 from services.verification_service import verification_service  # noqa: E402
 from user_services.user_service import UserService  # noqa: E402
 from utils import CacheManager, RateLimiter, TextValidator  # noqa: E402
+
+# 后台任务服务
+from background_task_service import get_background_task_service  # noqa: E402
 
 # 加载环境变量
 load_dotenv()
@@ -1609,6 +1616,7 @@ async def chat_endpoint(
     http_request: Request,
     request: AIChatRequest,
     user: UserObject = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """AI聊天对话"""
     start_time = time.time()
@@ -1694,6 +1702,64 @@ async def chat_endpoint(
         logging.info(f"文献调研模式已启用，用户: {username}")
         logging.info(f"生成文献综述选项: {request.generate_literature_review}")
 
+        # 检查是否启用后台工作器模式
+        if settings.ENABLE_BACKGROUND_WORKER:
+            logging.info(f"后台工作器模式已启用，将创建后台任务处理文献调研请求")
+
+            # 获取用户ID
+            user_obj = db.query(User).filter(User.username == username).first()
+            if not user_obj:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=ErrorResponse(
+                        error_code="USER_NOT_FOUND",
+                        message="用户不存在",
+                        details={"username": username},
+                    ).dict(),
+                )
+
+            # 创建请求数据
+            request_data = {
+                "prompt": "",
+                "generate_literature_review": request.generate_literature_review,
+                "manus_api_key": os.environ.get("MANUS_API_KEY"),
+            }
+
+            # 提取用户的最新消息作为prompt
+            for msg in reversed(request.messages):
+                if msg.role == "user":
+                    request_data["prompt"] = msg.content.strip()
+                    break
+
+            if not request_data["prompt"]:
+                request_data["prompt"] = "请帮助我进行学术研究"  # 默认prompt
+
+            # 创建后台任务
+            task_service = get_background_task_service(db)
+            try:
+                task = task_service.create_task(
+                    user_id=user_obj.id,
+                    task_type="chat_deep_research",
+                    request_data=request_data,
+                    estimated_time=600,  # 默认10分钟
+                )
+
+                logging.info(f"创建后台任务成功: id={task.id}, type=chat_deep_research, user_id={user_obj.id}")
+
+                # 返回后台任务响应
+                return BackgroundTaskResponse(
+                    success=True,
+                    message="文献调研任务已提交到后台处理，请稍后查询结果",
+                    task_id=task.id,
+                    status=task.status,
+                    estimated_time=600,
+                )
+
+            except Exception as e:
+                logging.error(f"创建后台任务失败: {str(e)}", exc_info=True)
+                # 如果后台任务创建失败，回退到同步处理模式
+                logging.warning(f"后台任务创建失败，将使用同步处理模式: {str(e)}")
+
         # 提取用户的最新消息作为prompt
         prompt = ""
         for msg in reversed(request.messages):
@@ -1751,7 +1817,12 @@ async def chat_endpoint(
 
         # 使用Manus API进行通用对话
         try:
-            result = chat_with_manus(prompt=prompt, api_key=manus_api_key)
+            result = chat_with_manus(
+                prompt=prompt,
+                api_key=manus_api_key,
+                generate_literature_review=request.generate_literature_review,
+                prompt_already_built=True
+            )
 
             if result.get("success"):
                 text = result.get("text", "")
@@ -1871,6 +1942,118 @@ async def chat_endpoint(
                 details={"error": str(e)},
             ).dict(),
         ) from e
+
+
+@app.get("/api/tasks/{task_id}/status")
+@api_error_handler
+async def get_task_status(
+    task_id: int,
+    user: UserObject = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """获取后台任务状态"""
+    # 获取任务
+    task_service = get_background_task_service(db)
+    task = task_service.get_task(task_id)
+
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=ErrorResponse(
+                error_code="TASK_NOT_FOUND",
+                message="任务不存在",
+                details={"task_id": task_id},
+            ).dict(),
+        )
+
+    # 检查任务是否属于当前用户（非管理员用户只能查看自己的任务）
+    username = user.username if hasattr(user, "username") else str(user)
+    user_obj = db.query(User).filter(User.username == username).first()
+
+    if not user_obj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=ErrorResponse(
+                error_code="USER_NOT_FOUND",
+                message="用户不存在",
+                details={"username": username},
+            ).dict(),
+        )
+
+    # 非管理员用户只能查看自己的任务
+    if not user_obj.is_admin and task.user_id != user_obj.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ErrorResponse(
+                error_code="ACCESS_DENIED",
+                message="无权访问此任务",
+                details={"task_id": task_id},
+            ).dict(),
+        )
+
+    # 计算进度百分比（如果任务正在处理中）
+    progress = None
+    estimated_remaining_time = None
+    step_details = None
+
+    # 优先使用数据库中的进度信息
+    if task.progress_percentage is not None:
+        progress = float(task.progress_percentage)
+    elif task.status == "processing" and task.started_at:
+        # 后备：简单进度估算：基于已处理时间
+        elapsed_time = (datetime.now() - task.started_at).total_seconds()
+        # 假设任务总时间为10分钟（600秒）
+        total_estimated_time = 600
+        progress = min(95, (elapsed_time / total_estimated_time) * 100)  # 最多显示95%
+        estimated_remaining_time = max(0, total_estimated_time - elapsed_time)
+    elif task.status == "completed":
+        progress = 100
+        estimated_remaining_time = 0
+
+    # 解析结果数据
+    result_data = None
+    if task.result_data:
+        import json
+        try:
+            result_data = json.loads(task.result_data)
+        except (json.JSONDecodeError, TypeError):
+            result_data = task.result_data
+
+    # 解析步骤详情数据
+    if task.step_details:
+        import json
+        try:
+            step_details = json.loads(task.step_details)
+        except (json.JSONDecodeError, TypeError):
+            step_details = {"raw": task.step_details}
+
+    return TaskStatusResponse(
+        success=True,
+        task_id=task.id,
+        status=task.status,
+        progress=progress,
+        step_description=task.step_description,
+        step_details=step_details,
+        current_step=task.current_step,
+        total_steps=task.total_steps,
+        result_data=result_data,
+        error_message=task.error_message,
+        started_at=task.started_at.isoformat() if task.started_at else None,
+        completed_at=task.completed_at.isoformat() if task.completed_at else None,
+        estimated_remaining_time=int(estimated_remaining_time) if estimated_remaining_time is not None else None,
+    )
+
+
+@app.post("/api/tasks/poll")
+@api_error_handler
+async def poll_task_status(
+    request: TaskPollRequest,
+    user: UserObject = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """轮询任务状态（兼容性端点）"""
+    # 直接调用get_task_status逻辑
+    return await get_task_status(request.task_id, user, db)
 
 
 @app.get("/api/health")

@@ -583,22 +583,22 @@
 }
 
 /* 开关打开状态 - 显示编辑模式 */
-.formatToggle[data-state="on"] {
+.formatToggle[data-state='on'] {
   background-color: var(--color-primary);
   border-color: var(--color-primary);
 }
 
-.formatToggle[data-state="on"]::before {
+.formatToggle[data-state='on']::before {
   transform: translateX(24px);
 }
 
 /* 开关关闭状态 - 显示预览模式（格式化文本） */
-.formatToggle[data-state="off"] {
+.formatToggle[data-state='off'] {
   background-color: var(--color-gray-200);
   border-color: var(--color-gray-300);
 }
 
-.formatToggle[data-state="off"]::before {
+.formatToggle[data-state='off']::before {
   transform: translateX(0);
 }
 

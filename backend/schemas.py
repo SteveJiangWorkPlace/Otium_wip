@@ -290,6 +290,40 @@ class AIChatResponse(BaseModel):
     steps: list[str] | None = None  # Manus API步骤信息，仅文献调研模式使用
 
 
+class BackgroundTaskResponse(BaseModel):
+    """后台任务创建响应模型"""
+
+    success: bool
+    message: str
+    task_id: int | None = None  # 任务ID，用于后续查询状态
+    status: str | None = None  # 任务状态：pending, processing, completed, failed
+    estimated_time: int | None = None  # 预估处理时间（秒）
+
+
+class TaskStatusResponse(BaseModel):
+    """任务状态查询响应模型"""
+
+    success: bool
+    task_id: int
+    status: str  # pending, processing, completed, failed
+    progress: float | None = None  # 进度百分比0-100
+    step_description: str | None = None  # 当前步骤描述
+    step_details: dict[str, Any] | None = None  # 详细步骤信息（JSON对象）
+    current_step: int | None = None  # 当前步骤索引（从0开始）
+    total_steps: int | None = None  # 总步骤数
+    result_data: dict[str, Any] | None = None  # AI任务的处理结果数据，包含文本翻译、纠错或润色的具体输出内容
+    error_message: str | None = None  # 错误信息
+    started_at: str | None = None  # 任务开始处理的ISO格式时间戳，用于计算任务执行时长和监控性能
+    completed_at: str | None = None  # 完成时间
+    estimated_remaining_time: int | None = None  # 预估剩余时间（秒）
+
+
+class TaskPollRequest(BaseModel):
+    """任务轮询请求模型"""
+
+    task_id: int
+
+
 # ==========================================
 # 流式翻译模型
 # ==========================================

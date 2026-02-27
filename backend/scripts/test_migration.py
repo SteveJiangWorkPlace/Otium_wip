@@ -18,7 +18,18 @@ from user_services.user_service import UserService
 
 
 def setup_logging():
-    """设置日志"""
+    """
+    配置日志系统，设置日志级别和格式。
+
+    Configures:
+        - Level: INFO
+        - Format: 时间戳 - 级别 - 消息
+        - Output: 标准输出
+
+    Note:
+        - 用于测试脚本的统一日志格式
+        - 确保所有测试输出具有一致的可读性
+    """
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
@@ -112,7 +123,22 @@ def test_user_service():
 
 
 def test_database_models():
-    """测试数据库模型"""
+    """
+    测试SQLAlchemy数据库模型的基本功能。
+
+    测试内容:
+        1. 数据库连接和查询
+        2. 用户模型字段完整性
+        3. 密码哈希和验证功能
+        4. 用户使用记录关联
+
+    Returns:
+        bool: 测试是否成功
+
+    Note:
+        - 使用独立的测试数据库
+        - 不修改生产数据
+    """
     logging.info("\n" + "=" * 60)
     logging.info("测试数据库模型")
     logging.info("=" * 60)
@@ -156,7 +182,19 @@ def test_database_models():
 
 
 def cleanup_test_data():
-    """清理测试数据"""
+    """
+    清理测试过程中创建的临时数据。
+
+    清理操作:
+        1. 删除测试用户'test_user1'
+        2. 统计剩余用户数量
+        3. 回滚异常情况
+
+    Note:
+        - 仅在用户确认后执行
+        - 使用事务确保数据一致性
+        - 记录清理过程便于调试
+    """
     logging.info("\n" + "=" * 60)
     logging.info("清理测试数据")
     logging.info("=" * 60)
@@ -184,7 +222,23 @@ def cleanup_test_data():
 
 
 def main():
-    """主测试函数"""
+    """
+    主测试流程：验证数据库迁移和UserService功能。
+
+    执行顺序:
+        1. 设置日志
+        2. 测试UserService（添加、验证、更新用户等）
+        3. 测试数据库模型
+        4. 可选清理测试数据
+        5. 输出测试结果
+
+    Returns:
+        bool: 所有测试是否通过
+
+    Note:
+        - 测试前会初始化测试数据库
+        - 提供交互式数据清理选项
+    """
     setup_logging()
 
     try:

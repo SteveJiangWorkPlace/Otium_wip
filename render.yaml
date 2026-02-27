@@ -40,6 +40,8 @@ services:
         sync: false  # Must be set manually in Render dashboard
       - key: GPTZERO_API_KEY
         sync: false  # Must be set manually in Render dashboard
+      - key: MANUS_API_KEY
+        sync: false  # Must be set manually in Render dashboard for literature research
 
       # ==================== 数据库配置 ====================
       - key: DATABASE_TYPE
@@ -85,6 +87,94 @@ services:
         value: "true"
       - key: FRONTEND_BASE_URL
         value: https://otiumtrans.netlify.app
+
+  # Background Worker Service for long-running tasks (e.g., literature research)
+  - type: worker
+    name: otium-background-worker
+    env: python
+    pythonVersion: "3.11.9"
+    region: oregon  # Same region as web service
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && python worker.py --interval 10 --max-tasks 5 --worker-id 1
+    envVars:
+      # ==================== 应用配置 ====================
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: false
+
+      # ==================== Render 自动配置 ====================
+      - key: RENDER
+        value: true
+      - fromService:
+          type: postgres
+          name: otium-database
+          property: connectionString
+
+      # ==================== JWT 认证配置 ====================
+      - key: SECRET_KEY
+        generateValue: true
+
+      # ==================== API 密钥配置 ====================
+      - key: GEMINI_API_KEY
+        sync: false  # Must be set manually in Render dashboard
+      - key: GPTZERO_API_KEY
+        sync: false  # Must be set manually in Render dashboard
+      - key: MANUS_API_KEY
+        sync: false  # Must be set manually in Render dashboard for literature research
+
+      # ==================== 数据库配置 ====================
+      - key: DATABASE_TYPE
+        value: postgresql
+
+      # ==================== 用户限制配置 ====================
+      - key: DAILY_TRANSLATION_LIMIT
+        value: "3"
+      - key: DAILY_AI_DETECTION_LIMIT
+        value: "3"
+
+      # ==================== 管理员配置 ====================
+      - key: ADMIN_USERNAME
+        value: admin
+      - key: ADMIN_PASSWORD
+        generateValue: true
+
+      # ==================== CORS 配置 ====================
+      - key: CORS_ORIGINS
+        value: https://otiumtrans.netlify.app,http://localhost:3000
+
+      # ==================== 安全配置 ====================
+      - key: ENABLE_HTTPS_REDIRECT
+        value: true
+
+      # ==================== 日志配置 ====================
+      - key: LOG_LEVEL
+        value: INFO
+      - key: LOG_TO_CONSOLE
+        value: true
+
+      # ==================== 邮件服务配置 ====================
+      # 注意：请手动在 Render Dashboard 中设置以下环境变量：
+      # RESEND_API_KEY: 您的 Resend API 密钥
+      # RESEND_FROM: 发件人邮箱（已验证的邮箱）
+      - key: VERIFICATION_CODE_TTL
+        value: "600"
+      - key: RESET_TOKEN_TTL
+        value: "86400"
+      - key: MAX_VERIFICATION_ATTEMPTS
+        value: "3"
+      - key: EMAIL_VERIFICATION_REQUIRED
+        value: "true"
+      - key: FRONTEND_BASE_URL
+        value: https://otiumtrans.netlify.app
+
+      # ==================== 后台工作器配置 ====================
+      - key: ENABLE_BACKGROUND_WORKER
+        value: "true"  # 启用后台任务处理模式
+      - key: WORKER_INTERVAL
+        value: "10"    # 轮询间隔（秒）
+      - key: WORKER_MAX_TASKS
+        value: "5"     # 每次处理的最大任务数
 
   # PostgreSQL Database
   - type: postgres

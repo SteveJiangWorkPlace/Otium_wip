@@ -70,6 +70,49 @@ cd backend
 gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
 ```
 
+### 后台工作器启动
+
+**启用后台工作器：**
+1. 设置环境变量 `ENABLE_BACKGROUND_WORKER=True`
+2. 确保数据库已初始化，包含 `background_tasks` 表
+
+**启动后台工作器（本地开发）：**
+
+**Windows批处理：**
+```bash
+cd backend
+start_worker.bat
+```
+
+**Windows PowerShell：**
+```powershell
+cd backend
+.\start_worker.ps1
+```
+
+**Unix/Linux：**
+```bash
+cd backend
+chmod +x start_worker.sh
+./start_worker.sh
+```
+
+**手动启动：**
+```bash
+cd backend
+python worker.py --interval 5 --max-tasks 3 --worker-id 1
+```
+
+**工作器参数说明：**
+- `--interval`: 数据库轮询间隔（秒），默认5秒
+- `--max-tasks`: 每次处理的最大任务数，默认3
+- `--worker-id`: 工作器标识，用于日志记录
+- `--once`: 只运行一次，不进入循环
+- `--cleanup`: 只执行清理操作，然后退出
+
+**生产环境（Render）：**
+后台工作器已配置在 `render.yaml` 中，作为独立的后台工作器服务运行。
+
 ### 代码质量工具
 
 项目配置了完整的代码质量工具链，确保代码风格一致和高质量。

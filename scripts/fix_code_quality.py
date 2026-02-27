@@ -14,7 +14,22 @@ if sys.platform.startswith("win"):
 
 
 def run_command(cmd, description):
-    """运行命令并打印结果"""
+    """
+    执行子进程命令并安全处理输出，特别处理Windows编码问题。
+
+    Args:
+        cmd (list): 命令参数列表，如['python', '-m', 'black', '.']
+        description (str): 命令的人类可读描述，用于日志输出
+
+    Returns:
+        bool: 命令执行是否成功（返回码为0）
+
+    Note:
+        - 自动设置UTF-8环境变量解决Windows GBK编码问题
+        - 安全处理Unicode字符，避免编码错误
+        - 限制输出长度（500字符）避免日志过长
+        - 提供详细的成功/失败信息
+    """
     print(f"\n{'=' * 60}")
     print(f"Running: {description}")
     print(f"Command: {' '.join(cmd)}")
@@ -73,7 +88,23 @@ def run_command(cmd, description):
 
 
 def main():
-    """运行所有自动修复"""
+    """
+    执行代码质量自动修复的完整流程。
+
+    执行顺序:
+        1. Black代码格式化
+        2. isort导入排序
+        3. Ruff自动修复代码问题
+        4. Ruff代码格式化
+
+    Returns:
+        int: 退出码，0表示成功
+
+    Note:
+        - 所有命令输出UTF-8编码
+        - 部分问题可能需要手动修复
+        - 建议后续运行run_quality_checks.py检查剩余问题
+    """
     print("Running automatic code quality fixes...")
 
     # 1. Black 格式化

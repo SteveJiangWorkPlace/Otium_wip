@@ -21,7 +21,12 @@ import type {
   StreamTranslationChunk,
   StreamRefineTextRequest,
   StreamRefineTextChunk,
+  BackgroundTask,
+  CreateBackgroundTaskRequest,
+  CreateBackgroundTaskResponse,
+  GetTaskStatusResponse,
 } from '../types';
+import { BackgroundTaskStatus } from '../types';
 
 console.log(
   'API客户端模块加载 - 环境变量REACT_APP_API_BASE_URL:',
@@ -522,6 +527,106 @@ export const apiClient = {
   chat: async (data: AIChatRequest): Promise<AIChatResponse> => {
     const response = await axiosInstance.post<AIChatResponse>('/chat', data);
     return response.data;
+  },
+
+  // ==================== 后台任务管理 ====================
+
+  // 创建后台任务（已弃用 - 现在通过/chat端点创建）
+  createBackgroundTask: async (
+    data: CreateBackgroundTaskRequest
+  ): Promise<CreateBackgroundTaskResponse> => {
+    // 注意：这个端点可能不存在，现在后台任务通过/chat端点创建
+    const response = await axiosInstance.post<CreateBackgroundTaskResponse>(
+      '/background-tasks',
+      data
+    );
+    return response.data;
+  },
+
+  // 获取任务状态
+  getTaskStatus: async (taskId: number): Promise<GetTaskStatusResponse> => {
+    const response = await axiosInstance.get<GetTaskStatusResponse>(`/tasks/${taskId}/status`);
+    return response.data;
+  },
+
+  // 轮询任务结果（使用指数退避）
+  pollTaskResult: async (
+    taskId: number,
+    options?: {
+      interval?: number; // 初始轮询间隔（毫秒）
+      maxAttempts?: number; // 最大轮询次数
+      onProgress?: (task: BackgroundTask) => void; // 进度回调
+      signal?: AbortSignal; // 取消信号
+    }
+  ): Promise<BackgroundTask> => {
+    const { interval = 1000, maxAttempts = 300, onProgress, signal } = options || {};
+    let attempts = 0;
+    let currentInterval = interval;
+
+    while (attempts < maxAttempts) {
+      if (signal?.aborted) {
+        throw new Error('轮询被取消');
+      }
+
+      attempts++;
+      try {
+        const response = await axiosInstance.get<GetTaskStatusResponse>(`/tasks/${taskId}/status`, {
+          signal,
+        });
+        const { success, task, error } = response.data;
+
+        if (!success) {
+          throw new Error(error || '获取任务状态失败');
+        }
+
+        if (onProgress) {
+          onProgress(task);
+        }
+
+        if (task.status === BackgroundTaskStatus.COMPLETED) {
+          return task;
+        }
+
+        if (task.status === BackgroundTaskStatus.FAILED) {
+          throw new Error(task.error_message || '任务处理失败');
+        }
+
+        // 如果任务还在处理中，等待后继续轮询
+        if (
+          task.status === BackgroundTaskStatus.PENDING ||
+          task.status === BackgroundTaskStatus.PROCESSING
+        ) {
+          // 指数退避：每次等待时间增加50%
+          const interval = currentInterval;
+          await new Promise((resolve) => setTimeout(resolve, interval));
+          currentInterval = Math.min(currentInterval * 1.5, 10000); // 最大10秒间隔
+          continue;
+        }
+
+        // 未知状态，继续轮询
+        const interval = currentInterval;
+        await new Promise((resolve) => setTimeout(resolve, interval));
+        currentInterval = Math.min(currentInterval * 1.5, 10000);
+      } catch (error) {
+        if (signal?.aborted) {
+          throw new Error('轮询被取消');
+        }
+
+        // 如果是网络错误，继续重试
+        if (attempts < maxAttempts) {
+          console.warn(`轮询任务 ${taskId} 失败，尝试 ${attempts}/${maxAttempts}:`, error);
+          const interval = currentInterval;
+          await new Promise((resolve) => setTimeout(resolve, interval));
+          currentInterval = Math.min(currentInterval * 1.5, 10000);
+        } else {
+          throw new Error(
+            `轮询任务 ${taskId} 超时: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
+      }
+    }
+
+    throw new Error(`轮询任务 ${taskId} 超时，已达到最大尝试次数 ${maxAttempts}`);
   },
 
   // ==================== 指令管理 ====================

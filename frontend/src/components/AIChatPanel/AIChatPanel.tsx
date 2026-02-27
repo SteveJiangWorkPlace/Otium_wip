@@ -5,6 +5,7 @@ import {
 } from '../../store/useAIChatStore';
 import { apiClient } from '../../api/client';
 import type { AIChatMessage as ApiAIChatMessage } from '../../types';
+import { BackgroundTaskStatus, BackgroundTaskType } from '../../types';
 import Button from '../ui/Button/Button';
 import Textarea from '../ui/Textarea/Textarea';
 // import { Switch } from 'antd';
@@ -31,6 +32,15 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
   const [processingStep, setProcessingStep] = useState<number>(0);
   const [manusSteps, setManusSteps] = useState<string[]>([]);
   const [currentManusStep, setCurrentManusStep] = useState<number>(0);
+  const [backgroundTaskId, setBackgroundTaskId] = useState<number | null>(null);
+  const [backgroundTaskProgress, setBackgroundTaskProgress] = useState<number>(0);
+  const [backgroundTaskPercent, setBackgroundTaskPercent] = useState<number>(0);
+  const [backgroundTaskStepDescription, setBackgroundTaskStepDescription] = useState<string>('');
+  const [backgroundTaskCurrentStep, setBackgroundTaskCurrentStep] = useState<number>(0);
+  const [backgroundTaskTotalSteps, setBackgroundTaskTotalSteps] = useState<number>(1);
+  const [pollingAbortController, setPollingAbortController] = useState<AbortController | null>(
+    null
+  );
 
   const conversation = conversations[pageKey] || {
     isExpanded: false,
@@ -148,6 +158,16 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
       }
     };
   }, [conversation.loading, manusSteps.length, currentManusStep]);
+
+  // 清理后台任务轮询
+  useEffect(() => {
+    return () => {
+      if (pollingAbortController) {
+        pollingAbortController.abort();
+        setPollingAbortController(null);
+      }
+    };
+  }, [pollingAbortController]);
 
   // 清理markdown符号但保留必要格式 - 统一处理所有模式
   const cleanMarkdown = (html: string): string => {
@@ -430,6 +450,18 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
     // 重置Manus步骤状态
     setManusSteps([]);
     setCurrentManusStep(0);
+    setBackgroundTaskId(null);
+    setBackgroundTaskProgress(0);
+    setBackgroundTaskPercent(0);
+    setBackgroundTaskStepDescription('');
+    setBackgroundTaskCurrentStep(0);
+    setBackgroundTaskTotalSteps(1);
+
+    // 如果之前有轮询，取消它
+    if (pollingAbortController) {
+      pollingAbortController.abort();
+      setPollingAbortController(null);
+    }
 
     // 添加用户消息
     const userMessage: StoreAIChatMessage = {
@@ -457,7 +489,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
         content: userMessage.content,
       });
 
-      // 调用API
+      // 直接调用聊天API，由后端决定是否使用后台任务
       const response = await apiClient.chat({
         messages,
         session_id: conversation.sessionId || undefined,
@@ -465,7 +497,91 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
         generate_literature_review: generateLiteratureReview, // 传递生成文献综述选项
       });
 
-      if (response.success) {
+      // 检查响应是否包含后台任务ID（表示任务已提交到后台处理）
+      if (response.success && response.task_id) {
+        // 这是后台任务响应，需要轮询任务状态
+        // 使用非空断言，因为我们已经检查了response.task_id存在
+        const taskId = response.task_id!;
+        setBackgroundTaskId(taskId);
+
+        // 创建AbortController用于取消轮询
+        const abortController = new AbortController();
+        setPollingAbortController(abortController);
+
+        // 轮询任务结果
+        try {
+          const task = await apiClient.pollTaskResult(taskId, {
+            interval: 1000, // 初始1秒间隔
+            maxAttempts: 600, // 最多轮询10分钟（600秒）
+            onProgress: (task) => {
+              // 更新进度
+              setBackgroundTaskProgress(task.attempts);
+
+              // 更新进度百分比和步骤信息
+              if (task.progress_percentage !== undefined) {
+                setBackgroundTaskPercent(task.progress_percentage);
+              } else {
+                // 后备：根据尝试次数估算进度
+                const estimatedProgress = Math.min(task.attempts * 2, 90); // 最多90%
+                setBackgroundTaskPercent(estimatedProgress);
+              }
+
+              // 更新步骤信息
+              if (task.current_step !== undefined) {
+                setBackgroundTaskCurrentStep(task.current_step);
+              }
+              if (task.total_steps !== undefined) {
+                setBackgroundTaskTotalSteps(task.total_steps);
+              }
+              if (task.step_description !== undefined && task.step_description !== null) {
+                setBackgroundTaskStepDescription(task.step_description);
+              }
+
+              // 如果有步骤信息，更新Manus步骤
+              if (task.result_data?.steps && Array.isArray(task.result_data.steps)) {
+                setManusSteps(task.result_data.steps);
+                // 设置当前步骤为最新
+                if (task.result_data.steps.length > 0) {
+                  setCurrentManusStep(task.result_data.steps.length);
+                }
+              }
+            },
+            signal: abortController.signal,
+          });
+
+          // 任务完成，处理结果
+          if (task.status === BackgroundTaskStatus.COMPLETED && task.result_data) {
+            const resultData = task.result_data;
+
+            // 如果有Manus步骤信息，更新状态
+            if (resultData.steps && resultData.steps.length > 0) {
+              setManusSteps(resultData.steps);
+              if (currentManusStep === 0 && resultData.steps.length > 0) {
+                setCurrentManusStep(resultData.steps.length);
+              }
+            }
+
+            // 添加AI回复
+            const aiMessage: StoreAIChatMessage = {
+              role: 'assistant',
+              content: resultData.text || resultData.result || '任务完成',
+              timestamp: Date.now(),
+            };
+            addMessage(pageKey, aiMessage);
+          } else if (task.status === BackgroundTaskStatus.FAILED) {
+            throw new Error(task.error_message || '任务处理失败');
+          }
+        } catch (pollingError: any) {
+          if (pollingError.message === '轮询被取消') {
+            console.log('轮询已取消');
+            return;
+          }
+          throw pollingError;
+        } finally {
+          setPollingAbortController(null);
+        }
+      } else if (response.success) {
+        // 这是同步响应，直接显示结果
         // 如果有Manus步骤信息，更新状态
         if (response.steps && response.steps.length > 0) {
           setManusSteps(response.steps);
@@ -504,6 +620,12 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
       // 重置Manus步骤状态
       setManusSteps([]);
       setCurrentManusStep(0);
+      setBackgroundTaskId(null);
+      setBackgroundTaskProgress(0);
+      setBackgroundTaskPercent(0);
+      setBackgroundTaskStepDescription('');
+      setBackgroundTaskCurrentStep(0);
+      setBackgroundTaskTotalSteps(1);
     }
   };
 
@@ -602,8 +724,80 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
                   <span className={styles.messageRole}>Otium</span>
                 </div>
                 <div className={styles.messageContent}>
-                  {/* 文献调研模式且有Manus步骤时显示步骤信息 */}
-                  {deepResearchMode && manusSteps.length > 0 ? (
+                  {/* 后台任务模式 */}
+                  {backgroundTaskId !== null ? (
+                    <div className={styles.backgroundTaskContainer}>
+                      <div className={styles.backgroundTaskHeader}>
+                        <span className={styles.backgroundTaskLabel}>后台任务处理中</span>
+                        <span className={styles.backgroundTaskId}>任务 ID: {backgroundTaskId}</span>
+                      </div>
+                      <div className={styles.backgroundTaskContent}>
+                        <div className={styles.backgroundTaskStatus}>
+                          <div className={styles.backgroundTaskStatusRow}>
+                            <span className={styles.backgroundTaskStatusLabel}>任务状态:</span>
+                            <span className={styles.backgroundTaskStatusValue}>
+                              处理中{' '}
+                              {backgroundTaskId !== null
+                                ? `(${backgroundTaskProgress} 次尝试)`
+                                : ''}
+                            </span>
+                          </div>
+                          <div className={styles.backgroundTaskStatusRow}>
+                            <span className={styles.backgroundTaskStatusLabel}>进度:</span>
+                            <span className={styles.backgroundTaskStatusValue}>
+                              {backgroundTaskPercent}%
+                              {backgroundTaskTotalSteps > 1
+                                ? ` (步骤 ${backgroundTaskCurrentStep}/${backgroundTaskTotalSteps})`
+                                : ''}
+                            </span>
+                          </div>
+                        </div>
+                        {backgroundTaskStepDescription && (
+                          <div className={styles.backgroundTaskStepDescription}>
+                            <div className={styles.backgroundTaskStepLabel}>当前步骤描述:</div>
+                            <div className={styles.backgroundTaskStepContent}>
+                              {backgroundTaskStepDescription}
+                            </div>
+                          </div>
+                        )}
+                        {manusSteps.length > 0 && (
+                          <div className={styles.backgroundTaskSteps}>
+                            <div className={styles.backgroundTaskStepLabel}>Manus API步骤:</div>
+                            <div className={styles.backgroundTaskStepContent}>
+                              {manusSteps.length > 0
+                                ? manusSteps[manusSteps.length - 1]
+                                : '正在启动...'}
+                            </div>
+                            <div className={styles.backgroundTaskStepProgress}>
+                              已完成 {manusSteps.length} 个步骤
+                            </div>
+                          </div>
+                        )}
+                        <div className={styles.backgroundTaskNote}>
+                          文献调研可能需要较长时间，请耐心等待...
+                        </div>
+                      </div>
+                      <div className={styles.backgroundTaskProgress}>
+                        <div className={styles.backgroundTaskProgressInfo}>
+                          <span>任务进度</span>
+                          <span>{backgroundTaskPercent}%</span>
+                        </div>
+                        <div className={styles.backgroundTaskProgressBarContainer}>
+                          <div
+                            className={styles.backgroundTaskProgressBar}
+                            style={{ width: `${backgroundTaskPercent}%` }}
+                          />
+                        </div>
+                        {backgroundTaskTotalSteps > 1 && (
+                          <div className={styles.backgroundTaskStepInfo}>
+                            步骤 {backgroundTaskCurrentStep} / {backgroundTaskTotalSteps}
+                            {backgroundTaskStepDescription && ` - ${backgroundTaskStepDescription}`}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : deepResearchMode && manusSteps.length > 0 ? (
+                    // 文献调研模式且有Manus步骤时显示步骤信息（传统模式）
                     <div className={styles.manusStepsContainer}>
                       <div className={styles.manusStepHeader}>
                         <span className={styles.manusStepLabel}>文献调研进度</span>

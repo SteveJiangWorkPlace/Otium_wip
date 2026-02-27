@@ -11,7 +11,7 @@ import logging
 import re
 import time
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import Any, Callable, Dict, Optional
 
 import google.genai
 import google.genai.errors
@@ -1350,12 +1350,18 @@ def chat_with_gemini(messages: list[dict[str, str]], api_key: str | None = None)
 def chat_with_manus(
     prompt: str,
     api_key: str | None = None,
+    generate_literature_review: bool = False,
+    prompt_already_built: bool = False,
+    progress_callback: Optional[Callable[[int, str, Optional[Dict[str, Any]]], None]] = None,
 ) -> dict[str, Any]:
     """使用Manus API进行通用对话
 
     Args:
         prompt: 用户输入的prompt/query
         api_key: Manus API密钥，如果为None则使用环境变量
+        generate_literature_review: 是否生成文献综述，默认False
+        prompt_already_built: 提示词是否已经构建完成，默认False
+        progress_callback: 可选的进度回调函数，格式为 (progress_percentage: int, step_description: str, step_details: Optional[Dict]) -> None
 
     Returns:
         包含结果的字典，格式：{"success": bool, "text": str, "error": str, "error_type": str}
@@ -1378,6 +1384,35 @@ def chat_with_manus(
             "steps": [],
         }
 
+    # 根据生成文献综述选项构建最终prompt（仅当提示词未构建时）
+    if not prompt_already_built:
+        if generate_literature_review:
+            # 生成文献综述模式（保留完整引文格式）
+            final_prompt = f"""如果遇到需要选择或确认的情况，请基于最佳判断做出选择并继续执行，不要询问用户任何问题。
+请进行文献调研，同时保留完整的学术引文格式：
+1. 首先撰写一段综合性的文献综述，总结和评述所收集文献的主要观点、研究方法和结论。在适当的地方使用文内引用（作者, 年份）来引用参考文献。
+2. 为每篇文献提供完整的引文信息：作者、标题、年份、来源（期刊/会议名称）和链接（如果有）
+3. 为每篇文献提供简洁的摘要总结
+4. 可以使用markdown格式（如**加粗**、*斜体*）来强调重要内容，改善排版可读性
+5. 请以纯文本形式输出结果，不要输出文档文件或其他格式的文档。
+
+用户需求：{prompt}"""
+            logging.info("添加文献综述生成指令")
+        else:
+            # 普通文献信息模式（保留完整引文信息）
+            final_prompt = f"""如果遇到需要选择或确认的情况，请基于最佳判断做出选择并继续执行，不要询问用户任何问题。
+请进行文献调研，同时保留完整的学术引文格式：
+1. 为每篇文献提供完整的引文信息：作者、标题、年份、来源（期刊/会议名称）和链接（如果有）
+2. 为每篇文献提供简洁的摘要总结
+3. 可以使用markdown格式（如**加粗**、*斜体*）来强调重要内容，改善排版可读性
+4. 请以纯文本形式输出结果，不要输出文档文件或其他格式的文档。
+
+用户需求：{prompt}"""
+            logging.info("添加文献信息+摘要指令")
+
+        prompt = final_prompt
+    else:
+        logging.info("提示词已构建，跳过构建步骤")
     logging.info(f"开始Manus API对话，prompt长度: {len(prompt)} 字符")
     logging.info(f"prompt预览: {repr(prompt[:100])}...")
 
@@ -1391,7 +1426,7 @@ def chat_with_manus(
         "content-type": "application/json",
         "API_KEY": api_key,
     }
-    data = {"prompt": prompt, "model": "manus-1.6-lite"}
+    data = {"prompt": prompt, "model": "manus-1.6"}
 
     try:
         # 设置超时（对话可能需要较长时间，匹配Render的1800秒超时）
@@ -1405,6 +1440,10 @@ def chat_with_manus(
         task_data = response.json()
         logging.info(f"Manus API响应状态码: {response.status_code}")
         logging.info(f"任务创建成功: {task_data.get('task_id', 'unknown')}")
+
+        # 调用进度回调（任务创建成功）
+        if progress_callback:
+            progress_callback(5, "任务已创建，正在等待Manus API处理", {"task_id": task_data.get("task_id")})
 
         task_id = task_data.get("task_id")
         if not task_id:
@@ -1435,8 +1474,18 @@ def chat_with_manus(
         last_status = None
         pending_with_content_start_time = None  # 跟踪待处理状态但有内容的开始时间
 
+        # 调用进度回调（开始轮询）
+        if progress_callback:
+            progress_callback(10, "开始轮询任务状态", {"max_poll_attempts": max_poll_attempts, "poll_interval": poll_interval})
+
         for attempt in range(max_poll_attempts):
             logging.info(f"轮询任务状态，尝试 {attempt + 1}/{max_poll_attempts}，任务ID: {task_id}")
+
+            # 更新轮询进度 (10% - 90%)
+            if progress_callback:
+                # 从10%开始，逐步增加到90%
+                progress_percentage = 10 + int((attempt / max_poll_attempts) * 80)
+                progress_callback(progress_percentage, f"轮询任务状态 ({attempt + 1}/{max_poll_attempts})", {"attempt": attempt + 1, "total_attempts": max_poll_attempts})
 
             try:
                 # 尝试可能的URL获取任务状态
@@ -1576,7 +1625,7 @@ def chat_with_manus(
                         "steps": all_steps,  # 返回收集到的步骤信息
                         "error": "",
                         "error_type": "",
-                        "model_used": "manus-1.6-lite",
+                        "model_used": "manus-1.6",
                     }
 
                 # 如果状态为pending/running/processing，继续等待直到完成
@@ -1624,7 +1673,7 @@ def chat_with_manus(
             "steps": all_steps,  # 返回已收集到的步骤信息供调试
             "error": timeout_msg,
             "error_type": "timeout",
-            "model_used": "manus-1.6-lite",
+            "model_used": "manus-1.6",
         }
 
     except Exception as e:

@@ -111,6 +111,19 @@ class Settings:
             "ENABLE_TRANSLATION_DIRECTIVES", "True"
         ).lower() in ("true", "1", "yes")
 
+        # 后台工作器配置：优先使用环境变量，如果没有设置，则在生产环境中自动启用
+        enable_background_worker_env = os.environ.get("ENABLE_BACKGROUND_WORKER")
+        if enable_background_worker_env is not None:
+            # 如果环境变量明确设置了，使用设置的值
+            self.ENABLE_BACKGROUND_WORKER = enable_background_worker_env.lower() in ("true", "1", "yes")
+        elif self.ENVIRONMENT == "production":
+            # 如果是在生产环境且没有显式设置，自动启用后台工作器
+            self.ENABLE_BACKGROUND_WORKER = True
+            logging.info(f"生产环境检测到，自动启用后台工作器: {self.ENABLE_BACKGROUND_WORKER}")
+        else:
+            # 其他情况（开发环境）默认禁用
+            self.ENABLE_BACKGROUND_WORKER = False
+
         # 邮件服务配置
         self.EMAIL_PROVIDER: str = "resend"  # 本项目仅支持 Resend API
 
@@ -179,6 +192,9 @@ class Settings:
         """为Render平台调整配置"""
         self.ENVIRONMENT = "production"
         self.DEBUG = False
+        # 在Render平台上启用后台工作器
+        self.ENABLE_BACKGROUND_WORKER = True
+        logging.info(f"Render平台检测到，启用后台工作器: {self.ENABLE_BACKGROUND_WORKER}")
         # Render会自动设置PORT变量
 
     def _check_security(self):

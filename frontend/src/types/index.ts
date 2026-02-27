@@ -52,6 +52,10 @@ export interface AIChatResponse {
   model_used: string;
   error?: string;
   steps?: string[]; // Manus API步骤信息，仅文献调研模式使用
+  // 后台任务相关字段（当启用后台工作器时）
+  task_id?: number; // 后台任务ID，当任务被提交到后台处理时返回
+  status?: string; // 任务状态，如"pending"、"processing"等
+  estimated_time?: number; // 预计处理时间（秒）
 }
 
 // 流式翻译请求
@@ -248,6 +252,67 @@ export interface DailyStats {
   date: string;
   translations: number;
   ai_detections: number;
+}
+
+// ==================== 后台任务相关类型 ====================
+
+// 后台任务状态枚举
+export enum BackgroundTaskStatus {
+  PENDING = 'pending',
+  PROCESSING = 'processing',
+  COMPLETED = 'completed',
+  FAILED = 'failed',
+}
+
+// 后台任务类型枚举
+export enum BackgroundTaskType {
+  LITERATURE_RESEARCH = 'literature_research',
+  AI_CHAT = 'ai_chat',
+}
+
+// 后台任务信息
+export interface BackgroundTask {
+  id: number;
+  user_id: number;
+  task_type: BackgroundTaskType;
+  status: BackgroundTaskStatus;
+  request_data: Record<string, any> | null;
+  result_data: Record<string, any> | null;
+  error_message: string | null;
+  attempts: number;
+  max_attempts: number;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  // 进度跟踪字段
+  progress_percentage?: number; // 进度百分比（0-100）
+  current_step?: number; // 当前步骤索引（从0开始）
+  total_steps?: number; // 总步骤数
+  step_description?: string | null; // 当前步骤描述
+  step_details?: Record<string, any> | null; // 详细进度信息（JSON对象）
+}
+
+// 创建后台任务请求
+export interface CreateBackgroundTaskRequest {
+  task_type: BackgroundTaskType;
+  request_data: Record<string, any>;
+}
+
+// 创建后台任务响应
+export interface CreateBackgroundTaskResponse {
+  success: boolean;
+  task_id: number;
+  message?: string;
+  error?: string;
+}
+
+// 查询任务状态响应
+export interface GetTaskStatusResponse {
+  success: boolean;
+  task: BackgroundTask;
+  message?: string;
+  error?: string;
 }
 
 // ==================== 通用响应 ====================
