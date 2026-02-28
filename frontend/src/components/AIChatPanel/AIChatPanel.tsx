@@ -503,7 +503,8 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
         try {
           const task = await apiClient.pollTaskResult(taskId, {
             interval: 1000, // 初始1秒间隔
-            maxAttempts: 600, // 最多轮询10分钟（600秒）
+            maxAttempts: 180, // 限制最大轮询次数，避免极端情况下长时间等待
+            maxElapsedMs: 12 * 60 * 1000, // 最多轮询12分钟
             onProgress: (task) => {
               // 保留轮询机制但不更新进度信息（根据简化需求）
               // 只保留最基本的状态更新，确保轮询继续工作

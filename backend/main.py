@@ -1998,7 +1998,6 @@ async def get_task_status(
     # 解析结果数据
     result_data = None
     if task.result_data:
-        import json
         try:
             result_data = json.loads(task.result_data)
         except (json.JSONDecodeError, TypeError):
@@ -2006,7 +2005,6 @@ async def get_task_status(
 
     # 解析步骤详情数据
     if task.step_details:
-        import json
         try:
             step_details = json.loads(task.step_details)
         except (json.JSONDecodeError, TypeError):

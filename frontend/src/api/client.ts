@@ -555,23 +555,29 @@ export const apiClient = {
     options?: {
       interval?: number; // 初始轮询间隔（毫秒）
       maxAttempts?: number; // 最大轮询次数
+      maxElapsedMs?: number; // 最大总轮询时长（毫秒）
       onProgress?: (task: BackgroundTask) => void; // 进度回调
       signal?: AbortSignal; // 取消信号
     }
   ): Promise<BackgroundTask> => {
-    const { interval = 1000, maxAttempts = 300, onProgress, signal } = options || {};
+    const { interval = 1000, maxAttempts = 300, maxElapsedMs = 12 * 60 * 1000, onProgress, signal } = options || {};
     let attempts = 0;
     let currentInterval = interval;
+    const startedAt = Date.now();
 
     while (attempts < maxAttempts) {
       if (signal?.aborted) {
         throw new Error('轮询被取消');
+      }
+      if (Date.now() - startedAt > maxElapsedMs) {
+        throw new Error(`轮询任务 ${taskId} 超时，已超过 ${(maxElapsedMs / 60000).toFixed(1)} 分钟`);
       }
 
       attempts++;
       try {
         const response = await axiosInstance.get<GetTaskStatusResponse>(`/tasks/${taskId}/status`, {
           signal,
+          timeout: 25000, // 轮询接口使用更短超时，避免单次请求长时间挂起
         });
         const { success, task, error } = response.data;
 
