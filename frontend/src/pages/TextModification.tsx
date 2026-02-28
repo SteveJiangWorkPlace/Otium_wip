@@ -17,6 +17,8 @@ import GlobalProgressBar from '../components/GlobalProgressBar/GlobalProgressBar
 import AIChatPanel from '../components/AIChatPanel/AIChatPanel';
 import styles from './TextModification.module.css';
 
+const USE_STREAM_REFINEMENT = false;
+
 const TextModification: React.FC = () => {
   const navigate = useNavigate();
   const { userInfo } = useAuthStore();
@@ -105,8 +107,12 @@ const TextModification: React.FC = () => {
       return;
     }
 
-    // 使用流式修改
-    await handleStreamRefine();
+    if (USE_STREAM_REFINEMENT) {
+      await handleStreamRefine();
+      return;
+    }
+
+    await handleDirectRefine();
   };
 
   const handleClear = () => {
@@ -220,6 +226,37 @@ const TextModification: React.FC = () => {
       }, 2000);
     } finally {
       setCancelStream(null);
+    }
+  };
+
+  const handleDirectRefine = async () => {
+    showProgress('智能文本修改运行中，请稍后', 'modification');
+    resetStreamState();
+    setStreaming(false);
+
+    try {
+      const response = await apiClient.refineText({
+        text: inputText,
+        directives: selectedDirectives,
+      });
+
+      if (!response.success) {
+        throw new Error(response.message || '文本修改失败');
+      }
+
+      setModifiedText(response.text || '');
+      updateProgress('智能文本修改完成');
+    } catch (error) {
+      let errorMessage = '文本修改失败，请稍后重试';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      updateProgress(`智能文本修改失败: ${errorMessage}`);
+      toast.error(errorMessage);
+    } finally {
+      setTimeout(() => {
+        hideProgress();
+      }, 1200);
     }
   };
 

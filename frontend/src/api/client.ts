@@ -697,8 +697,8 @@ export const apiClient = {
   // ==================== 当前用户信息 ====================
 
   getCurrentUser: async (): Promise<UserInfo> => {
-    // 尝试多个可能的端点路径
-    const endpoints = ['/user/me', '/user/info', '/user/profile', '/profile', '/user'];
+    // Try known endpoints. Prefer currently implemented backend route first.
+    const endpoints = ['/user/info', '/user/me', '/user/profile', '/profile', '/user'];
 
     for (const endpoint of endpoints) {
       try {
@@ -714,7 +714,8 @@ export const apiClient = {
           }
         }
       } catch (error) {
-        console.error('获取用户信息失败:', error);
+        // Expected during endpoint probing in mixed deployments (e.g. /user/me -> 404).
+        debugLog(`getCurrentUser endpoint probe failed: ${endpoint}`, error);
       }
     }
 

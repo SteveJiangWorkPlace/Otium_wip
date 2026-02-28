@@ -540,11 +540,13 @@ async def generate_gemini_content_stream(
         start_time = time.time()
         timeout_seconds = 180  # 与前端超时保持一致（3分钟）
         chunk_count = 0
+        stream_end_reason = "natural_completion"
 
         for chunk in response_stream:
             # 超时检查
             chunk_count += 1
             if time.time() - start_time > timeout_seconds:
+                stream_end_reason = "timeout"
                 logging.error(
                     f"流式翻译超时: {timeout_seconds}秒内未完成, "
                     f"已处理{chunk_count}个chunk, 已生成{len(sentences)}个句子"
@@ -640,6 +642,14 @@ async def generate_gemini_content_stream(
         # 重新发送更新后的句子信息（可选，但前端可能不需要）
         # 或者直接发送完成信号
         logging.info(f"翻译完成，共 {len(sentences)} 个句子")
+        logging.info(
+            "translate_stream_summary: reason=%s, chunks=%s, chars=%s, sentences=%s, elapsed=%.2fs",
+            stream_end_reason,
+            chunk_count,
+            len(full_response),
+            len(sentences),
+            time.time() - start_time,
+        )
 
         # 返回完成信号
         yield {

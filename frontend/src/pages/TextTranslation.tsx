@@ -15,6 +15,8 @@ import GlobalProgressBar from '../components/GlobalProgressBar/GlobalProgressBar
 import AIChatPanel from '../components/AIChatPanel/AIChatPanel';
 import styles from './TextTranslation.module.css';
 
+const USE_STREAM_TRANSLATION = false;
+
 const TextTranslation: React.FC = () => {
   const navigate = useNavigate();
   const { userInfo, updateUserInfo } = useAuthStore();
@@ -88,7 +90,52 @@ const TextTranslation: React.FC = () => {
       return;
     }
 
-    await handleStreamTranslation();
+    if (USE_STREAM_TRANSLATION) {
+      await handleStreamTranslation();
+      return;
+    }
+
+    await handleDirectTranslation();
+  };
+
+  const handleDirectTranslation = async () => {
+    // 显示全局进度
+    showProgress('智能翻译运行中，请稍后', 'translation');
+    resetStreamState();
+    setStreaming(false);
+
+    try {
+      const response = await apiClient.checkText({
+        text: inputText,
+        operation: englishType === 'us' ? 'translate_us' : 'translate_uk',
+        version,
+      });
+
+      if (!response.success) {
+        throw new Error(response.message || '翻译失败');
+      }
+
+      setTranslatedText(response.text || '');
+      setEditableText(response.text || '');
+      updateProgress('智能翻译完成');
+
+      try {
+        apiClient.getCurrentUser().then(updateUserInfo);
+      } catch (error) {
+        console.warn('获取更新后的用户信息失败:', error);
+      }
+    } catch (error) {
+      let errorMessage = '翻译失败，请稍后重试';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      updateProgress(`智能翻译失败: ${errorMessage}`);
+      alert(errorMessage);
+    } finally {
+      setTimeout(() => {
+        hideProgress();
+      }, 1200);
+    }
   };
 
   const handleStreamTranslation = async () => {
