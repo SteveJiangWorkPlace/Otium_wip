@@ -301,11 +301,15 @@ class BackgroundTaskResponse(BaseModel):
 
 
 class TaskStatusResponse(BaseModel):
-    """任务状态查询响应模型"""
+    """任务状态查询响应模型（兼容前端GetTaskStatusResponse）"""
 
     success: bool
-    task_id: int
-    status: str  # pending, processing, completed, failed
+    task: dict[str, Any] | None = None  # 任务对象，匹配前端BackgroundTask接口
+    message: str | None = None  # 可选消息
+    error: str | None = None  # 可选错误信息
+    # 向后兼容字段
+    task_id: int | None = None
+    status: str | None = None  # pending, processing, completed, failed
     progress: float | None = None  # 进度百分比0-100
     step_description: str | None = None  # 当前步骤描述
     step_details: dict[str, Any] | None = None  # 详细步骤信息（JSON对象）

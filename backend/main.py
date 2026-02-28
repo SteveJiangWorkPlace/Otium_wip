@@ -7,6 +7,7 @@
 """
 
 import hashlib
+import json
 import logging
 import os
 import sys
@@ -2011,8 +2012,34 @@ async def get_task_status(
         except (json.JSONDecodeError, TypeError):
             step_details = {"raw": task.step_details}
 
+    # 创建task对象以匹配前端期望的BackgroundTask接口
+    task_obj = {
+        "id": task.id,
+        "user_id": task.user_id,
+        "task_type": task.task_type,
+        "status": task.status,
+        "request_data": json.loads(task.request_data) if task.request_data else None,
+        "result_data": result_data,
+        "error_message": task.error_message,
+        "attempts": task.attempts,
+        "max_attempts": task.max_attempts,
+        "started_at": task.started_at.isoformat() if task.started_at else None,
+        "completed_at": task.completed_at.isoformat() if task.completed_at else None,
+        "created_at": task.created_at.isoformat(),
+        "updated_at": task.updated_at.isoformat(),
+        "progress_percentage": progress,
+        "current_step": task.current_step,
+        "total_steps": task.total_steps,
+        "step_description": task.step_description,
+        "step_details": step_details,
+    }
+
     return TaskStatusResponse(
         success=True,
+        task=task_obj,
+        message=None,
+        error=None,
+        # 向后兼容字段
         task_id=task.id,
         status=task.status,
         progress=progress,
