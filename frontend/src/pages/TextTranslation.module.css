@@ -611,7 +611,7 @@
   max-height: 400px;
   overflow-y: auto;
   line-height: var(--line-height-relaxed);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-base);
 }
 
 .formattedResult strong {
