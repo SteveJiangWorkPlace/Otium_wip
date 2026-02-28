@@ -13,6 +13,7 @@ interface ConversationState {
   messages: AIChatMessage[];
   inputText: string;
   loading: boolean;
+  activeTaskId: number | null;
   sessionId: string | null;
   splitPosition: number; // 分割线位置（百分比，默认30）
 }
@@ -36,6 +37,7 @@ interface AIChatState {
   addMessage: (page: string, message: AIChatMessage) => void;
   setInputText: (page: string, text: string) => void;
   setLoading: (page: string, loading: boolean) => void;
+  setActiveTaskId: (page: string, taskId: number | null) => void;
   clearConversation: (page: string) => void;
   initializeConversation: (page: string) => void;
   setSplitPosition: (page: string, position: number) => void;
@@ -54,6 +56,7 @@ const DEFAULT_CONVERSATION_STATE: ConversationState = {
   messages: [],
   inputText: '',
   loading: false,
+  activeTaskId: null,
   sessionId: null,
   splitPosition: DEFAULT_SPLIT_POSITION,
 };
@@ -115,6 +118,17 @@ export const useAIChatStore = create<AIChatState>()(
             conversations[page] = { ...DEFAULT_CONVERSATION_STATE };
           }
           conversations[page].loading = loading;
+          return { conversations };
+        });
+      },
+
+      setActiveTaskId: (page: string, taskId: number | null) => {
+        set((state) => {
+          const conversations = { ...state.conversations };
+          if (!conversations[page]) {
+            conversations[page] = { ...DEFAULT_CONVERSATION_STATE };
+          }
+          conversations[page].activeTaskId = taskId;
           return { conversations };
         });
       },

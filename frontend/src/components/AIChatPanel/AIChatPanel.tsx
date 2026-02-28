@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import {
   useAIChatStore,
   type AIChatMessage as StoreAIChatMessage,
@@ -27,6 +27,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
     addMessage,
     setInputText,
     setLoading,
+    setActiveTaskId,
     literatureResearchMode,
     toggleLiteratureResearchMode,
     generateLiteratureReview,
@@ -50,6 +51,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
     messages: [],
     inputText: '',
     loading: false,
+    activeTaskId: null,
     sessionId: null,
     splitPosition: 30,
   };
@@ -173,6 +175,105 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
       }
     };
   }, [pollingAbortController]);
+
+  const pollBackgroundTask = async (taskId: number, abortController: AbortController) => {
+    return apiClient.pollTaskResult(taskId, {
+      interval: 1000,
+      maxAttempts: 180,
+      maxElapsedMs: 12 * 60 * 1000,
+      onProgress: (task) => {
+        if (task.result_data?.steps && Array.isArray(task.result_data.steps)) {
+          setManusSteps(task.result_data.steps);
+          if (task.result_data.steps.length > 0) {
+            setCurrentManusStep(task.result_data.steps.length);
+          }
+        }
+      },
+      signal: abortController.signal,
+    });
+  };
+
+  const applyCompletedTaskResult = useCallback(
+    (task: any) => {
+      if (task.status === BackgroundTaskStatus.COMPLETED && task.result_data) {
+        const resultData = task.result_data;
+
+        if (resultData.steps && resultData.steps.length > 0) {
+          setManusSteps(resultData.steps);
+          if (currentManusStep === 0 && resultData.steps.length > 0) {
+            setCurrentManusStep(resultData.steps.length);
+          }
+        }
+
+        const aiMessage: StoreAIChatMessage = {
+          role: 'assistant',
+          content: resultData.text || resultData.result || '任务完成',
+          timestamp: Date.now(),
+        };
+        addMessage(pageKey, aiMessage);
+        return;
+      }
+
+      if (task.status === BackgroundTaskStatus.COMPLETED) {
+        throw new Error('任务已完成，但未返回可显示的结果内容');
+      }
+
+      if (task.status === BackgroundTaskStatus.FAILED) {
+        throw new Error(task.error_message || '任务处理失败');
+      }
+    },
+    [addMessage, currentManusStep, pageKey]
+  );
+
+  // 续轮询：组件重新挂载后，自动接续未完成的文献调研任务
+  useEffect(() => {
+    if (!conversation.loading || !conversation.activeTaskId || pollingAbortController) {
+      return;
+    }
+
+    const resumeAbortController = new AbortController();
+    setPollingAbortController(resumeAbortController);
+
+    (async () => {
+      try {
+        const task = await pollBackgroundTask(
+          conversation.activeTaskId as number,
+          resumeAbortController
+        );
+        applyCompletedTaskResult(task);
+        setActiveTaskId(pageKey, null);
+        setLoading(pageKey, false);
+        setManusSteps([]);
+        setCurrentManusStep(0);
+      } catch (pollingError: any) {
+        if (pollingError?.message === '轮询被取消') {
+          return;
+        }
+        const errorMessage: StoreAIChatMessage = {
+          role: 'assistant',
+          content: `请求失败: ${pollingError?.message || '网络错误'}`,
+          timestamp: Date.now(),
+        };
+        addMessage(pageKey, errorMessage);
+        setActiveTaskId(pageKey, null);
+        setLoading(pageKey, false);
+        setManusSteps([]);
+        setCurrentManusStep(0);
+      } finally {
+        setPollingAbortController(null);
+      }
+    })();
+  }, [
+    addMessage,
+    applyCompletedTaskResult,
+    conversation.activeTaskId,
+    conversation.loading,
+    currentManusStep,
+    pageKey,
+    pollingAbortController,
+    setActiveTaskId,
+    setLoading,
+  ]);
 
   // 清理markdown符号但保留必要格式 - 统一处理所有模式
   const cleanMarkdown = (html: string): string => {
@@ -451,6 +552,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
   const handleSendMessage = async () => {
     const text = conversation.inputText.trim();
     if (!text || conversation.loading) return;
+    let keepBackgroundPollingState = false;
 
     // 重置Manus步骤状态
     setManusSteps([]);
@@ -461,6 +563,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
     if (pollingAbortController) {
       pollingAbortController.abort();
       setPollingAbortController(null);
+      setActiveTaskId(pageKey, null);
     }
 
     // 添加用户消息
@@ -502,6 +605,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
         // 这是后台任务响应，需要轮询任务状态
         // 使用非空断言，因为我们已经检查了response.task_id存在
         const taskId = response.task_id as number;
+        setActiveTaskId(pageKey, taskId);
 
         // 创建AbortController用于取消轮询
         const abortController = new AbortController();
@@ -509,53 +613,13 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
 
         // 轮询任务结果
         try {
-          const task = await apiClient.pollTaskResult(taskId, {
-            interval: 1000, // 初始1秒间隔
-            maxAttempts: 180, // 限制最大轮询次数，避免极端情况下长时间等待
-            maxElapsedMs: 12 * 60 * 1000, // 最多轮询12分钟
-            onProgress: (task) => {
-              // 保留轮询机制但不更新进度信息（根据简化需求）
-              // 只保留最基本的状态更新，确保轮询继续工作
-
-              // 如果有步骤信息，更新Manus步骤（保留基本逻辑）
-              if (task.result_data?.steps && Array.isArray(task.result_data.steps)) {
-                setManusSteps(task.result_data.steps);
-                // 设置当前步骤为最新
-                if (task.result_data.steps.length > 0) {
-                  setCurrentManusStep(task.result_data.steps.length);
-                }
-              }
-            },
-            signal: abortController.signal,
-          });
-
-          // 任务完成，处理结果
-          if (task.status === BackgroundTaskStatus.COMPLETED && task.result_data) {
-            const resultData = task.result_data;
-
-            // 如果有Manus步骤信息，更新状态
-            if (resultData.steps && resultData.steps.length > 0) {
-              setManusSteps(resultData.steps);
-              if (currentManusStep === 0 && resultData.steps.length > 0) {
-                setCurrentManusStep(resultData.steps.length);
-              }
-            }
-
-            // 添加AI回复
-            const aiMessage: StoreAIChatMessage = {
-              role: 'assistant',
-              content: resultData.text || resultData.result || '任务完成',
-              timestamp: Date.now(),
-            };
-            addMessage(pageKey, aiMessage);
-          } else if (task.status === BackgroundTaskStatus.COMPLETED) {
-            throw new Error('任务已完成，但未返回可显示的结果内容');
-          } else if (task.status === BackgroundTaskStatus.FAILED) {
-            throw new Error(task.error_message || '任务处理失败');
-          }
+          const task = await pollBackgroundTask(taskId, abortController);
+          applyCompletedTaskResult(task);
+          setActiveTaskId(pageKey, null);
         } catch (pollingError: any) {
           if (pollingError.message === '轮询被取消') {
             debugLog('轮询已取消');
+            keepBackgroundPollingState = true;
             return;
           }
           throw pollingError;
@@ -580,6 +644,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
           timestamp: Date.now(),
         };
         addMessage(pageKey, aiMessage);
+        setActiveTaskId(pageKey, null);
       } else {
         // 显示错误消息
         const errorMessage: StoreAIChatMessage = {
@@ -588,6 +653,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
           timestamp: Date.now(),
         };
         addMessage(pageKey, errorMessage);
+        setActiveTaskId(pageKey, null);
       }
     } catch (error: any) {
       console.error('聊天请求失败:', error);
@@ -597,12 +663,16 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
         timestamp: Date.now(),
       };
       addMessage(pageKey, errorMessage);
+      setActiveTaskId(pageKey, null);
     } finally {
-      setLoading(pageKey, false);
-      // 重置Manus步骤状态
-      setManusSteps([]);
-      setCurrentManusStep(0);
-      // 进度相关状态已移除，不再需要重置
+      if (!keepBackgroundPollingState) {
+        setLoading(pageKey, false);
+        setActiveTaskId(pageKey, null);
+        // 重置Manus步骤状态
+        setManusSteps([]);
+        setCurrentManusStep(0);
+        // 进度相关状态已移除，不再需要重置
+      }
     }
   };
 

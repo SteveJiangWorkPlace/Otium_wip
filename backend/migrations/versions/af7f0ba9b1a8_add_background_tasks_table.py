@@ -20,6 +20,12 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     """Upgrade schema."""
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if inspector.has_table("background_tasks"):
+        logging.warning("background_tasks table already exists, skip migration create_table")
+        return
+
     # Create background_tasks table
     op.create_table(
         "background_tasks",
@@ -54,6 +60,12 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Downgrade schema."""
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if not inspector.has_table("background_tasks"):
+        logging.warning("background_tasks table not found, skip migration drop_table")
+        return
+
     # Drop indexes
     op.drop_index(op.f("ix_background_tasks_created_at"), table_name="background_tasks")
     op.drop_index(op.f("ix_background_tasks_status"), table_name="background_tasks")

@@ -402,15 +402,19 @@ if SECRET_KEY == DEFAULT_SECRET_KEY:
 # 全局实例
 # ==========================================
 
-# 初始化数据库
+# Initialize database schema
 try:
-    init_database()
-    logging.info("数据库初始化成功")
-    # 运行迁移以确保数据库模式最新
-    run_migrations_if_needed()
+    if settings.DATABASE_TYPE == "postgresql":
+        # Production path: rely on Alembic only to avoid duplicate CREATE TABLE.
+        logging.info("PostgreSQL detected, running Alembic migrations only")
+        run_migrations_if_needed()
+    else:
+        # Local SQLite path: keep lightweight auto-create behavior.
+        init_database()
+        logging.info("SQLite schema initialized via create_all")
 except Exception as e:
-    logging.error(f"数据库初始化失败: {e}")
-    logging.warning("应用将在无数据库连接的情况下启动，部分功能可能不可用")
+    logging.error(f"Database initialization failed: {e}")
+    logging.warning("App will continue startup with limited database functionality")
 
 # 用户服务（使用数据库存储）
 try:
