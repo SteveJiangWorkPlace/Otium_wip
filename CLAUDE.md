@@ -258,6 +258,7 @@ Otium/
 │   ├── exceptions.py       # 自定义异常处理
 │   ├── utils.py            # 工具类（UserLimitManager, RateLimiter等）
 │   ├── prompts.py          # AI提示词构建（已优化，集成模板、缓存、监控）
+│   ├── prompt_templates.py # 提示词模板系统（包含原始备份）
 │   ├── prompt_cache.py     # 提示词缓存管理器
 │   ├── prompt_monitor.py   # 性能监控系统
 │   ├── api_services.py     # 外部API集成（Gemini, GPTZero）
@@ -395,7 +396,7 @@ python final_system_test.py
 - **异常处理** (`exceptions.py`)：统一错误处理和HTTP异常，提供结构化错误响应
 - **工具类** (`utils.py`)：UserLimitManager（用户限制管理）、RateLimiter（速率限制）、TextValidator（文本验证）等
 - **提示词系统** (`prompts.py`)：AI提示词构建（已优化，集成模板、缓存、监控，包含所有原始函数）
-- **提示词系统** (`prompts.py`)：提示词构建与版本管理（已整合模板定义）
+- **提示词模板** (`prompt_templates.py`)：提示词模板系统（包含原始备份和修改版本）
 - **提示词缓存** (`prompt_cache.py`)：基于文本哈希的LRU缓存管理器，提升性能
 - **性能监控** (`prompt_monitor.py`)：性能监控系统，跟踪构建时间、缓存命中率
 - **API服务** (`api_services.py`)：外部API集成（Gemini AI和GPTZero）

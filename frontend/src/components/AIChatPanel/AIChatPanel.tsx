@@ -10,6 +10,7 @@ import type { AIChatMessage as ApiAIChatMessage } from '../../types';
 import { BackgroundTaskStatus } from '../../types';
 import Button from '../ui/Button/Button';
 import Textarea from '../ui/Textarea/Textarea';
+// import { Switch } from 'antd';
 import styles from './AIChatPanel.module.css';
 
 interface AIChatPanelProps {
@@ -56,6 +57,24 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  // 从localStorage获取最新的文献调研结果（暂时未使用）
+  // const getLatestLiteratureResearch = (): string => {
+  //   try {
+  //     const storageKey = 'literature-research-storage';
+  //     const stored = localStorage.getItem(storageKey);
+  //     if (!stored) {
+  //       return '';
+  //     }
+  //     const data = JSON.parse(stored);
+  //     // 获取resultText字段
+  //     const resultText = data?.state?.resultText || '';
+  //     return resultText;
+  //   } catch (error) {
+  //     console.error('获取文献调研结果失败:', error);
+  //     return '';
+  //   }
+  // };
 
   // 滚动到底部
   const scrollToBottom = () => {

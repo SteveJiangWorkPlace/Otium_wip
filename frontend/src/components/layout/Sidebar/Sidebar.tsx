@@ -25,6 +25,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   onLogout,
 }) => {
   const isAdmin = useAuthStore((state) => state.isAdmin);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const userInfo = useAuthStore((state) => state.userInfo);
 
   // 菜单项定义 - 适配Otium项目
   const menuItems: MenuItem[] = [

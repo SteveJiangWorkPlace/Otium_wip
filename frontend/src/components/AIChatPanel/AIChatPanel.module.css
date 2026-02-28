@@ -442,6 +442,40 @@
   margin: 0 auto;
 }
 
+.typingIndicator {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: var(--spacing-md) 0;
+}
+
+.typingIndicator span {
+  font-size: 12px;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-black);
+  display: inline-block;
+  animation: dotBounce 1.4s infinite ease-in-out;
+}
+
+.typingIndicator span:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.typingIndicator span:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+@keyframes dotBounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-4px);
+  }
+}
+
 /* AI表格样式 */
 .ai-table-container {
   margin: var(--spacing-md) 0;

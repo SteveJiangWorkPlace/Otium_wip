@@ -11,6 +11,7 @@ Modules:
     exceptions: 自定义异常处理和错误响应
     utils: 工具类（UserLimitManager、RateLimiter、TextValidator等）
     prompts: AI提示词构建系统（模板、缓存、监控）
+    prompt_templates: 提示词模板系统（原始备份和优化版本）
     prompt_cache: 提示词缓存管理器（LRU策略、TTL）
     prompt_monitor: 提示词性能监控系统
     api_services: 外部API集成（Gemini AI、GPTZero）
