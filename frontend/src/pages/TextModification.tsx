@@ -232,7 +232,8 @@ const TextModification: React.FC = () => {
   const handleDirectRefine = async () => {
     showProgress('智能文本修改运行中，请稍后', 'modification');
     resetStreamState();
-    setStreaming(false);
+    setStreaming(true);
+    setPartialText('正在应用修改，请稍候');
 
     try {
       const response = await apiClient.refineText({
@@ -254,6 +255,8 @@ const TextModification: React.FC = () => {
       updateProgress(`智能文本修改失败: ${errorMessage}`);
       toast.error(errorMessage);
     } finally {
+      setStreaming(false);
+      setPartialText('');
       setTimeout(() => {
         hideProgress();
       }, 1200);
