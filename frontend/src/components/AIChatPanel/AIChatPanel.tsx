@@ -3,7 +3,9 @@ import {
   useAIChatStore,
   type AIChatMessage as StoreAIChatMessage,
 } from '../../store/useAIChatStore';
+import { useAuthStore } from '../../store/useAuthStore';
 import { apiClient } from '../../api/client';
+import { debugLog } from '../../utils/logger';
 import type { AIChatMessage as ApiAIChatMessage } from '../../types';
 import { BackgroundTaskStatus } from '../../types';
 import Button from '../ui/Button/Button';
@@ -15,6 +17,8 @@ interface AIChatPanelProps {
   pageKey: string;
   className?: string;
 }
+
+const LITERATURE_RESEARCH_USER_WHITELIST = new Set(['admin', 'dog', 'cat']);
 
 const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) => {
   const {
@@ -28,6 +32,10 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
     generateLiteratureReview,
     toggleGenerateLiteratureReview,
   } = useAIChatStore();
+  const username = useAuthStore((state) => state.userInfo?.username ?? '');
+  const canUseLiteratureResearch = LITERATURE_RESEARCH_USER_WHITELIST.has(username.toLowerCase());
+  const isLiteratureResearchEnabled = canUseLiteratureResearch && literatureResearchMode;
+  const isGenerateLiteratureReviewEnabled = canUseLiteratureResearch && generateLiteratureReview;
 
   const [processingStep, setProcessingStep] = useState<number>(0);
   const [manusSteps, setManusSteps] = useState<string[]>([]);
@@ -101,7 +109,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
   // AI处理步骤文本 - 根据文献调研模式动态调整
   // 文献调研模式：简化显示，只有等待信息
   // 普通模式：保持原有处理步骤
-  const processingSteps = literatureResearchMode
+  const processingSteps = isLiteratureResearchEnabled
     ? ['文献调研可能需要较长时间，请耐心等待...'] // 简化版本，只有一个步骤
     : ['正在处理您的请求...'];
 
@@ -485,8 +493,8 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
       const response = await apiClient.chat({
         messages,
         session_id: conversation.sessionId || undefined,
-        literature_research_mode: literatureResearchMode, // 传递文献调研模式状态
-        generate_literature_review: generateLiteratureReview, // 传递生成文献综述选项
+        literature_research_mode: isLiteratureResearchEnabled, // 传递文献调研模式状态
+        generate_literature_review: isGenerateLiteratureReviewEnabled, // 传递生成文献综述选项
       });
 
       // 检查响应是否包含后台任务ID（表示任务已提交到后台处理）
@@ -547,7 +555,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
           }
         } catch (pollingError: any) {
           if (pollingError.message === '轮询被取消') {
-            console.log('轮询已取消');
+            debugLog('轮询已取消');
             return;
           }
           throw pollingError;
@@ -627,27 +635,31 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
     <div className={`${styles.panel} ${className}`} ref={containerRef}>
       {/* 面板头部 - 文献调研模式开关 */}
       <div className={styles.header}>
-        <div className={styles.modeSwitch}>
-          <span className={styles.modeLabel}>文献调研模式</span>
-          <div
-            onClick={() => toggleLiteratureResearchMode()}
-            className={`${styles.appleSwitch} ${literatureResearchMode ? styles.appleSwitchActive : ''}`}
-            title={literatureResearchMode ? '关闭文献调研模式' : '开启文献调研模式'}
-            role="switch"
-            aria-checked={literatureResearchMode}
-          >
-            <div className={styles.appleSwitchThumb}></div>
+        {canUseLiteratureResearch && (
+          <div className={styles.modeSwitch}>
+            <span className={styles.modeLabel}>文献调研模式</span>
+            <div
+              onClick={() => toggleLiteratureResearchMode()}
+              className={`${styles.appleSwitch} ${isLiteratureResearchEnabled ? styles.appleSwitchActive : ''}`}
+              title={isLiteratureResearchEnabled ? '关闭文献调研模式' : '开启文献调研模式'}
+              role="switch"
+              aria-checked={isLiteratureResearchEnabled}
+            >
+              <div className={styles.appleSwitchThumb}></div>
+            </div>
           </div>
-        </div>
-        {literatureResearchMode && (
+        )}
+        {isLiteratureResearchEnabled && (
           <div className={styles.literatureReviewOption}>
             <span className={styles.modeLabel}>生成文献综述</span>
             <div
               onClick={() => toggleGenerateLiteratureReview()}
-              className={`${styles.appleSwitch} ${generateLiteratureReview ? styles.appleSwitchActive : ''}`}
-              title={generateLiteratureReview ? '关闭生成文献综述' : '开启生成文献综述'}
+              className={`${styles.appleSwitch} ${
+                isGenerateLiteratureReviewEnabled ? styles.appleSwitchActive : ''
+              }`}
+              title={isGenerateLiteratureReviewEnabled ? '关闭生成文献综述' : '开启生成文献综述'}
               role="switch"
-              aria-checked={generateLiteratureReview}
+              aria-checked={isGenerateLiteratureReviewEnabled}
             >
               <div className={styles.appleSwitchThumb}></div>
             </div>
@@ -665,7 +677,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
           <div className={styles.messagesList}>
             {conversation.messages.map((message, index) => (
               <div
-                key={index}
+                key={message.id || `${message.timestamp}-${message.role}-${index}`}
                 className={`${styles.message} ${
                   message.role === 'user' ? styles.userMessage : styles.assistantMessage
                 }`}
@@ -716,7 +728,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
               onChange={(e) => setInputText(pageKey, e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={
-                literatureResearchMode
+                isLiteratureResearchEnabled
                   ? '输入文献调研需求，如：主题、时间跨度、文献篇数等具体要求'
                   : '输入您的问题...'
               }

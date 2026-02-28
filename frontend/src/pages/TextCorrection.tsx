@@ -5,6 +5,7 @@ import { useCorrectionStore } from '../store/useCorrectionStore';
 import { useGlobalProgressStore } from '../store/useGlobalProgressStore';
 import { useAIChatStore } from '../store/useAIChatStore';
 import { apiClient } from '../api/client';
+import { debugLog } from '../utils/logger';
 import { cleanTextFromMarkdown, renderMarkdownAsHtml } from '../utils/textCleaner';
 import Card from '../components/ui/Card/Card';
 import Textarea from '../components/ui/Textarea/Textarea';
@@ -107,7 +108,7 @@ const TextCorrection: React.FC = () => {
         try {
           const updatedUserInfo = await apiClient.getCurrentUser();
           updateUserInfo(updatedUserInfo);
-          console.log('用户信息已更新');
+          debugLog('用户信息已更新');
         } catch (error) {
           console.warn('获取更新后的用户信息失败:', error);
           // 不再需要处理剩余次数，现在只使用每日限制

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 export interface AIChatMessage {
+  id?: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
@@ -45,6 +46,9 @@ interface AIChatState {
 }
 
 const DEFAULT_SPLIT_POSITION = 30;
+const createMessageId = () =>
+  `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+
 const DEFAULT_CONVERSATION_STATE: ConversationState = {
   isExpanded: false,
   messages: [],
@@ -84,7 +88,11 @@ export const useAIChatStore = create<AIChatState>()(
           if (!conversations[page]) {
             conversations[page] = { ...DEFAULT_CONVERSATION_STATE };
           }
-          conversations[page].messages.push(message);
+          const normalizedMessage: AIChatMessage = {
+            ...message,
+            id: message.id || createMessageId(),
+          };
+          conversations[page].messages.push(normalizedMessage);
           return { conversations };
         });
       },

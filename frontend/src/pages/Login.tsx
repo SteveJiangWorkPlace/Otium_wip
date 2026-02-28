@@ -4,6 +4,7 @@ import { apiClient } from '../api/client';
 import { useAuthStore } from '../store/useAuthStore';
 import { Card, Input, Button, Icon } from '../components';
 import { resetAllStores } from '../utils/resetStores';
+import { debugLog } from '../utils/logger';
 import styles from './Login.module.css';
 
 const Login: React.FC = () => {
@@ -104,7 +105,7 @@ const Login: React.FC = () => {
           // 固定间隔重试：25, 50, 75, 100秒（总等待时间250秒，约4.2分钟）
           const retryIntervals = [25, 50, 75, 100];
           const waitTime = retryIntervals[retryCount - 1] * 1000;
-          console.log(
+          debugLog(
             `登录失败，${retryIntervals[retryCount - 1]}秒后重试 (${retryCount}/${maxRetries})`
           );
           await new Promise((resolve) => setTimeout(resolve, waitTime));

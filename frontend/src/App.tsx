@@ -1,18 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import ForgotPassword from './pages/ForgotPassword';
-import Admin from './pages/Admin';
-import TextCorrection from './pages/TextCorrection';
-import TextTranslation from './pages/TextTranslation';
-import AIDetectionPage from './pages/AIDetectionPage';
-import TextModification from './pages/TextModification';
-import AppLayout from './components/layout/AppLayout/AppLayout';
 import { useAuthStore } from './store/useAuthStore';
 import { apiClient } from './api/client';
 import { Card, Input, Button, Form, FormItem, Icon, ToastProvider } from './components/ui';
+import { debugLog } from './utils/logger';
 import './App.css';
+
+const Login = lazy(() => import('./pages/Login'));
+const Register = lazy(() => import('./pages/Register'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const Admin = lazy(() => import('./pages/Admin'));
+const TextCorrection = lazy(() => import('./pages/TextCorrection'));
+const TextTranslation = lazy(() => import('./pages/TextTranslation'));
+const AIDetectionPage = lazy(() => import('./pages/AIDetectionPage'));
+const TextModification = lazy(() => import('./pages/TextModification'));
+const AppLayout = lazy(() => import('./components/layout/AppLayout/AppLayout'));
 
 const PrivateRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -32,9 +34,9 @@ const App: React.FC = () => {
       if (token) {
         try {
           await apiClient.getCurrentUser();
-          console.log('应用启动：token验证成功');
+          debugLog('应用启动：token验证成功');
         } catch (error) {
-          console.log('应用启动：token已失效，清除登录状态');
+          debugLog('应用启动：token已失效，清除登录状态');
           localStorage.removeItem('auth_token');
           localStorage.removeItem('admin_token');
           localStorage.removeItem('token');
@@ -49,64 +51,77 @@ const App: React.FC = () => {
   return (
     <ToastProvider>
       <Router>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password/:token" element={<ForgotPassword />} />
-          <Route path="/" element={<Navigate to="/correction" />} />
-          <Route
-            path="/correction"
-            element={
-              <PrivateRoute>
-                <AppLayout>
-                  <TextCorrection />
-                </AppLayout>
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/translation"
-            element={
-              <PrivateRoute>
-                <AppLayout>
-                  <TextTranslation />
-                </AppLayout>
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/ai-detection"
-            element={
-              <PrivateRoute>
-                <AppLayout>
-                  <AIDetectionPage />
-                </AppLayout>
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/modification"
-            element={
-              <PrivateRoute>
-                <AppLayout>
-                  <TextModification />
-                </AppLayout>
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/admin"
-            element={
-              <AdminRoute>
-                <AppLayout>
-                  <Admin />
-                </AppLayout>
-              </AdminRoute>
-            }
-          />
-          <Route path="/admin/login" element={<AdminLogin />} />
-        </Routes>
+        <Suspense
+          fallback={
+            <div className="appRouteSkeleton" aria-live="polite" aria-busy="true">
+              <div className="appRouteSkeletonSidebar" />
+              <div className="appRouteSkeletonMain">
+                <div className="appRouteSkeletonLine appRouteSkeletonLineLg" />
+                <div className="appRouteSkeletonLine appRouteSkeletonLineMd" />
+                <div className="appRouteSkeletonLine appRouteSkeletonLineSm" />
+              </div>
+            </div>
+          }
+        >
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password/:token" element={<ForgotPassword />} />
+            <Route path="/" element={<Navigate to="/correction" />} />
+            <Route
+              path="/correction"
+              element={
+                <PrivateRoute>
+                  <AppLayout>
+                    <TextCorrection />
+                  </AppLayout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/translation"
+              element={
+                <PrivateRoute>
+                  <AppLayout>
+                    <TextTranslation />
+                  </AppLayout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/ai-detection"
+              element={
+                <PrivateRoute>
+                  <AppLayout>
+                    <AIDetectionPage />
+                  </AppLayout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/modification"
+              element={
+                <PrivateRoute>
+                  <AppLayout>
+                    <TextModification />
+                  </AppLayout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/admin"
+              element={
+                <AdminRoute>
+                  <AppLayout>
+                    <Admin />
+                  </AppLayout>
+                </AdminRoute>
+              }
+            />
+            <Route path="/admin/login" element={<AdminLogin />} />
+          </Routes>
+        </Suspense>
       </Router>
     </ToastProvider>
   );

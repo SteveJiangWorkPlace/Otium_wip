@@ -4,6 +4,7 @@ import { apiClient } from '../api/client';
 import { useAuthStore } from '../store/useAuthStore';
 import { Card, Input, Button, Icon } from '../components';
 import { resetAllStores } from '../utils/resetStores';
+import { debugLog } from '../utils/logger';
 import styles from './Register.module.css';
 
 const Register: React.FC = () => {
@@ -97,14 +98,14 @@ const Register: React.FC = () => {
     setSendingCode(true);
     setEmailError('');
     setFormError('');
-    console.log('开始发送验证码，邮箱:', email);
+    debugLog('开始发送验证码，邮箱:', email);
 
     try {
       // 先检查邮箱是否可用
       setCheckingEmail(true);
-      console.log('检查邮箱是否可用:', email);
+      debugLog('检查邮箱是否可用:', email);
       const emailCheck = await apiClient.checkEmail(email);
-      console.log('邮箱检查结果:', emailCheck);
+      debugLog('邮箱检查结果:', emailCheck);
 
       if (!emailCheck.available) {
         setEmailError('该邮箱已被注册');
@@ -114,9 +115,9 @@ const Register: React.FC = () => {
       }
 
       // 发送验证码
-      console.log('发送验证码请求:', email);
+      debugLog('发送验证码请求:', email);
       const response = await apiClient.sendVerificationCode(email);
-      console.log('验证码发送响应:', response);
+      debugLog('验证码发送响应:', response);
       if (response.success) {
         setFormError('');
         setCountdown(60); // 60秒倒计时

@@ -5,6 +5,7 @@ import { useTranslationStore } from '../store/useTranslationStore';
 import { useGlobalProgressStore } from '../store/useGlobalProgressStore';
 import { useAIChatStore } from '../store/useAIChatStore';
 import { apiClient } from '../api/client';
+import { debugLog } from '../utils/logger';
 import { cleanTextFromMarkdown, renderMarkdownAsHtml } from '../utils/textCleaner';
 import type { StreamTranslationRequest } from '../types';
 import Card from '../components/ui/Card/Card';
@@ -184,7 +185,7 @@ const TextTranslation: React.FC = () => {
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
-        console.log('流式翻译已取消');
+        debugLog('流式翻译已取消');
         setStreamError('翻译已取消');
         updateProgress('智能翻译已取消');
       } else {

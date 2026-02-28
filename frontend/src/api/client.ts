@@ -1,5 +1,6 @@
 import axios, { AxiosError } from 'axios';
 import { useAuthStore } from '../store/useAuthStore';
+import { debugLog } from '../utils/logger';
 import type {
   CheckTextRequest,
   CheckTextResponse,
@@ -28,13 +29,10 @@ import type {
 } from '../types';
 import { BackgroundTaskStatus } from '../types';
 
-console.log(
-  'API客户端模块加载 - 环境变量REACT_APP_API_BASE_URL:',
-  process.env.REACT_APP_API_BASE_URL
-);
+debugLog('API客户端模块加载 - 环境变量REACT_APP_API_BASE_URL:', process.env.REACT_APP_API_BASE_URL);
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
-console.log('API客户端 - 使用的基础URL:', API_BASE_URL);
+debugLog('API客户端 - 使用的基础URL:', API_BASE_URL);
 
 const axiosInstance = axios.create({
   baseURL: `${API_BASE_URL}/api`,
@@ -47,8 +45,8 @@ const axiosInstance = axios.create({
 // 合并两个拦截器的逻辑，统一处理 token 和 API keys
 axiosInstance.interceptors.request.use(
   (config) => {
-    console.log('请求拦截器执行 - 请求URL:', config.url);
-    console.log('请求拦截器执行 - 请求方法:', config.method);
+    debugLog('请求拦截器执行 - 请求URL:', config.url);
+    debugLog('请求拦截器执行 - 请求方法:', config.method);
 
     // 检查所有可能的 token 存储位置
     const token =
@@ -63,17 +61,17 @@ axiosInstance.interceptors.request.use(
     // 添加 API 密钥到请求头
     try {
       const apiKeysStr = localStorage.getItem('otium_api_keys');
-      console.log(
+      debugLog(
         '请求拦截器 - 检查用户自定义API密钥 (otium_api_keys):',
         apiKeysStr ? '已设置' : '未设置（使用后端默认密钥）'
       );
 
       // 调试：列出所有localStorage项
-      console.log('请求拦截器 - localStorage所有键:', Object.keys(localStorage));
+      debugLog('请求拦截器 - localStorage所有键:', Object.keys(localStorage));
 
       if (apiKeysStr) {
         const apiKeys = JSON.parse(apiKeysStr);
-        console.log('请求拦截器 - 解析后的API密钥对象:', {
+        debugLog('请求拦截器 - 解析后的API密钥对象:', {
           hasGeminiApiKey: !!(apiKeys.geminiApiKey && apiKeys.geminiApiKey.trim()),
           hasGptzeroApiKey: !!(apiKeys.gptzeroApiKey && apiKeys.gptzeroApiKey.trim()),
           geminiLength: apiKeys.geminiApiKey ? apiKeys.geminiApiKey.length : 0,
@@ -91,11 +89,11 @@ axiosInstance.interceptors.request.use(
             0,
             Math.min(8, apiKeys.geminiApiKey.length)
           );
-          console.log('请求拦截器 - 设置X-Gemini-Api-Key头部，密钥前缀:', keyPrefix + '...');
+          debugLog('请求拦截器 - 设置X-Gemini-Api-Key头部，密钥前缀:', keyPrefix + '...');
           config.headers['X-Gemini-Api-Key'] = apiKeys.geminiApiKey;
-          console.log('请求拦截器 - 已设置X-Gemini-Api-Key头部');
+          debugLog('请求拦截器 - 已设置X-Gemini-Api-Key头部');
         } else {
-          console.log('请求拦截器 - geminiApiKey为空或未设置');
+          debugLog('请求拦截器 - geminiApiKey为空或未设置');
         }
 
         if (apiKeys.gptzeroApiKey && apiKeys.gptzeroApiKey.trim() !== '') {
@@ -103,18 +101,18 @@ axiosInstance.interceptors.request.use(
             0,
             Math.min(8, apiKeys.gptzeroApiKey.length)
           );
-          console.log('请求拦截器 - 设置X-Gptzero-Api-Key头部，密钥前缀:', keyPrefix + '...');
+          debugLog('请求拦截器 - 设置X-Gptzero-Api-Key头部，密钥前缀:', keyPrefix + '...');
           config.headers['X-Gptzero-Api-Key'] = apiKeys.gptzeroApiKey;
-          console.log('请求拦截器 - 已设置X-Gptzero-Api-Key头部');
+          debugLog('请求拦截器 - 已设置X-Gptzero-Api-Key头部');
         } else {
-          console.log('请求拦截器 - gptzeroApiKey为空或未设置');
+          debugLog('请求拦截器 - gptzeroApiKey为空或未设置');
         }
       } else {
-        console.log('请求拦截器 - 用户自定义API密钥未设置，将使用后端默认API密钥');
+        debugLog('请求拦截器 - 用户自定义API密钥未设置，将使用后端默认API密钥');
       }
 
       // 调试：打印所有请求头
-      console.log('请求拦截器 - 最终的请求头:', JSON.stringify(config.headers, null, 2));
+      debugLog('请求拦截器 - 最终的请求头:', JSON.stringify(config.headers, null, 2));
     } catch (error) {
       console.error('Failed to parse API keys from localStorage:', error);
     }
@@ -198,7 +196,7 @@ axiosInstance.interceptors.response.use(
           ? parseInt(retryAfterHeader, 10)
           : Math.pow(2, retryCount); // 指数退避：1, 2, 4 秒
 
-        console.log(`429 错误，${retryAfter} 秒后重试 (${retryCount + 1}/${maxRetries})`);
+        debugLog(`429 错误，${retryAfter} 秒后重试 (${retryCount + 1}/${maxRetries})`);
 
         // 标记重试计数
         const newConfig = {
@@ -221,9 +219,7 @@ axiosInstance.interceptors.response.use(
         // 固定间隔重试：25, 50, 75, 100秒（总等待时间250秒，约4.2分钟）
         const retryIntervals = [25, 50, 75, 100];
         const retryAfter = retryIntervals[retryCount];
-        console.log(
-          `服务器错误 ${status}，${retryAfter}秒后重试 (${retryCount + 1}/${maxRetries})`
-        );
+        debugLog(`服务器错误 ${status}，${retryAfter}秒后重试 (${retryCount + 1}/${maxRetries})`);
 
         const newConfig = {
           ...error.config,

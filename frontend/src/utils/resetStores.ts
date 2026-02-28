@@ -6,7 +6,8 @@ import { useTranslationStore } from '../store/useTranslationStore';
 import { useCorrectionStore } from '../store/useCorrectionStore';
 import { useModificationStore } from '../store/useModificationStore';
 import { useDetectionStore } from '../store/useDetectionStore';
-import { useAIChatStore } from '../store/useAIChatStore';
+import { resetAIChatState } from './resetAIChatState';
+import { debugLog } from './logger';
 
 export const resetAllStores = () => {
   // 获取store实例（注意：这只能在组件外部使用，因为store是单例）
@@ -18,16 +19,10 @@ export const resetAllStores = () => {
     useModificationStore.getState().clear();
     useDetectionStore.getState().clear();
 
-    // AI聊天store需要清除所有页面的对话
-    const aiChatStore = useAIChatStore.getState();
-    const conversations = aiChatStore.conversations;
-    if (conversations) {
-      Object.keys(conversations).forEach((page) => {
-        aiChatStore.clearConversation(page);
-      });
-    }
+    // Clear AI chat state and persisted storage
+    resetAIChatState();
 
-    console.log('所有store状态已重置');
+    debugLog('所有store状态已重置');
   } catch (error) {
     console.error('重置store时出错:', error);
   }

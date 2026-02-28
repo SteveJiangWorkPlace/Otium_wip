@@ -5,7 +5,7 @@ import { useTranslationStore } from './useTranslationStore';
 import { useCorrectionStore } from './useCorrectionStore';
 import { useModificationStore } from './useModificationStore';
 import { useDetectionStore } from './useDetectionStore';
-// import { useAIChatStore } from './useAIChatStore';
+import { resetAIChatState } from '../utils/resetAIChatState';
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -29,6 +29,7 @@ export const useAuthStore = create<AuthState>()(
       userInfo: null,
 
       setAuth: (token: string, userInfo?: UserInfo) => {
+        resetAIChatState();
         localStorage.setItem('auth_token', token);
         const isAdmin = userInfo?.is_admin || false;
         set({
@@ -40,6 +41,7 @@ export const useAuthStore = create<AuthState>()(
       },
 
       setAdminAuth: (token: string) => {
+        resetAIChatState();
         localStorage.setItem('admin_token', token);
         set({ isAdmin: true, token });
       },
@@ -58,14 +60,7 @@ export const useAuthStore = create<AuthState>()(
           useModificationStore.getState().clear();
           useDetectionStore.getState().clear();
 
-          // 清除AI聊天所有页面的对话 - 暂时注释掉以避免循环依赖
-          // const aiChatStore = useAIChatStore.getState();
-          // const conversations = aiChatStore.conversations;
-          // if (conversations) {
-          //   Object.keys(conversations).forEach((page) => {
-          //     aiChatStore.clearConversation(page);
-          //   });
-          // }
+          resetAIChatState();
         } catch (error) {
           console.error('重置store时出错:', error);
         }
@@ -80,6 +75,7 @@ export const useAuthStore = create<AuthState>()(
 
       adminLogout: () => {
         localStorage.removeItem('admin_token');
+        resetAIChatState();
         set({ isAdmin: false, token: null });
       },
     }),

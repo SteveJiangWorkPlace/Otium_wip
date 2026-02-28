@@ -5,6 +5,7 @@ import { useModificationStore } from '../store/useModificationStore';
 import { useGlobalProgressStore } from '../store/useGlobalProgressStore';
 import { useAIChatStore } from '../store/useAIChatStore';
 import { apiClient } from '../api/client';
+import { debugLog } from '../utils/logger';
 import { cleanTextFromMarkdown, renderMarkdownAsHtml } from '../utils/textCleaner';
 import type { StreamRefineTextRequest } from '../types';
 import Card from '../components/ui/Card/Card';
@@ -200,7 +201,7 @@ const TextModification: React.FC = () => {
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
-        console.log('流式文本修改已取消');
+        debugLog('流式文本修改已取消');
         setStreamError('修改已取消');
         updateProgress('智能文本修改已取消');
       } else {
