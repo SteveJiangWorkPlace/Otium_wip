@@ -272,6 +272,14 @@
   margin-bottom: 0;
 }
 
+.loadingMessageHeader {
+  margin-bottom: 0;
+}
+
+.loadingMessageContent {
+  padding-top: var(--spacing-1);
+}
+
 .messageIcon {
   height: 1em;
   width: auto;
@@ -340,6 +348,7 @@
 
 .assistantMessage .messageContent {
   text-align: left;
+  padding-top: var(--spacing-1);
 }
 
 .emptyState {
@@ -656,6 +665,41 @@
   color: var(--color-text-primary);
   padding: var(--spacing-1) 0;
   min-height: 24px;
+}
+
+.loadingShimmerText {
+  position: relative;
+  display: inline-block;
+  color: transparent;
+  background: linear-gradient(
+    100deg,
+    var(--color-gray-500) 0%,
+    var(--color-text-primary) 42%,
+    var(--color-gray-500) 65%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: loadingShimmerSweep 1.6s linear infinite;
+}
+
+@keyframes loadingShimmerSweep {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -20% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loadingShimmerText {
+    animation: none;
+    color: var(--color-text-primary);
+    background: none;
+    -webkit-background-clip: border-box;
+    background-clip: border-box;
+  }
 }
 
 /* AI列表样式 */

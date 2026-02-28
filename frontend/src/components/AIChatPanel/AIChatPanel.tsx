@@ -688,20 +688,15 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
             ))}
             {conversation.loading && (
               <div className={`${styles.message} ${styles.assistantMessage}`}>
-                <div className={styles.messageHeader}>
+                <div className={`${styles.messageHeader} ${styles.loadingMessageHeader}`}>
                   <img src="/logopic.svg" alt="Otium" className={styles.messageIcon} />
                   <span className={styles.messageRole}>Otium</span>
                 </div>
-                <div className={styles.messageContent}>
+                <div className={`${styles.messageContent} ${styles.loadingMessageContent}`}>
                   {/* 统一使用普通对话的加载动画格式 */}
                   <div className={styles.processingStepsContainer}>
-                    <div className={styles.processingStepContent}>
-                      {processingSteps[processingStep]}
-                    </div>
-                    <div className={styles.typingIndicator}>
-                      <span>.</span>
-                      <span>.</span>
-                      <span>.</span>
+                    <div className={`${styles.processingStepContent} ${styles.loadingShimmerText}`}>
+                      {(processingSteps[processingStep] ?? '').replace(/\.{3,}|\u2026+/g, '')}
                     </div>
                   </div>
                 </div>
