@@ -577,7 +577,7 @@ export const apiClient = {
       }
       if (Date.now() - startedAt > maxElapsedMs) {
         throw new Error(
-          `轮询任务 ${taskId} 超时，已超过 ${(maxElapsedMs / 60000).toFixed(1)} 分钟`,
+          `轮询任务 ${taskId} 超时，已超过 ${(maxElapsedMs / 60000).toFixed(1)} 分钟`
         );
       }
 
