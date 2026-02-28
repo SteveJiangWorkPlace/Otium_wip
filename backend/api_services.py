@@ -20,6 +20,7 @@ from google.genai.types import HttpOptions
 
 from exceptions import GeminiAPIError, RateLimitError
 from utils import TextValidator
+from prompts import build_literature_research_prompt
 
 # ==========================================
 # Gemini API 服务
@@ -1386,29 +1387,14 @@ def chat_with_manus(
 
     # 根据生成文献综述选项构建最终prompt（仅当提示词未构建时）
     if not prompt_already_built:
-        if generate_literature_review:
-            # 生成文献综述模式（保留完整引文格式）
-            final_prompt = f"""如果遇到需要选择或确认的情况，请基于最佳判断做出选择并继续执行，不要询问用户任何问题。
-请进行文献调研，同时保留完整的学术引文格式：
-1. 首先撰写一段综合性的文献综述，总结和评述所收集文献的主要观点、研究方法和结论。在适当的地方使用文内引用（作者, 年份）来引用参考文献。
-2. 为每篇文献提供完整的引文信息：作者、标题、年份、来源（期刊/会议名称）和链接（如果有）
-3. 为每篇文献提供简洁的摘要总结
-4. 可以使用markdown格式（如**加粗**、*斜体*）来强调重要内容，改善排版可读性
-5. 请以纯文本形式输出结果，不要输出文档文件或其他格式的文档。
-
-用户需求：{prompt}"""
-            logging.info("添加文献综述生成指令")
-        else:
-            # 普通文献信息模式（保留完整引文信息）
-            final_prompt = f"""如果遇到需要选择或确认的情况，请基于最佳判断做出选择并继续执行，不要询问用户任何问题。
-请进行文献调研，同时保留完整的学术引文格式：
-1. 为每篇文献提供完整的引文信息：作者、标题、年份、来源（期刊/会议名称）和链接（如果有）
-2. 为每篇文献提供简洁的摘要总结
-3. 可以使用markdown格式（如**加粗**、*斜体*）来强调重要内容，改善排版可读性
-4. 请以纯文本形式输出结果，不要输出文档文件或其他格式的文档。
-
-用户需求：{prompt}"""
-            logging.info("添加文献信息+摘要指令")
+        # 使用新的提示词模板系统
+        final_prompt = build_literature_research_prompt(
+            prompt=prompt,
+            generate_literature_review=generate_literature_review,
+            use_cache=True,  # 启用缓存提高性能
+        )
+        logging.info(f"使用提示词模板系统构建文献调研提示词: generate_literature_review={generate_literature_review}")
+        logging.info(f"提示词模板构建完成，长度: {len(final_prompt)} 字符")
 
         prompt = final_prompt
     else:

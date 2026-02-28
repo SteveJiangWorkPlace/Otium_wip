@@ -244,6 +244,31 @@ Now, please refine the following text, remembering that local instructions ONLY 
 """
 
 
+def build_literature_research_prompt_original(prompt: str, generate_literature_review: bool = False) -> str:
+    """原始文献调研提示词构建函数"""
+    if generate_literature_review:
+        # 生成文献综述模式
+        return f"""如果遇到需要选择或确认的情况，请基于最佳判断做出选择并继续执行，不要询问用户任何问题。
+请进行文献调研，同时保留完整的学术引文格式：
+1. 首先撰写一段综合性的文献综述，总结和评述所收集文献的主要观点、研究方法和结论。在适当的地方使用文内引用（作者, 年份）来引用参考文献。
+2. 为每篇文献提供完整的引文信息：作者、标题、年份、来源（期刊/会议名称）和链接（如果有）
+3. 为每篇文献提供简洁的摘要总结
+4. 可以使用markdown格式（如**加粗**、*斜体*）来强调重要内容，改善排版可读性
+5. 请以纯文本形式输出结果，不要输出文档文件或其他格式的文档。
+
+用户需求：{prompt}"""
+    else:
+        # 普通文献信息模式
+        return f"""如果遇到需要选择或确认的情况，请基于最佳判断做出选择并继续执行，不要询问用户任何问题。
+请进行文献调研，同时保留完整的学术引文格式：
+1. 为每篇文献提供完整的引文信息：作者、标题、年份、来源（期刊/会议名称）和链接（如果有）
+2. 为每篇文献提供简洁的摘要总结
+3. 可以使用markdown格式（如**加粗**、*斜体*）来强调重要内容，改善排版可读性
+4. 请以纯文本形式输出结果，不要输出文档文件或其他格式的文档。
+
+用户需求：{prompt}"""
+
+
 # 原始快捷批注命令（完全一致）
 SHORTCUT_ANNOTATIONS_ORIGINAL = {
     "主语修正": "将所有抽象概念作为主语的句子改写为以人为主语。例如，将'The framework suggests...'改为'Researchers using this framework suggest...'",
@@ -266,6 +291,7 @@ PRODUCTION_TEMPLATE_VERSION = "production"  # 生产版本（基于原始版本�
 DEFAULT_TEMPLATE_VERSION = PRODUCTION_TEMPLATE_VERSION  # 智能纠错使用生产版本
 TRANSLATION_TEMPLATE_VERSION = PRODUCTION_TEMPLATE_VERSION  # 学术翻译使用生产版本
 ENGLISH_REFINE_TEMPLATE_VERSION = PRODUCTION_TEMPLATE_VERSION  # 英文精修使用生产版本
+LITERATURE_RESEARCH_TEMPLATE_VERSION = PRODUCTION_TEMPLATE_VERSION  # 文献调研使用生产版本
 
 # 默认快捷批注版本
 # "production": 生产版本（基于修改后的原始版本，移除"灵活表达"，修改"符号修正"，更新"人性化处理"）
@@ -516,6 +542,97 @@ def build_english_refine_prompt(
     )
 
     return prompt
+
+
+# ==========================================
+# 文献调研提示词构建
+# ==========================================
+
+
+def build_literature_research_prompt(
+    prompt: str,
+    generate_literature_review: bool = False,
+    template_version: str = LITERATURE_RESEARCH_TEMPLATE_VERSION,
+    use_cache: bool = True,
+) -> str:
+    """
+    构建文献调研提示词（生产版本）
+
+    Args:
+        prompt: 用户输入的查询文本
+        generate_literature_review: 是否生成文献综述
+        template_version: 模板版本 ("production", "original") - 其他版本已不再支持
+        use_cache: 是否使用缓存
+
+    Returns:
+        构建好的提示词
+    """
+    # 记录开始时间
+    start_time = time.time()
+
+    # 缓存检查
+    if use_cache:
+        # 使用prompt和generate_literature_review作为缓存键
+        cached_prompt = prompt_cache_manager.get(
+            text=prompt,
+            style="literature_research",  # 使用固定字符串作为style
+            version="review" if generate_literature_review else "info",  # 使用版本区分模式
+            template_version=template_version,
+        )
+
+        if cached_prompt is not None:
+            # 类型断言，确保不是None
+            assert cached_prompt is not None
+            # 记录缓存命中
+            prompt_performance_monitor.record_cache_hit(True)
+
+            # 记录性能（缓存命中）
+            build_time = time.time() - start_time
+            prompt_performance_monitor.record_function_call(
+                func_name="build_literature_research_prompt",
+                build_time=build_time,
+                prompt_length=len(cached_prompt),
+            )
+
+            return cached_prompt
+
+    # 记录缓存未命中
+    prompt_performance_monitor.record_cache_hit(False)
+
+    # 根据模板版本选择规则
+    # 生产版本和原始版本都使用原始函数
+    if template_version in ["original", "production"]:
+        # 原始版本/生产版本 - 直接调用原始函数
+        prompt_text = build_literature_research_prompt_original(
+            prompt=prompt,
+            generate_literature_review=generate_literature_review,
+        )
+    else:
+        # 其他版本不再支持，回退到原始版本
+        prompt_text = build_literature_research_prompt_original(
+            prompt=prompt,
+            generate_literature_review=generate_literature_review,
+        )
+
+    # 缓存结果
+    if use_cache:
+        prompt_cache_manager.set(
+            text=prompt,
+            style="literature_research",
+            version="review" if generate_literature_review else "info",
+            prompt=prompt_text,
+            template_version=template_version,
+        )
+
+    # 记录性能
+    build_time = time.time() - start_time
+    prompt_performance_monitor.record_function_call(
+        func_name="build_literature_research_prompt",
+        build_time=build_time,
+        prompt_length=len(prompt_text),
+    )
+
+    return prompt_text
 
 
 # ==========================================

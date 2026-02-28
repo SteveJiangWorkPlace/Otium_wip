@@ -24,7 +24,7 @@ interface AIChatState {
   currentPage: string | null;
 
   // 文献调研模式（全局设置，使用Manus API）
-  deepResearchMode: boolean;
+  literatureResearchMode: boolean;
 
   // 生成文献综述选项（仅文献调研模式有效）
   generateLiteratureReview: boolean;
@@ -38,8 +38,8 @@ interface AIChatState {
   clearConversation: (page: string) => void;
   initializeConversation: (page: string) => void;
   setSplitPosition: (page: string, position: number) => void;
-  toggleDeepResearchMode: () => void;
-  setDeepResearchMode: (enabled: boolean) => void;
+  toggleLiteratureResearchMode: () => void;
+  setLiteratureResearchMode: (enabled: boolean) => void;
   toggleGenerateLiteratureReview: () => void;
   setGenerateLiteratureReview: (enabled: boolean) => void;
 }
@@ -59,7 +59,7 @@ export const useAIChatStore = create<AIChatState>()(
     (set, get) => ({
       conversations: {},
       currentPage: null,
-      deepResearchMode: false, // 默认关闭文献调研模式
+      literatureResearchMode: false, // 默认关闭文献调研模式
       generateLiteratureReview: false, // 默认不生成文献综述
 
       setCurrentPage: (page: string) => {
@@ -147,14 +147,14 @@ export const useAIChatStore = create<AIChatState>()(
         });
       },
 
-      toggleDeepResearchMode: () => {
+      toggleLiteratureResearchMode: () => {
         set((state) => ({
-          deepResearchMode: !state.deepResearchMode,
+          literatureResearchMode: !state.literatureResearchMode,
         }));
       },
 
-      setDeepResearchMode: (enabled: boolean) => {
-        set({ deepResearchMode: enabled });
+      setLiteratureResearchMode: (enabled: boolean) => {
+        set({ literatureResearchMode: enabled });
       },
 
       toggleGenerateLiteratureReview: () => {

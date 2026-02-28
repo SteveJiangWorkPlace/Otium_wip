@@ -305,7 +305,7 @@ class BackgroundTaskService:
         elapsed_time = datetime.now() - started_time
 
         # 根据任务类型确定超时时间
-        if task.task_type == "chat_deep_research":
+        if task.task_type == "chat_literature_research":
             timeout_seconds = 1800  # 文献调研任务最长30分钟
         else:
             timeout_seconds = 600  # 其他任务10分钟
@@ -549,8 +549,8 @@ class BackgroundTaskService:
             request_data = json.loads(task.request_data) if task.request_data else {}
 
             # 根据任务类型调用不同的处理函数
-            if task.task_type == "chat_deep_research":
-                result = self._process_chat_deep_research(task, request_data)
+            if task.task_type == "chat_literature_research":
+                result = self._process_chat_literature_research(task, request_data)
             elif task.task_type == "chat_regular":
                 result = self._process_chat_regular(task, request_data)
             else:
@@ -620,7 +620,7 @@ class BackgroundTaskService:
 
             raise
 
-    def _process_chat_deep_research(
+    def _process_chat_literature_research(
         self, task: BackgroundTask, request_data: dict[str, Any]
     ) -> dict[str, Any]:
         """

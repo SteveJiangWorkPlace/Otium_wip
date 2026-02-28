@@ -124,6 +124,7 @@ from prompts import (  # noqa: E402
     build_academic_translate_prompt,
     build_english_refine_prompt,
     build_error_check_prompt,
+    build_literature_research_prompt,
 )
 from schemas import (  # noqa: E402
     AddUserRequest,
@@ -1622,11 +1623,11 @@ async def chat_endpoint(
     start_time = time.time()
 
     logging.info(
-        f"chat_endpoint called: deep_research_mode={request.deep_research_mode}, messages_count={len(request.messages)}"
+        f"chat_endpoint called: literature_research_mode={request.literature_research_mode}, messages_count={len(request.messages)}"
     )
     # logging.info(f"DEBUG: Full request dict: {request.dict()}")  # 注释掉，避免GBK编码问题
     logging.info(
-        f"DEBUG: Type of deep_research_mode: {type(request.deep_research_mode)}, Value: {request.deep_research_mode}"
+        f"DEBUG: Type of literature_research_mode: {type(request.literature_research_mode)}, Value: {request.literature_research_mode}"
     )
     # 提取用户名
     username = user.username if hasattr(user, "username") else str(user)
@@ -1635,7 +1636,7 @@ async def chat_endpoint(
     logging.info(
         f"chat_endpoint: 收到聊天请求，用户: {username}, 消息数量: {len(request.messages)}"
     )
-    logging.info(f"chat_endpoint: deep_research_mode 值: {request.deep_research_mode}")
+    logging.info(f"chat_endpoint: literature_research_mode 值: {request.literature_research_mode}")
 
     # 速率限制检查
     allowed, wait_time = rate_limiter.is_allowed(username)
@@ -1692,13 +1693,13 @@ async def chat_endpoint(
     logging.info(f"使用{source}的Gemini API密钥进行聊天，用户: {username}")
 
     logging.info(
-        f"chat_endpoint 请求数据: deep_research_mode={request.deep_research_mode}, messages_count={len(request.messages)}"
+        f"chat_endpoint 请求数据: literature_research_mode={request.literature_research_mode}, messages_count={len(request.messages)}"
     )
     # 检查是否启用文献调研模式
     logging.info(
-        f"DEBUG: request.deep_research_mode type: {type(request.deep_research_mode)}, value: {request.deep_research_mode}"
+        f"DEBUG: request.literature_research_mode type: {type(request.literature_research_mode)}, value: {request.literature_research_mode}"
     )
-    if request.deep_research_mode:
+    if request.literature_research_mode:
         logging.info(f"文献调研模式已启用，用户: {username}")
         logging.info(f"生成文献综述选项: {request.generate_literature_review}")
 
@@ -1739,12 +1740,12 @@ async def chat_endpoint(
             try:
                 task = task_service.create_task(
                     user_id=user_obj.id,
-                    task_type="chat_deep_research",
+                    task_type="chat_literature_research",
                     request_data=request_data,
                     estimated_time=600,  # 默认10分钟
                 )
 
-                logging.info(f"创建后台任务成功: id={task.id}, type=chat_deep_research, user_id={user_obj.id}")
+                logging.info(f"创建后台任务成功: id={task.id}, type=chat_literature_research, user_id={user_obj.id}")
 
                 # 返回后台任务响应
                 return BackgroundTaskResponse(
@@ -1772,30 +1773,13 @@ async def chat_endpoint(
 
         logging.info(f"文献调研原始prompt: {repr(prompt[:100])}...")
 
-        # 根据生成文献综述选项添加隐形指令
-        if request.generate_literature_review:
-            # 生成文献综述模式（保留完整引文格式）
-            final_prompt = f"""如果遇到需要选择或确认的情况，请基于最佳判断做出选择并继续执行，不要询问用户任何问题。
-请进行文献调研，同时保留完整的学术引文格式：
-1. 首先撰写一段综合性的文献综述，总结和评述所收集文献的主要观点、研究方法和结论。在适当的地方使用文内引用（作者, 年份）来引用参考文献。
-2. 为每篇文献提供完整的引文信息：作者、标题、年份、来源（期刊/会议名称）和链接（如果有）
-3. 为每篇文献提供简洁的摘要总结
-4. 可以使用markdown格式（如**加粗**、*斜体*）来强调重要内容，改善排版可读性
-5. 请以纯文本形式输出结果，不要输出文档文件或其他格式的文档。
-
-用户需求：{prompt}"""
-            logging.info("添加文献综述生成指令")
-        else:
-            # 普通文献信息模式（保留完整引文信息）
-            final_prompt = f"""如果遇到需要选择或确认的情况，请基于最佳判断做出选择并继续执行，不要询问用户任何问题。
-请进行文献调研，同时保留完整的学术引文格式：
-1. 为每篇文献提供完整的引文信息：作者、标题、年份、来源（期刊/会议名称）和链接（如果有）
-2. 为每篇文献提供简洁的摘要总结
-3. 可以使用markdown格式（如**加粗**、*斜体*）来强调重要内容，改善排版可读性
-4. 请以纯文本形式输出结果，不要输出文档文件或其他格式的文档。
-
-用户需求：{prompt}"""
-            logging.info("添加文献信息+摘要指令")
+        # 根据生成文献综述选项构建提示词（使用新模板系统）
+        final_prompt = build_literature_research_prompt(
+            prompt=prompt,
+            generate_literature_review=request.generate_literature_review,
+            use_cache=True,  # 启用缓存提高性能
+        )
+        logging.info("使用新提示词模板系统构建文献调研提示词")
 
         prompt = final_prompt
         logging.info(f"最终prompt预览: {repr(prompt[:200])}...")

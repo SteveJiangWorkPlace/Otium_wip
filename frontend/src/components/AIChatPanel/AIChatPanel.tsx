@@ -23,8 +23,8 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
     addMessage,
     setInputText,
     setLoading,
-    deepResearchMode,
-    toggleDeepResearchMode,
+    literatureResearchMode,
+    toggleLiteratureResearchMode,
     generateLiteratureReview,
     toggleGenerateLiteratureReview,
   } = useAIChatStore();
@@ -33,11 +33,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
   const [manusSteps, setManusSteps] = useState<string[]>([]);
   const [currentManusStep, setCurrentManusStep] = useState<number>(0);
   const [backgroundTaskId, setBackgroundTaskId] = useState<number | null>(null);
-  const [backgroundTaskProgress, setBackgroundTaskProgress] = useState<number>(0);
-  const [backgroundTaskPercent, setBackgroundTaskPercent] = useState<number>(0);
-  const [backgroundTaskStepDescription, setBackgroundTaskStepDescription] = useState<string>('');
-  const [backgroundTaskCurrentStep, setBackgroundTaskCurrentStep] = useState<number>(0);
-  const [backgroundTaskTotalSteps, setBackgroundTaskTotalSteps] = useState<number>(1);
+  // 进度相关状态已移除，根据简化需求只保留基本轮询机制
   const [pollingAbortController, setPollingAbortController] = useState<AbortController | null>(
     null
   );
@@ -104,8 +100,10 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
   }, [conversation.loading, conversation.messages.length]);
 
   // AI处理步骤文本 - 根据文献调研模式动态调整
-  const processingSteps = deepResearchMode
-    ? ['文献调研中，需耗费数分钟时间，请耐心等待...']
+  // 文献调研模式：简化显示，只有等待信息
+  // 普通模式：保持原有处理步骤
+  const processingSteps = literatureResearchMode
+    ? ['文献调研可能需要较长时间，请耐心等待...'] // 简化版本，只有一个步骤
     : ['正在处理您的请求...'];
 
   // 处理AI思考状态的步骤显示
@@ -451,11 +449,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
     setManusSteps([]);
     setCurrentManusStep(0);
     setBackgroundTaskId(null);
-    setBackgroundTaskProgress(0);
-    setBackgroundTaskPercent(0);
-    setBackgroundTaskStepDescription('');
-    setBackgroundTaskCurrentStep(0);
-    setBackgroundTaskTotalSteps(1);
+    // 进度相关状态已移除，不再需要重置
 
     // 如果之前有轮询，取消它
     if (pollingAbortController) {
@@ -493,7 +487,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
       const response = await apiClient.chat({
         messages,
         session_id: conversation.sessionId || undefined,
-        deep_research_mode: deepResearchMode, // 传递深度调研模式状态
+        literature_research_mode: literatureResearchMode, // 传递文献调研模式状态
         generate_literature_review: generateLiteratureReview, // 传递生成文献综述选项
       });
 
@@ -514,30 +508,10 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
             interval: 1000, // 初始1秒间隔
             maxAttempts: 600, // 最多轮询10分钟（600秒）
             onProgress: (task) => {
-              // 更新进度
-              setBackgroundTaskProgress(task.attempts);
+              // 保留轮询机制但不更新进度信息（根据简化需求）
+              // 只保留最基本的状态更新，确保轮询继续工作
 
-              // 更新进度百分比和步骤信息
-              if (task.progress_percentage !== undefined) {
-                setBackgroundTaskPercent(task.progress_percentage);
-              } else {
-                // 后备：根据尝试次数估算进度
-                const estimatedProgress = Math.min(task.attempts * 2, 90); // 最多90%
-                setBackgroundTaskPercent(estimatedProgress);
-              }
-
-              // 更新步骤信息
-              if (task.current_step !== undefined) {
-                setBackgroundTaskCurrentStep(task.current_step);
-              }
-              if (task.total_steps !== undefined) {
-                setBackgroundTaskTotalSteps(task.total_steps);
-              }
-              if (task.step_description !== undefined && task.step_description !== null) {
-                setBackgroundTaskStepDescription(task.step_description);
-              }
-
-              // 如果有步骤信息，更新Manus步骤
+              // 如果有步骤信息，更新Manus步骤（保留基本逻辑）
               if (task.result_data?.steps && Array.isArray(task.result_data.steps)) {
                 setManusSteps(task.result_data.steps);
                 // 设置当前步骤为最新
@@ -621,11 +595,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
       setManusSteps([]);
       setCurrentManusStep(0);
       setBackgroundTaskId(null);
-      setBackgroundTaskProgress(0);
-      setBackgroundTaskPercent(0);
-      setBackgroundTaskStepDescription('');
-      setBackgroundTaskCurrentStep(0);
-      setBackgroundTaskTotalSteps(1);
+      // 进度相关状态已移除，不再需要重置
     }
   };
 
@@ -661,16 +631,16 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
         <div className={styles.modeSwitch}>
           <span className={styles.modeLabel}>文献调研模式</span>
           <div
-            onClick={() => toggleDeepResearchMode()}
-            className={`${styles.appleSwitch} ${deepResearchMode ? styles.appleSwitchActive : ''}`}
-            title={deepResearchMode ? '关闭文献调研模式' : '开启文献调研模式'}
+            onClick={() => toggleLiteratureResearchMode()}
+            className={`${styles.appleSwitch} ${literatureResearchMode ? styles.appleSwitchActive : ''}`}
+            title={literatureResearchMode ? '关闭文献调研模式' : '开启文献调研模式'}
             role="switch"
-            aria-checked={deepResearchMode}
+            aria-checked={literatureResearchMode}
           >
             <div className={styles.appleSwitchThumb}></div>
           </div>
         </div>
-        {deepResearchMode && (
+        {literatureResearchMode && (
           <div className={styles.literatureReviewOption}>
             <span className={styles.modeLabel}>生成文献综述</span>
             <div
@@ -724,104 +694,29 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
                   <span className={styles.messageRole}>Otium</span>
                 </div>
                 <div className={styles.messageContent}>
-                  {/* 后台任务模式 */}
+                  {/* 后台任务模式 - 简化版本 */}
                   {backgroundTaskId !== null ? (
                     <div className={styles.backgroundTaskContainer}>
-                      <div className={styles.backgroundTaskHeader}>
-                        <span className={styles.backgroundTaskLabel}>后台任务处理中</span>
-                        <span className={styles.backgroundTaskId}>任务 ID: {backgroundTaskId}</span>
+                      <div className={styles.backgroundTaskNote}>
+                        文献调研可能需要较长时间，请耐心等待...
                       </div>
-                      <div className={styles.backgroundTaskContent}>
-                        <div className={styles.backgroundTaskStatus}>
-                          <div className={styles.backgroundTaskStatusRow}>
-                            <span className={styles.backgroundTaskStatusLabel}>任务状态:</span>
-                            <span className={styles.backgroundTaskStatusValue}>
-                              处理中{' '}
-                              {backgroundTaskId !== null
-                                ? `(${backgroundTaskProgress} 次尝试)`
-                                : ''}
-                            </span>
-                          </div>
-                          <div className={styles.backgroundTaskStatusRow}>
-                            <span className={styles.backgroundTaskStatusLabel}>进度:</span>
-                            <span className={styles.backgroundTaskStatusValue}>
-                              {backgroundTaskPercent}%
-                              {backgroundTaskTotalSteps > 1
-                                ? ` (步骤 ${backgroundTaskCurrentStep}/${backgroundTaskTotalSteps})`
-                                : ''}
-                            </span>
-                          </div>
-                        </div>
-                        {backgroundTaskStepDescription && (
-                          <div className={styles.backgroundTaskStepDescription}>
-                            <div className={styles.backgroundTaskStepLabel}>当前步骤描述:</div>
-                            <div className={styles.backgroundTaskStepContent}>
-                              {backgroundTaskStepDescription}
-                            </div>
-                          </div>
-                        )}
-                        {manusSteps.length > 0 && (
-                          <div className={styles.backgroundTaskSteps}>
-                            <div className={styles.backgroundTaskStepLabel}>Manus API步骤:</div>
-                            <div className={styles.backgroundTaskStepContent}>
-                              {manusSteps.length > 0
-                                ? manusSteps[manusSteps.length - 1]
-                                : '正在启动...'}
-                            </div>
-                            <div className={styles.backgroundTaskStepProgress}>
-                              已完成 {manusSteps.length} 个步骤
-                            </div>
-                          </div>
-                        )}
-                        <div className={styles.backgroundTaskNote}>
-                          文献调研可能需要较长时间，请耐心等待...
-                        </div>
-                      </div>
-                      <div className={styles.backgroundTaskProgress}>
-                        <div className={styles.backgroundTaskProgressInfo}>
-                          <span>任务进度</span>
-                          <span>{backgroundTaskPercent}%</span>
-                        </div>
-                        <div className={styles.backgroundTaskProgressBarContainer}>
-                          <div
-                            className={styles.backgroundTaskProgressBar}
-                            style={{ width: `${backgroundTaskPercent}%` }}
-                          />
-                        </div>
-                        {backgroundTaskTotalSteps > 1 && (
-                          <div className={styles.backgroundTaskStepInfo}>
-                            步骤 {backgroundTaskCurrentStep} / {backgroundTaskTotalSteps}
-                            {backgroundTaskStepDescription && ` - ${backgroundTaskStepDescription}`}
-                          </div>
-                        )}
+                      <div className={styles.typingIndicator}>
+                        <span>.</span>
+                        <span>.</span>
+                        <span>.</span>
                       </div>
                     </div>
-                  ) : deepResearchMode && manusSteps.length > 0 ? (
-                    // 文献调研模式且有Manus步骤时显示步骤信息（传统模式）
-                    <div className={styles.manusStepsContainer}>
-                      <div className={styles.manusStepHeader}>
-                        <span className={styles.manusStepLabel}>文献调研进度</span>
-                        <span className={styles.manusStepCounter}>
-                          步骤 {currentManusStep}/{manusSteps.length}
-                        </span>
+                  ) : literatureResearchMode && manusSteps.length > 0 ? (
+                    // 文献调研模式 - 简化版本
+                    <div className={styles.backgroundTaskContainer}>
+                      <div className={styles.backgroundTaskNote}>
+                        文献调研可能需要较长时间，请耐心等待...
                       </div>
-                      <div className={styles.manusStepContent}>
-                        {currentManusStep > 0 && manusSteps[currentManusStep - 1] ? (
-                          <div className={styles.currentManusStep}>
-                            {manusSteps[currentManusStep - 1]}
-                          </div>
-                        ) : (
-                          <div className={styles.manusStepLoading}>正在启动文献调研...</div>
-                        )}
+                      <div className={styles.typingIndicator}>
+                        <span>.</span>
+                        <span>.</span>
+                        <span>.</span>
                       </div>
-                      {manusSteps.length > 1 && (
-                        <div className={styles.manusStepsProgress}>
-                          <div
-                            className={styles.manusStepsProgressBar}
-                            style={{ width: `${(currentManusStep / manusSteps.length) * 100}%` }}
-                          />
-                        </div>
-                      )}
                     </div>
                   ) : (
                     // 普通模式或没有Manus步骤时显示处理步骤
@@ -853,7 +748,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
               onChange={(e) => setInputText(pageKey, e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={
-                deepResearchMode
+                literatureResearchMode
                   ? '输入文献调研需求，如：主题、时间跨度、文献篇数等具体要求'
                   : '输入您的问题...'
               }

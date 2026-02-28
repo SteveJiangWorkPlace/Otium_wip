@@ -271,7 +271,7 @@ class AIChatRequest(BaseModel):
 
     messages: list[AIChatMessage] = Field(min_length=1, description="消息列表不能为空")
     session_id: str | None = None  # 可选，用于保持对话上下文
-    deep_research_mode: bool = Field(
+    literature_research_mode: bool = Field(
         default=False, description="文献调研模式开关，使用Manus API进行文献调研式回复"
     )
     generate_literature_review: bool = Field(
