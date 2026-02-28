@@ -560,7 +560,13 @@ export const apiClient = {
       signal?: AbortSignal; // 取消信号
     }
   ): Promise<BackgroundTask> => {
-    const { interval = 1000, maxAttempts = 300, maxElapsedMs = 12 * 60 * 1000, onProgress, signal } = options || {};
+    const {
+      interval = 1000,
+      maxAttempts = 300,
+      maxElapsedMs = 12 * 60 * 1000,
+      onProgress,
+      signal,
+    } = options || {};
     let attempts = 0;
     let currentInterval = interval;
     const startedAt = Date.now();
@@ -570,7 +576,9 @@ export const apiClient = {
         throw new Error('轮询被取消');
       }
       if (Date.now() - startedAt > maxElapsedMs) {
-        throw new Error(`轮询任务 ${taskId} 超时，已超过 ${(maxElapsedMs / 60000).toFixed(1)} 分钟`);
+        throw new Error(
+          `轮询任务 ${taskId} 超时，已超过 ${(maxElapsedMs / 60000).toFixed(1)} 分钟`,
+        );
       }
 
       attempts++;
