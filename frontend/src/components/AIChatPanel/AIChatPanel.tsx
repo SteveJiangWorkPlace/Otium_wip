@@ -32,7 +32,6 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
   const [processingStep, setProcessingStep] = useState<number>(0);
   const [manusSteps, setManusSteps] = useState<string[]>([]);
   const [currentManusStep, setCurrentManusStep] = useState<number>(0);
-  const [backgroundTaskId, setBackgroundTaskId] = useState<number | null>(null);
   // 进度相关状态已移除，根据简化需求只保留基本轮询机制
   const [pollingAbortController, setPollingAbortController] = useState<AbortController | null>(
     null
@@ -448,7 +447,6 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
     // 重置Manus步骤状态
     setManusSteps([]);
     setCurrentManusStep(0);
-    setBackgroundTaskId(null);
     // 进度相关状态已移除，不再需要重置
 
     // 如果之前有轮询，取消它
@@ -496,7 +494,6 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
         // 这是后台任务响应，需要轮询任务状态
         // 使用非空断言，因为我们已经检查了response.task_id存在
         const taskId = response.task_id as number;
-        setBackgroundTaskId(taskId);
 
         // 创建AbortController用于取消轮询
         const abortController = new AbortController();
@@ -594,7 +591,6 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
       // 重置Manus步骤状态
       setManusSteps([]);
       setCurrentManusStep(0);
-      setBackgroundTaskId(null);
       // 进度相关状态已移除，不再需要重置
     }
   };
