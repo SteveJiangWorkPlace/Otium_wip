@@ -194,10 +194,9 @@ const TextModification: React.FC = () => {
         },
       });
 
-      // 消费流式生成器
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      for await (const _ of streamGenerator) {
-        // 数据已在onProgress回调中处理
+      // 消费流式生成器（数据在 onProgress 回调中处理）
+      for await (const chunk of streamGenerator) {
+        void chunk;
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {

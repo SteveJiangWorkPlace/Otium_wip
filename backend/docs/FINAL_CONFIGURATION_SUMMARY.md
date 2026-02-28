@@ -69,10 +69,10 @@ DEFAULT_ANNOTATIONS_VERSION = "production"  # 快捷批注使用生产版本（�
 ### 3. 系统文件清单
 
 #### 新创建的文件
-1. **`prompt_templates.py`** (20,162字节)
-   - 包含所有提示词模板定义
+1. **`prompts.py`**（当前主文件）
+   - 包含提示词模板定义与构建逻辑（已整合）
    - 提供 `original`、`compact`、`ai_optimized` 三种模板版本
-   - 包含原始提示词备份注释
+   - `prompt_templates.py` 已移除
    - 包含混合批注版本：大部分优化，但关键批注保持完整
 
 2. **`prompt_cache.py`** (6,048字节)
@@ -244,7 +244,7 @@ from prompts import (
 ## 备份和安全措施
 
 ### 多重备份策略
-1. **注释备份**: 在 `prompt_templates.py` 中用注释完整保留原始提示词
+1. **注释备份**: 在 `prompts.py` 中保留提示词核心实现（历史 `prompt_templates.py` 已移除）
 2. **内置备份**: `prompts.py` 中直接包含所有原始提示词函数（原 prompts_backup.py 已整合）
 3. **Git记录**: 所有修改都有Git提交记录
 4. **版本控制**: 支持快速切换不同模板版本

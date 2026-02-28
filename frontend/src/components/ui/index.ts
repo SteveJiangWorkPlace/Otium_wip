@@ -20,9 +20,6 @@ export type { TextareaProps } from './Textarea/Textarea';
 export { default as Card } from './Card/Card';
 export type { CardProps } from './Card/Card';
 
-export { default as FileUpload } from './FileUpload/FileUpload';
-export type { FileUploadProps, UploadedFile } from './FileUpload/FileUpload';
-
 export { default as Modal } from './Modal/Modal';
 export type { ModalProps } from './Modal/Modal';
 

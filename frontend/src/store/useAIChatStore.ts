@@ -40,9 +40,7 @@ interface AIChatState {
   initializeConversation: (page: string) => void;
   setSplitPosition: (page: string, position: number) => void;
   toggleLiteratureResearchMode: () => void;
-  setLiteratureResearchMode: (enabled: boolean) => void;
   toggleGenerateLiteratureReview: () => void;
-  setGenerateLiteratureReview: (enabled: boolean) => void;
 }
 
 const DEFAULT_SPLIT_POSITION = 30;
@@ -161,18 +159,10 @@ export const useAIChatStore = create<AIChatState>()(
         }));
       },
 
-      setLiteratureResearchMode: (enabled: boolean) => {
-        set({ literatureResearchMode: enabled });
-      },
-
       toggleGenerateLiteratureReview: () => {
         set((state) => ({
           generateLiteratureReview: !state.generateLiteratureReview,
         }));
-      },
-
-      setGenerateLiteratureReview: (enabled: boolean) => {
-        set({ generateLiteratureReview: enabled });
       },
     }),
     {

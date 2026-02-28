@@ -8,4 +8,3 @@ export { default as AppLayout } from './layout/AppLayout/AppLayout';
 // Business Components
 export { default as AIDetection } from './AIDetection';
 export { default as DirectiveSelector } from './DirectiveSelector';
-export { default as ResultDisplay } from './ResultDisplay';

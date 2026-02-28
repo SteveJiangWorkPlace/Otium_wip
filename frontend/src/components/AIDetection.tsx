@@ -8,7 +8,6 @@ import styles from './AIDetection.module.css';
 interface AIDetectionProps {
   text: string;
   onDetectionComplete: (result: AIDetectionResponse) => void;
-  disabled?: boolean; // eslint-disable-line @typescript-eslint/no-unused-vars
   autoDetect?: boolean;
   result?: AIDetectionResponse | null;
   onCopyNotification?: (message: string) => void;
@@ -17,7 +16,6 @@ interface AIDetectionProps {
 const AIDetection: React.FC<AIDetectionProps> = ({
   text,
   onDetectionComplete,
-  disabled = false, // eslint-disable-line @typescript-eslint/no-unused-vars
   autoDetect = false,
   result: externalResult = null,
   onCopyNotification,
