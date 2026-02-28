@@ -694,43 +694,17 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
                   <span className={styles.messageRole}>Otium</span>
                 </div>
                 <div className={styles.messageContent}>
-                  {/* 后台任务模式 - 简化版本 */}
-                  {backgroundTaskId !== null ? (
-                    <div className={styles.backgroundTaskContainer}>
-                      <div className={styles.backgroundTaskNote}>
-                        文献调研可能需要较长时间，请耐心等待...
-                      </div>
-                      <div className={styles.typingIndicator}>
-                        <span>.</span>
-                        <span>.</span>
-                        <span>.</span>
-                      </div>
+                  {/* 统一使用普通对话的加载动画格式 */}
+                  <div className={styles.processingStepsContainer}>
+                    <div className={styles.processingStepContent}>
+                      {processingSteps[processingStep]}
                     </div>
-                  ) : literatureResearchMode && manusSteps.length > 0 ? (
-                    // 文献调研模式 - 简化版本
-                    <div className={styles.backgroundTaskContainer}>
-                      <div className={styles.backgroundTaskNote}>
-                        文献调研可能需要较长时间，请耐心等待...
-                      </div>
-                      <div className={styles.typingIndicator}>
-                        <span>.</span>
-                        <span>.</span>
-                        <span>.</span>
-                      </div>
+                    <div className={styles.typingIndicator}>
+                      <span>.</span>
+                      <span>.</span>
+                      <span>.</span>
                     </div>
-                  ) : (
-                    // 普通模式或没有Manus步骤时显示处理步骤
-                    <div className={styles.processingStepsContainer}>
-                      <div className={styles.processingStepContent}>
-                        {processingSteps[processingStep]}
-                      </div>
-                      <div className={styles.typingIndicator}>
-                        <span>.</span>
-                        <span>.</span>
-                        <span>.</span>
-                      </div>
-                    </div>
-                  )}
+                  </div>
                 </div>
               </div>
             )}

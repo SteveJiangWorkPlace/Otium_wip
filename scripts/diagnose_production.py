@@ -30,7 +30,7 @@ except ImportError:
     sys.exit(1)
 
 # 生产环境配置
-PRODUCTION_BACKEND_URL = "https://otium-backend.onrender.com"
+PRODUCTION_BACKEND_URL = "https://otium.onrender.com"
 PRODUCTION_FRONTEND_URL = "https://otiumtrans.netlify.app"
 TEST_USERNAME = "admin"
 TEST_PASSWORD = "admin123"

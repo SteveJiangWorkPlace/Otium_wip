@@ -689,7 +689,7 @@ class BackgroundTaskService:
             prompt=prompt,
             api_key=manus_api_key,
             generate_literature_review=generate_literature_review,
-            prompt_already_built=True,  # 已经在AIChatPanel中构建了提示词
+            prompt_already_built=False,  # 需要在后台任务中构建提示词
             progress_callback=progress_callback,
         )
 
