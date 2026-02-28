@@ -540,6 +540,8 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
               timestamp: Date.now(),
             };
             addMessage(pageKey, aiMessage);
+          } else if (task.status === BackgroundTaskStatus.COMPLETED) {
+            throw new Error('任务已完成，但未返回可显示的结果内容');
           } else if (task.status === BackgroundTaskStatus.FAILED) {
             throw new Error(task.error_message || '任务处理失败');
           }

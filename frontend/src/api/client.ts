@@ -259,6 +259,13 @@ axiosInstance.interceptors.response.use(
   }
 );
 
+const getHttpStatus = (error: unknown): number | undefined => {
+  if (axios.isAxiosError(error)) {
+    return error.response?.status;
+  }
+  return undefined;
+};
+
 // 将 apiClient 定义为普通对象，不使用默认导出
 export const apiClient = {
   // ==================== 用户认证 ====================
@@ -624,6 +631,14 @@ export const apiClient = {
       } catch (error) {
         if (signal?.aborted) {
           throw new Error('轮询被取消');
+        }
+
+        // 明确的客户端/权限类错误直接失败，避免无意义长时间重试
+        const status = getHttpStatus(error);
+        if (status && [400, 401, 403, 404, 422].includes(status)) {
+          throw new Error(
+            `轮询任务 ${taskId} 失败: HTTP ${status}（任务不存在、无权限或登录状态异常）`
+          );
         }
 
         // 如果是网络错误，继续重试
