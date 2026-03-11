@@ -47,7 +47,7 @@ def _build_gemini_requests_session() -> requests.Session:
 
 def _build_direct_requests_session() -> requests.Session:
     session = requests.Session()
-    session.trust_env = False
+    session.trust_env = settings.GEMINI_USE_SYSTEM_PROXY
     if settings.GEMINI_PROXY_URL:
         session.proxies.update(
             {

@@ -6,6 +6,7 @@
 
 import logging
 import os
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
@@ -158,6 +159,8 @@ class Settings:
         if self.IS_RENDER:
             self._adjust_for_render()
 
+        self._configure_network_settings()
+
         # 检查安全配置
         self._check_security()
 
@@ -203,6 +206,53 @@ class Settings:
             self.ENABLE_BACKGROUND_WORKER,
         )
         # Render会自动设置PORT变量
+
+    def _is_local_proxy_url(self, proxy_url: str) -> bool:
+        """Detect loopback/local proxy endpoints that only make sense on a local machine."""
+        if not proxy_url:
+            return False
+
+        parsed = urlparse(proxy_url)
+        hostname = (parsed.hostname or "").strip().lower()
+        return hostname in {"127.0.0.1", "localhost", "::1"}
+
+    def _configure_network_settings(self):
+        """Apply environment-aware proxy policy.
+
+        Development:
+        - Keep local proxy settings as configured.
+
+        Production:
+        - Default to direct outbound networking.
+        - Disable loopback proxy URLs such as 127.0.0.1/localhost because they do not
+          point to the developer machine when running on Render.
+        - Allow only explicitly configured non-local proxy endpoints.
+        """
+        if self.ENVIRONMENT != "production":
+            return
+
+        if self._is_local_proxy_url(self.GEMINI_PROXY_URL):
+            logging.warning(
+                "Ignoring local GEMINI_PROXY_URL in production: %s. Production will use host environment networking.",
+                self.GEMINI_PROXY_URL,
+            )
+            self.GEMINI_PROXY_URL = ""
+            self.GEMINI_USE_SYSTEM_PROXY = True
+            return
+
+        if not self.GEMINI_PROXY_URL:
+            self.GEMINI_USE_SYSTEM_PROXY = True
+            logging.info(
+                "Production environment detected; external services will use host environment networking."
+            )
+            return
+
+        # If an explicit non-local proxy URL is configured, prefer it over host environment proxy inheritance.
+        self.GEMINI_USE_SYSTEM_PROXY = False
+        logging.info(
+            "Production environment detected; using explicit external proxy endpoint: %s",
+            self.GEMINI_PROXY_URL,
+        )
 
     def _check_security(self):
         """检查安全配置"""
