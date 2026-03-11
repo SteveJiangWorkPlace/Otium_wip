@@ -147,7 +147,7 @@ DATABASE_URL=postgresql://user:password@host:port/database
 如果从JSON文件迁移到数据库，运行迁移脚本：
 ```bash
 cd backend
-python scripts/migrate_json_to_database.py
+python scripts/migrate_to_database.py
 ```
 
 ## [CI/CD 配置（可选）]
@@ -217,7 +217,7 @@ netlify deploy --prod
 **解决方案**：
 1. 检查SMTP环境变量配置是否正确（参考环境变量配置部分）
 2. 验证邮件服务账户是否激活（QQ邮箱需要开启SMTP服务并获取授权码）
-3. 测试SMTP连接：运行 `python backend/test_smtp_connection.py`
+3. 运行环境检查：`python scripts/check_deployment.py`
 4. 考虑使用SendGrid替代QQ邮箱（Render集成更好）
 5. 检查Render日志中的SMTP错误信息
 

@@ -86,6 +86,7 @@ def build_academic_translate_prompt_original(
     7. **IMPORTANT - Remove Markdown**: Remove all Markdown formatting symbols like asterisks (*), double asterisks (**), underscores (_), etc. from the output. Provide clean text without any Markdown formatting.
     8. **Punctuation with Quotation Marks**: For general text (not formal citations), always place commas, periods, and other punctuation marks OUTSIDE of quotation marks, not inside. For example, use "example", not "example,". For formal citations, maintain the original citation style's punctuation rules.
     9. **Names Capitalization**: Always properly capitalize all personal names, organizational names, and proper nouns. Ensure that all names of people, institutions, theories named after people, etc. are correctly capitalized in the English translation.
+    10. **Hard Ban on Adverbial Modification**: Do not use "adverb + verb" or "adverb + adjective" constructions in the translation. This ban also applies to passive constructions. Rewrite such expressions into more direct, natural academic English without adverbial modification.
 
     **Output:**
     Provide ONLY the translated English text without explanations, comments, or any Markdown formatting symbols.

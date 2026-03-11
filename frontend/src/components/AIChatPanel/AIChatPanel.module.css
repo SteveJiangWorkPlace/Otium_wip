@@ -55,6 +55,11 @@
   flex-shrink: 0;
 }
 
+.headerLeft {
+  display: flex;
+  align-items: center;
+}
+
 .modeSwitch {
   display: flex;
   align-items: center;
@@ -216,6 +221,11 @@
   display: flex;
   gap: var(--spacing-sm);
   align-items: center;
+  margin-left: auto;
+}
+
+.clearButton {
+  white-space: nowrap;
 }
 
 .messagesContainer {
@@ -312,12 +322,28 @@
   margin-bottom: 0.25em;
 }
 
+.assistantMessage .messageContent p {
+  text-indent: 2em;
+}
+
 .messageContent p:first-child {
   margin-top: 0;
 }
 
 .messageContent p:last-child {
   margin-bottom: 0;
+}
+
+.messageContent .ai-list {
+  margin: 0.2em 0;
+  padding-left: 1.4em;
+  white-space: normal;
+  list-style-position: outside;
+}
+
+.messageContent .ai-list li {
+  margin: 0.15em 0;
+  padding-left: 0.1em;
 }
 
 /* 标题样式 - 控制标题与内容之间的间距 */
@@ -349,6 +375,29 @@
 .assistantMessage .messageContent {
   text-align: left;
   padding-top: var(--spacing-1);
+}
+
+.streamCursor {
+  display: inline-block;
+  width: 0.45em;
+  height: 0.45em;
+  margin-left: 0.18em;
+  border-radius: 50%;
+  background-color: currentColor;
+  vertical-align: baseline;
+  animation: streamCursorPulse 1s ease-in-out infinite;
+}
+
+@keyframes streamCursorPulse {
+  0%,
+  100% {
+    opacity: 0.2;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .emptyState {

@@ -37,6 +37,11 @@
   margin-bottom: var(--spacing-4);
 }
 
+.inputTextarea {
+  font-size: var(--font-size-base) !important;
+  line-height: var(--line-height-normal) !important;
+}
+
 .inputFooter {
   margin-top: var(--spacing-4);
 }

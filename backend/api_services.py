@@ -11,13 +11,16 @@ import logging
 import re
 import time
 from collections.abc import AsyncGenerator
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Generator, Optional
+from urllib.parse import urlparse
 
 import google.genai
+import google.genai._api_client as genai_api_client
 import google.genai.errors
 import requests
 from google.genai.types import HttpOptions
 
+from config import settings
 from exceptions import GeminiAPIError, RateLimitError
 from utils import TextValidator
 from prompts import build_literature_research_prompt
@@ -27,10 +30,178 @@ from prompts import build_literature_research_prompt
 # ==========================================
 
 
+def _build_gemini_requests_session() -> requests.Session:
+    session = requests.Session()
+    session.trust_env = settings.GEMINI_USE_SYSTEM_PROXY
+
+    if settings.GEMINI_PROXY_URL:
+        session.proxies.update(
+            {
+                "http": settings.GEMINI_PROXY_URL,
+                "https": settings.GEMINI_PROXY_URL,
+            }
+        )
+
+    return session
+
+
+def _build_direct_requests_session() -> requests.Session:
+    session = requests.Session()
+    session.trust_env = False
+    if settings.GEMINI_PROXY_URL:
+        session.proxies.update(
+            {
+                "http": settings.GEMINI_PROXY_URL,
+                "https": settings.GEMINI_PROXY_URL,
+            }
+        )
+    return session
+
+
+def _request_gemini(method: str, url: str, **kwargs):
+    session = _build_gemini_requests_session()
+    return session.request(method=method, url=url, **kwargs)
+
+
+def _request_direct(method: str, url: str, **kwargs):
+    session = _build_direct_requests_session()
+    return session.request(method=method, url=url, **kwargs)
+
+
+def _describe_gemini_network_mode() -> str:
+    if settings.GEMINI_PROXY_URL:
+        return "explicit_proxy"
+    if settings.GEMINI_USE_SYSTEM_PROXY:
+        return "system_proxy"
+    return "direct"
+
+
+def _patch_google_genai_transport() -> None:
+    if getattr(genai_api_client.ApiClient, "_otium_proxy_patched", False):
+        return
+
+    def _patched_request_unauthorized(self, http_request, stream: bool = False):
+        data = None
+        if http_request.data:
+            if not isinstance(http_request.data, bytes):
+                data = json.dumps(http_request.data)
+            else:
+                data = http_request.data
+
+        http_session = _build_gemini_requests_session()
+        response = http_session.request(
+            method=http_request.method,
+            url=http_request.url,
+            headers=http_request.headers,
+            data=data,
+            timeout=http_request.timeout,
+            stream=stream,
+        )
+        genai_api_client.errors.APIError.raise_for_response(response)
+        return genai_api_client.HttpResponse(
+            response.headers, response if stream else [response.text]
+        )
+
+    def _patched_download_file_request(self, http_request):
+        data = None
+        if http_request.data:
+            if not isinstance(http_request.data, bytes):
+                data = json.dumps(http_request.data, cls=genai_api_client.RequestJsonEncoder)
+            else:
+                data = http_request.data
+
+        http_session = _build_gemini_requests_session()
+        response = http_session.request(
+            method=http_request.method,
+            url=http_request.url,
+            headers=http_request.headers,
+            data=data,
+            timeout=http_request.timeout,
+            stream=False,
+        )
+        genai_api_client.errors.APIError.raise_for_response(response)
+        return genai_api_client.HttpResponse(response.headers, byte_stream=[response.content])
+
+    genai_api_client.ApiClient._request_unauthorized = _patched_request_unauthorized
+    genai_api_client.ApiClient._download_file_request = _patched_download_file_request
+    genai_api_client.ApiClient._otium_proxy_patched = True
+
+    logging.info("Gemini transport mode: %s", _describe_gemini_network_mode())
+
+
+_patch_google_genai_transport()
+
+
+def _collect_gemini_response_debug(response: Any) -> dict[str, Any]:
+    debug: dict[str, Any] = {
+        "has_text_attr": hasattr(response, "text"),
+        "text_length": len(getattr(response, "text", "") or ""),
+        "candidate_count": 0,
+        "finish_reason": None,
+        "parts_count": 0,
+        "first_part_length": 0,
+    }
+
+    candidates = getattr(response, "candidates", None) or []
+    debug["candidate_count"] = len(candidates)
+    if not candidates:
+        return debug
+
+    candidate = candidates[0]
+    finish_reason = getattr(candidate, "finish_reason", None)
+    if finish_reason is not None:
+        debug["finish_reason"] = str(finish_reason)
+
+    content = getattr(candidate, "content", None)
+    parts = getattr(content, "parts", None) or []
+    debug["parts_count"] = len(parts)
+    if parts:
+        first_part_text = getattr(parts[0], "text", "") or ""
+        debug["first_part_length"] = len(first_part_text)
+
+    return debug
+
+
+def _extract_text_from_genai_content(content: Any) -> str:
+    if not content:
+        return ""
+
+    parts = getattr(content, "parts", None) or []
+    if parts:
+        texts = [(getattr(part, "text", "") or "") for part in parts]
+        return "".join(texts)
+
+    return getattr(content, "text", "") or ""
+
+
+def _extract_text_from_genai_response(response: Any) -> str:
+    text = getattr(response, "text", "") or ""
+    if text:
+        return text
+
+    candidates = getattr(response, "candidates", None) or []
+    if not candidates:
+        return ""
+
+    candidate = candidates[0]
+    return _extract_text_from_genai_content(getattr(candidate, "content", None))
+
+
+def _extract_text_from_gemini_json(result: dict[str, Any]) -> str:
+    candidates = result.get("candidates") or []
+    if not candidates:
+        return ""
+
+    content = candidates[0].get("content") or {}
+    parts = content.get("parts") or []
+    texts = [(part.get("text") or "") for part in parts if isinstance(part, dict)]
+    return "".join(texts)
+
+
 def generate_gemini_content_with_fallback(
     prompt: str,
     api_key: str | None = None,
-    primary_model: str = "gemini-2.5-flash",  # 文本相关功能使用flash作为主要模型
+    primary_model: str = "gemini-2.5-flash",
     fallback_model: str = "gemini-2.5-pro",
 ) -> dict[str, Any]:
     """带容错的 Gemini 内容生成
@@ -44,7 +215,7 @@ def generate_gemini_content_with_fallback(
     Returns:
         包含结果的字典，格式：{"success": bool, "text": str, "model_used": str, "error": str, "error_type": str}
     """
-    logging.info(f"尝试使用主要模型 {primary_model} 生成内容")
+    logging.info("Attempting content generation with primary model %s", primary_model)
 
     # 安全设置 - 使用 google.genai 的类型
     safety_settings = [
@@ -71,7 +242,10 @@ def generate_gemini_content_with_fallback(
                     key_source = "环境变量"
 
                 if not current_api_key:
-                    raise GeminiAPIError("未提供 Gemini API Key，请在侧边栏输入或设置GEMINI_API_KEY环境变量", "missing_key")
+                    raise GeminiAPIError(
+                        "Gemini API key is missing. Provide it in the request or set GEMINI_API_KEY.",
+                        "missing_key",
+                    )
 
                 key_prefix = (
                     current_api_key[:8]
@@ -79,7 +253,12 @@ def generate_gemini_content_with_fallback(
                     else current_api_key[: len(current_api_key)]
                 )
                 logging.info(
-                    f"_try_model: 开始尝试模型 {model_name}, 尝试 {attempt + 1}/{max_retries}, API密钥来源: {key_source}, 前缀: {key_prefix}..."
+                    "_try_model start: model=%s attempt=%s/%s api_key_source=%s prefix=%s...",
+                    model_name,
+                    attempt + 1,
+                    max_retries,
+                    key_source,
+                    key_prefix,
                 )
 
                 # 调试日志：记录API密钥信息（不记录完整密钥）
@@ -88,10 +267,10 @@ def generate_gemini_content_with_fallback(
                     if len(current_api_key) > 8
                     else current_api_key[: len(current_api_key)]
                 )
-                logging.info(f"使用{key_source}的Gemini API密钥，前缀: {key_prefix}...")
-                logging.info(f"尝试使用模型: {model_name}")
+                logging.info("Using Gemini API key from %s with prefix %s...", key_source, key_prefix)
+                logging.info("Trying Gemini model: %s", model_name)
 
-                logging.info("使用系统代理设置连接")
+                logging.info("Gemini client network mode: %s", _describe_gemini_network_mode())
 
                 # 创建客户端
                 # 设置timeout值（180000 = 180秒/3分钟读取超时）
@@ -103,24 +282,20 @@ def generate_gemini_content_with_fallback(
                 config = {"safety_settings": safety_settings}
 
                 # 生成内容
-                logging.info(f"调用Gemini API: 模型={model_name}, prompt长度={len(prompt)}")
+                logging.info("Calling Gemini API: model=%s prompt_length=%s", model_name, len(prompt))
                 response = client.models.generate_content(
                     model=model_name, contents=prompt, config=config
                 )
-                logging.info(f"Gemini API调用成功: 模型={model_name}")
+                logging.info("Gemini API call succeeded: model=%s", model_name)
+                logging.warning(
+                    "gemini_non_stream_debug model=%s meta=%s",
+                    model_name,
+                    _collect_gemini_response_debug(response),
+                )
 
                 # 提取响应文本
                 # 注意：response 结构可能不同，需要检查
-                text = ""
-                if hasattr(response, "text"):
-                    text = response.text
-                elif hasattr(response, "candidates") and response.candidates:
-                    candidate = response.candidates[0]
-                    if hasattr(candidate, "content") and candidate.content:
-                        if hasattr(candidate.content, "parts") and candidate.content.parts:
-                            text = candidate.content.parts[0].text
-                        elif hasattr(candidate.content, "text"):
-                            text = candidate.content.text
+                text = _extract_text_from_genai_response(response)
 
                 return {"success": True, "text": text, "model_used": model_name}
 
@@ -128,8 +303,8 @@ def generate_gemini_content_with_fallback(
                 # 获取原始错误消息
                 error_raw = str(e)
                 error_msg = error_raw.lower()
-                logging.error(f"Gemini API异常原始错误: {error_raw}")
-                logging.error(f"异常类型: {type(e).__name__}")
+                logging.error("Raw Gemini API exception: %s", error_raw)
+                logging.error("Gemini exception type: %s", type(e).__name__)
 
                 # 尝试解析JSON或Python字典格式的错误信息
                 error_json = None
@@ -156,22 +331,28 @@ def generate_gemini_content_with_fallback(
                     or "503" in error_msg
                     or "unavailable" in error_msg
                 ):
-                    logging.error(f"模型 {model_name} - 服务不可用: {str(e)}")
+                    logging.error("Model %s service unavailable: %s", model_name, str(e))
                     raise GeminiAPIError(
-                        "Google API服务暂时不可用，请稍后再试", "service_unavailable"
+                        "Google API service is temporarily unavailable. Please try again later.",
+                        "service_unavailable",
                     ) from e
 
                 # 超时错误（包括 DeadlineExceeded 和 requests Timeout）
                 elif "timeout" in error_msg or "deadline" in error_msg or "timed out" in error_msg:
                     logging.error(
-                        f"模型 {model_name} - 请求超时 (尝试 {attempt + 1}/{max_retries}): {str(e)}"
+                        "Model %s request timed out (attempt %s/%s): %s",
+                        model_name,
+                        attempt + 1,
+                        max_retries,
+                        str(e),
                     )
                     if attempt < max_retries - 1:
-                        logging.info(f"等待 {retry_delay} 秒后重试...")
+                        logging.info("Retrying in %s seconds...", retry_delay)
                         time.sleep(retry_delay)
                         continue
                     raise GeminiAPIError(
-                        "请求超时（默认180秒/3分钟），请检查网络连接", "timeout"
+                        "Request timed out after the default 180-second limit. Check network connectivity.",
+                        "timeout",
                     ) from e
 
                 # 网络连接错误
@@ -182,28 +363,30 @@ def generate_gemini_content_with_fallback(
                     or "connection" in error_msg
                 ):
                     logging.error(
-                        f"模型 {model_name} - 网络连接错误 (尝试 {attempt + 1}/{max_retries}): {str(e)}"
+                        "Model %s network error (attempt %s/%s): %s",
+                        model_name,
+                        attempt + 1,
+                        max_retries,
+                        str(e),
                     )
                     if attempt < max_retries - 1:
-                        logging.info(f"等待 {retry_delay} 秒后重试...")
+                        logging.info("Retrying in %s seconds...", retry_delay)
                         time.sleep(retry_delay)
                         continue
-                    error_message = "无法连接到Google API服务。"
-                    error_message += "\n可能的原因："
-                    error_message += "\n1. 网络连接问题 - 请检查您的互联网连接"
-                    error_message += (
-                        "\n2. 防火墙或网络设置 - 如果您在中国，可能需要VPN才能访问Google服务"
-                    )
-                    error_message += "\n3. Google服务暂时不可用 - 请稍后再试"
-                    error_message += "\n\n解决方案："
-                    error_message += "\n- 检查网络连接是否正常"
-                    error_message += "\n- 如果使用VPN，请确保VPN连接稳定"
+                    error_message = "Unable to connect to Google API service."
+                    error_message += "\nPossible causes:"
+                    error_message += "\n1. Network connectivity issue."
+                    error_message += "\n2. Firewall, VPN, or local proxy configuration issue."
+                    error_message += "\n3. Google service temporarily unavailable."
+                    error_message += "\n\nSuggested actions:"
+                    error_message += "\n- Verify the internet connection."
+                    error_message += "\n- Verify the VPN or proxy connection."
                     raise GeminiAPIError(error_message, "network_error") from e
 
                 # API配额错误
                 elif "quota" in error_msg or "resource_exhausted" in error_msg:
-                    logging.error(f"模型 {model_name} - API 配额已用尽: {str(e)}")
-                    raise GeminiAPIError("API 配额已用尽，请稍后再试", "quota") from e
+                    logging.error("Model %s quota exhausted: %s", model_name, str(e))
+                    raise GeminiAPIError("API quota exhausted. Please try again later.", "quota") from e
 
                 # 速率限制
                 elif (
@@ -211,8 +394,8 @@ def generate_gemini_content_with_fallback(
                     or "rate_limit" in error_msg
                     or "too many requests" in error_msg
                 ):
-                    logging.error(f"模型 {model_name} - 速率限制: {str(e)}")
-                    raise RateLimitError("请求过于频繁，请稍后再试") from e
+                    logging.error("Model %s rate limited: %s", model_name, str(e))
+                    raise RateLimitError("Too many requests. Please try again later.") from e
 
                 # API密钥无效
                 elif (
@@ -221,13 +404,12 @@ def generate_gemini_content_with_fallback(
                     or "permission" in error_msg
                     or "unauthorized" in error_msg
                 ):
-                    logging.error(f"模型 {model_name} - API Key 无效: {str(e)}")
-                    # 记录完整的错误类型和详细信息用于调试
-                    logging.error(f"完整错误类型: {type(e)}")
-                    logging.error(f"完整错误详细信息: {repr(e)}")
+                    logging.error("Model %s invalid API key: %s", model_name, str(e))
+                    logging.error("Full exception type: %s", type(e))
+                    logging.error("Full exception details: %r", e)
                     if error_json:
-                        logging.error(f"解析后的错误JSON: {error_json}")
-                    raise GeminiAPIError("API Key 无效或已过期，请检查配置", "invalid_key") from e
+                        logging.error("Parsed error JSON: %s", error_json)
+                    raise GeminiAPIError("API key is invalid or expired. Check configuration.", "invalid_key") from e
 
                 # 区域限制错误
                 elif (
@@ -243,69 +425,67 @@ def generate_gemini_content_with_fallback(
                     or "user location is not supported" in error_msg
                     or "location is not supported" in error_msg
                 ):
-                    logging.error(f"模型 {model_name} - 区域限制: {str(e)}")
-                    error_message = "Google Gemini API 在您所在的区域不可用。\n"
-                    error_message += "可能的原因：\n"
-                    error_message += "1. 您所在的地区（如中国大陆）可能无法直接访问Google服务\n"
-                    error_message += "2. 网络环境限制\n\n"
-                    error_message += "解决方案：\n"
-                    error_message += "- 使用VPN连接到支持Google服务的地区\n"
-                    error_message += "- 检查网络连接和代理设置\n"
-                    error_message += "- 联系网络管理员确认是否允许访问Google API"
+                    logging.error("Model %s region restricted: %s", model_name, str(e))
+                    error_message = "Google Gemini API is not available in the current region.\n"
+                    error_message += "Suggested actions:\n"
+                    error_message += "- Use a network path that supports Google services.\n"
+                    error_message += "- Check VPN and proxy settings.\n"
+                    error_message += "- Confirm that outbound access to Google API is allowed."
                     raise GeminiAPIError(error_message, "region_restricted") from e
 
                 # 其他API错误
                 elif "api" in error_msg or "google" in error_msg or "genai" in error_msg:
-                    logging.error(f"模型 {model_name} - API 错误: {str(e)}")
-                    raise GeminiAPIError(f"API 错误: {str(e)}", "api_error") from e
+                    logging.error("Model %s API error: %s", model_name, str(e))
+                    raise GeminiAPIError(f"API error: {str(e)}", "api_error") from e
 
                 # 未知错误
                 else:
-                    logging.error(f"模型 {model_name} - 未知错误: {str(e)}", exc_info=True)
-                    raise GeminiAPIError(f"未知错误: {str(e)}", "unknown") from e
+                    logging.error("Model %s unknown error: %s", model_name, str(e), exc_info=True)
+                    raise GeminiAPIError(f"Unknown error: {str(e)}", "unknown") from e
 
         # 如果所有重试都失败（理论上不应该到达这里）
-        raise GeminiAPIError(f"所有 {max_retries} 次重试均失败", "all_retries_failed")
+        raise GeminiAPIError(f"All {max_retries} retry attempts failed", "all_retries_failed")
 
     # 尝试主要模型
     try:
         return _try_model(primary_model)
 
     except GeminiAPIError as e:
-        logging.warning(f"主要模型 {primary_model} 失败，错误类型: {e.error_type}")
+        logging.warning("Primary model %s failed with error_type=%s", primary_model, e.error_type)
 
         # 如果是网络连接错误，直接尝试requests备选方案，而不是备用模型
         if e.error_type == "network_error":
-            logging.warning("网络连接错误，直接尝试requests备选方案...")
+            logging.warning("Network error detected; trying requests fallback directly...")
             try:
                 result = generate_gemini_with_requests(
                     prompt=prompt, api_key=api_key, model=primary_model
                 )
                 if result.get("success"):
-                    logging.info(f"requests备选方案成功: 模型={primary_model}")
+                    logging.info("Requests fallback succeeded: model=%s", primary_model)
                     return result
                 else:
                     # 主要模型失败，尝试备用模型
-                    logging.warning(f"requests主要模型失败，尝试备用模型: {fallback_model}")
+                    logging.warning("Requests primary model failed; trying fallback model %s", fallback_model)
                     result = generate_gemini_with_requests(
                         prompt=prompt, api_key=api_key, model=fallback_model
                     )
                     return result
             except Exception as requests_exception:
-                logging.error(f"requests备选方案也失败: {str(requests_exception)}", exc_info=True)
+                logging.error("Requests fallback also failed: %s", str(requests_exception), exc_info=True)
                 return {
                     "success": False,
-                    "error": f"所有尝试均失败: {e.message}",
+                    "error": f"All attempts failed: {e.message}",
                     "error_type": e.error_type,
                 }
 
         # 如果不是网络错误，尝试备用模型
-        logging.warning(f"尝试备用模型 {fallback_model}")
+        logging.warning("Trying fallback model %s", fallback_model)
         try:
             return _try_model(fallback_model)
         except GeminiAPIError as fallback_error:
             logging.warning(
-                f"备用模型也失败，错误类型: {fallback_error.error_type}, 尝试requests备选方案..."
+                "Fallback model also failed with error_type=%s; trying requests fallback...",
+                fallback_error.error_type,
             )
 
             # 尝试使用requests备选方案
@@ -316,26 +496,26 @@ def generate_gemini_content_with_fallback(
                 )
 
                 if result.get("success"):
-                    logging.info(f"requests备选方案成功: 模型={primary_model}")
+                    logging.info("Requests fallback succeeded: model=%s", primary_model)
                     return result
                 else:
                     # 主要模型失败，尝试备用模型
-                    logging.warning(f"requests主要模型失败，尝试备用模型: {fallback_model}")
+                    logging.warning("Requests primary model failed; trying fallback model %s", fallback_model)
                     result = generate_gemini_with_requests(
                         prompt=prompt, api_key=api_key, model=fallback_model
                     )
                     return result
 
             except Exception as requests_exception:
-                logging.error(f"requests备选方案也失败: {str(requests_exception)}", exc_info=True)
+                logging.error("Requests fallback also failed: %s", str(requests_exception), exc_info=True)
                 return {
                     "success": False,
-                    "error": f"所有尝试均失败: {fallback_error.message}",
+                    "error": f"All attempts failed: {fallback_error.message}",
                     "error_type": fallback_error.error_type,
                 }
         except Exception as fallback_error:
-            logging.error(f"备用模型也失败: {str(fallback_error)}", exc_info=True)
-            logging.warning("尝试requests备选方案...")
+            logging.error("Fallback model also failed: %s", str(fallback_error), exc_info=True)
+            logging.warning("Trying requests fallback...")
 
             # 尝试使用requests备选方案
             try:
@@ -345,26 +525,26 @@ def generate_gemini_content_with_fallback(
                 )
 
                 if result.get("success"):
-                    logging.info(f"requests备选方案成功: 模型={primary_model}")
+                    logging.info("Requests fallback succeeded: model=%s", primary_model)
                     return result
                 else:
                     # 主要模型失败，尝试备用模型
-                    logging.warning(f"requests主要模型失败，尝试备用模型: {fallback_model}")
+                    logging.warning("Requests primary model failed; trying fallback model %s", fallback_model)
                     result = generate_gemini_with_requests(
                         prompt=prompt, api_key=api_key, model=fallback_model
                     )
                     return result
 
             except Exception as requests_exception:
-                logging.error(f"requests备选方案也失败: {str(requests_exception)}", exc_info=True)
+                logging.error("Requests fallback also failed: %s", str(requests_exception), exc_info=True)
                 return {
                     "success": False,
-                    "error": "所有尝试均失败，请稍后再试",
+                    "error": "All attempts failed. Please try again later.",
                     "error_type": "all_failed",
                 }
 
     except RateLimitError as e:
-        logging.warning("速率限制错误，尝试requests备选方案...")
+        logging.warning("Rate limit error detected; trying requests fallback...")
 
         # 尝试使用requests备选方案
         try:
@@ -374,25 +554,25 @@ def generate_gemini_content_with_fallback(
             )
 
             if result.get("success"):
-                logging.info(f"requests备选方案成功: 模型={primary_model}")
+                logging.info("Requests fallback succeeded: model=%s", primary_model)
                 return result
             else:
                 # 主要模型失败，尝试备用模型
-                logging.warning(f"requests主要模型失败，尝试备用模型: {fallback_model}")
+                logging.warning("Requests primary model failed; trying fallback model %s", fallback_model)
                 result = generate_gemini_with_requests(
                     prompt=prompt, api_key=api_key, model=fallback_model
                 )
                 return result
 
         except Exception as requests_exception:
-            logging.error(f"requests备选方案也失败: {str(requests_exception)}", exc_info=True)
+            logging.error("Requests fallback also failed: %s", str(requests_exception), exc_info=True)
             return {"success": False, "error": str(e), "error_type": "rate_limit"}
 
     except Exception as e:
-        logging.error(f"未知错误: {str(e)}", exc_info=True)
+        logging.error("Unknown Gemini generation error: %s", str(e), exc_info=True)
 
         # 当google.genai库失败时，尝试使用requests备选方案
-        logging.warning("google.genai库调用失败，尝试使用requests备选方案...")
+        logging.warning("google.genai call failed; trying requests fallback...")
 
         try:
             # 先尝试主要模型
@@ -401,21 +581,21 @@ def generate_gemini_content_with_fallback(
             )
 
             if result.get("success"):
-                logging.info(f"requests备选方案成功: 模型={primary_model}")
+                logging.info("Requests fallback succeeded: model=%s", primary_model)
                 return result
             else:
                 # 主要模型失败，尝试备用模型
-                logging.warning(f"requests主要模型失败，尝试备用模型: {fallback_model}")
+                logging.warning("Requests primary model failed; trying fallback model %s", fallback_model)
                 result = generate_gemini_with_requests(
                     prompt=prompt, api_key=api_key, model=fallback_model
                 )
                 return result
 
         except Exception as fallback_exception:
-            logging.error(f"requests备选方案也失败: {str(fallback_exception)}", exc_info=True)
+            logging.error("Requests fallback also failed: %s", str(fallback_exception), exc_info=True)
             return {
                 "success": False,
-                "error": f"所有尝试均失败: {str(e)}",
+                "error": f"All attempts failed: {str(e)}",
                 "error_type": "all_failed",
             }
 
@@ -466,7 +646,10 @@ async def generate_gemini_content_stream(
     """
 
     logging.info(
-        f"开始流式翻译，主模型: {primary_model}, 备用模型: {fallback_model}, prompt长度: {len(prompt)}"
+        "Starting Gemini stream generation: primary_model=%s fallback_model=%s prompt_length=%s",
+        primary_model,
+        fallback_model,
+        len(prompt),
     )
 
     # 安全设置
@@ -481,12 +664,13 @@ async def generate_gemini_content_stream(
         # 检查API密钥
         current_api_key = api_key
         if not current_api_key:
-            raise GeminiAPIError("未提供 Gemini API Key，请在侧边栏输入", "missing_key")
+            raise GeminiAPIError("Gemini API key is missing.", "missing_key")
 
         # 创建客户端
         # 设置timeout值（180000 = 180秒/3分钟读取超时）
         # timeout值除以1000得到实际的读取超时秒数
         http_opts = HttpOptions(timeout=180000)
+        logging.info("Gemini stream network mode: %s", _describe_gemini_network_mode())
         client = google.genai.Client(api_key=current_api_key, http_options=http_opts)
 
         # 准备配置
@@ -498,26 +682,26 @@ async def generate_gemini_content_stream(
 
         # 尝试使用主模型
         try:
-            logging.info(f"调用Gemini流式API: 模型={current_model}")
+            logging.info("Calling Gemini streaming API: model=%s", current_model)
             response_stream = client.models.generate_content_stream(
                 model=current_model, contents=prompt, config=config
             )
             models_tried.append(current_model)
         except Exception as primary_error:
-            logging.warning(f"主模型 {primary_model} 调用失败: {str(primary_error)}")
+            logging.warning("Primary streaming model %s failed: %s", primary_model, str(primary_error))
 
             # 检查是否有备用模型
             if fallback_model and fallback_model != primary_model:
-                logging.info(f"尝试切换到备用模型: {fallback_model}")
+                logging.info("Switching to fallback streaming model: %s", fallback_model)
                 current_model = fallback_model
                 try:
                     response_stream = client.models.generate_content_stream(
                         model=current_model, contents=prompt, config=config
                     )
                     models_tried.append(current_model)
-                    logging.info(f"备用模型 {fallback_model} 调用成功")
+                    logging.info("Fallback streaming model succeeded: %s", fallback_model)
                 except Exception as fallback_error:
-                    logging.error(f"备用模型 {fallback_model} 也调用失败: {str(fallback_error)}")
+                    logging.error("Fallback streaming model %s also failed: %s", fallback_model, str(fallback_error))
                     # 重新抛出主模型的错误，让外部异常处理处理
                     raise primary_error from fallback_error
             else:
@@ -548,28 +732,25 @@ async def generate_gemini_content_stream(
             if time.time() - start_time > timeout_seconds:
                 stream_end_reason = "timeout"
                 logging.error(
-                    f"流式翻译超时: {timeout_seconds}秒内未完成, "
-                    f"已处理{chunk_count}个chunk, 已生成{len(sentences)}个句子"
+                    "Streaming generation timed out after %s seconds; chunks=%s sentences=%s",
+                    timeout_seconds,
+                    chunk_count,
+                    len(sentences),
                 )
                 yield {
                     "type": "error",
-                    "error": f"流式翻译超时: {timeout_seconds}秒内未完成",
+                    "error": f"Streaming generation timed out after {timeout_seconds} seconds",
                     "error_type": "timeout",
                 }
                 return  # 流式翻译超时，结束生成器
-            if hasattr(chunk, "text"):
-                chunk_text = chunk.text
-            elif hasattr(chunk, "candidates") and chunk.candidates:
-                candidate = chunk.candidates[0]
-                if hasattr(candidate, "content") and candidate.content:
-                    if hasattr(candidate.content, "parts") and candidate.content.parts:
-                        chunk_text = candidate.content.parts[0].text
-                    elif hasattr(candidate.content, "text"):
-                        chunk_text = candidate.content.text
-                else:
-                    chunk_text = ""
-            else:
-                chunk_text = ""
+            chunk_debug = _collect_gemini_response_debug(chunk)
+            logging.warning(
+                "gemini_stream_chunk_debug index=%s meta=%s",
+                chunk_count,
+                chunk_debug,
+            )
+
+            chunk_text = _extract_text_from_genai_response(chunk)
 
             if chunk_text:
                 full_response += chunk_text
@@ -592,8 +773,10 @@ async def generate_gemini_content_stream(
                     iteration_count += 1
                     if iteration_count > max_iterations:
                         logging.warning(
-                            f"句子检测循环超过安全上限({max_iterations})，强制退出。"
-                            f"buffer长度: {len(buffer)}, 内容前50字符: {repr(buffer[:50])}"
+                            "Sentence detection loop exceeded the safety limit (%s). buffer_length=%s preview=%r",
+                            max_iterations,
+                            len(buffer),
+                            buffer[:50],
                         )
                         break
 
@@ -641,7 +824,7 @@ async def generate_gemini_content_stream(
         # 更新所有已发送句子的总数
         # 重新发送更新后的句子信息（可选，但前端可能不需要）
         # 或者直接发送完成信号
-        logging.info(f"翻译完成，共 {len(sentences)} 个句子")
+        logging.info("Streaming translation completed with %s sentences", len(sentences))
         logging.info(
             "translate_stream_summary: reason=%s, chunks=%s, chars=%s, sentences=%s, elapsed=%.2fs",
             stream_end_reason,
@@ -649,6 +832,13 @@ async def generate_gemini_content_stream(
             len(full_response),
             len(sentences),
             time.time() - start_time,
+        )
+        logging.warning(
+            "gemini_stream_final_debug model=%s chars=%s chunks=%s stream_end_reason=%s",
+            current_model,
+            len(full_response),
+            chunk_count,
+            stream_end_reason,
         )
 
         # 返回完成信号
@@ -661,32 +851,32 @@ async def generate_gemini_content_stream(
         }
 
     except Exception as e:
-        logging.error(f"流式翻译错误: {str(e)}", exc_info=True)
+        logging.error("Streaming translation error: %s", str(e), exc_info=True)
 
         # 尝试获取错误类型
         error_msg = str(e).lower()
 
         if "service unavailable" in error_msg or "503" in error_msg:
             error_type = "service_unavailable"
-            error_message = "Google API服务暂时不可用，请稍后再试"
+            error_message = "Google API service is temporarily unavailable. Please try again later."
         elif "timeout" in error_msg or "deadline" in error_msg:
             error_type = "timeout"
-            error_message = "请求超时，请检查网络连接"
+            error_message = "Request timed out. Check network connectivity."
         elif "network" in error_msg or "connection" in error_msg:
             error_type = "network_error"
-            error_message = "无法连接到Google API服务，请检查网络连接"
+            error_message = "Unable to connect to Google API service. Check network connectivity."
         elif "quota" in error_msg or "resource_exhausted" in error_msg:
             error_type = "quota"
-            error_message = "API 配额已用尽，请稍后再试"
+            error_message = "API quota exhausted. Please try again later."
         elif "429" in error_msg or "rate_limit" in error_msg:
             error_type = "rate_limit"
-            error_message = "请求过于频繁，请稍后再试"
+            error_message = "Too many requests. Please try again later."
         elif "invalid" in error_msg or "api_key" in error_msg or "permission" in error_msg:
             error_type = "invalid_key"
-            error_message = "API Key 无效或已过期，请检查配置"
+            error_message = "API key is invalid or expired. Check configuration."
         else:
             error_type = "unknown"
-            error_message = f"系统错误: {str(e)}"
+            error_message = f"System error: {str(e)}"
 
         yield {"type": "error", "error": error_message, "error_type": error_type}
 
@@ -710,7 +900,7 @@ def check_gptzero(text: str, api_key: str) -> dict[str, Any]:
     if not is_valid:
         if "过长" in message:
             text = text[: TextValidator.GPTZERO_MAX_CHARS]
-            logging.warning("文本已截断至GPTZero API限制")
+            logging.warning("Input text was truncated to the GPTZero API limit")
         else:
             return {"success": False, "message": message}
 
@@ -728,7 +918,7 @@ def check_gptzero(text: str, api_key: str) -> dict[str, Any]:
 
     while retry_count < max_retries:
         try:
-            response = requests.post(url, headers=headers, json=payload, timeout=180)
+            response = _request_direct("POST", url, headers=headers, json=payload, timeout=180)
             response.raise_for_status()
             result = response.json()
 
@@ -738,7 +928,7 @@ def check_gptzero(text: str, api_key: str) -> dict[str, Any]:
                 elif isinstance(result["documents"], list) and len(result["documents"]) > 0:
                     doc = result["documents"][0]
                 else:
-                    return {"success": False, "message": "未知的API响应格式"}
+                    return {"success": False, "message": "Unknown API response format"}
 
                 return {
                     "ai_score": doc.get("completely_generated_prob", 0),
@@ -748,15 +938,15 @@ def check_gptzero(text: str, api_key: str) -> dict[str, Any]:
                     "full_text": text,
                 }
             else:
-                return {"success": False, "message": "API返回了未知格式的数据"}
+                return {"success": False, "message": "API returned data in an unknown format"}
 
         except requests.exceptions.Timeout:
             retry_count += 1
             if retry_count >= max_retries:
-                logging.error("GPTZero API请求超时，已达到最大重试次数")
-                return {"success": False, "message": "检测请求超时，请稍后再试"}
+                logging.error("GPTZero API request timed out after reaching max retries")
+                return {"success": False, "message": "Detection request timed out. Please try again later."}
             logging.warning(
-                f"GPTZero API超时，{current_delay}秒后重试 ({retry_count}/{max_retries})"
+                f"GPTZero API timeout; retrying in {current_delay} seconds ({retry_count}/{max_retries})"
             )
             time.sleep(current_delay)
             current_delay *= 2
@@ -764,20 +954,20 @@ def check_gptzero(text: str, api_key: str) -> dict[str, Any]:
         except requests.exceptions.HTTPError as e:
             status_code = e.response.status_code
             if status_code == 401:
-                return {"success": False, "message": "API Key 无效或已过期"}
+                return {"success": False, "message": "API key is invalid or expired"}
             elif status_code == 429:
-                return {"success": False, "message": "请求过于频繁，请稍后再试"}
+                return {"success": False, "message": "Too many requests. Please try again later."}
             else:
                 return {
                     "success": False,
-                    "message": f"API 请求失败（状态码 {status_code}）",
+                    "message": f"API request failed (status code {status_code})",
                 }
 
         except Exception as e:
-            logging.error(f"GPTZero API调用异常: {str(e)}", exc_info=True)
-            return {"success": False, "message": "系统错误，请稍后再试"}
+            logging.error("GPTZero API exception: %s", str(e), exc_info=True)
+            return {"success": False, "message": "System error. Please try again later."}
 
-    return {"success": False, "message": "检测失败，已达到最大重试次数"}
+    return {"success": False, "message": "Detection failed after reaching max retries"}
 
 
 # ==========================================
@@ -855,9 +1045,14 @@ def extract_annotations_with_context(text: str) -> list:
 
     # 记录详细日志
     if annotations:
-        logging.info(f"提取到 {len(annotations)} 个批注:")
+        logging.info("Extracted %s annotations", len(annotations))
         for i, anno in enumerate(annotations):
-            logging.info(f"批注 {i + 1}: 句子='{anno['sentence']}', 内容='{anno['content']}'")
+            logging.info(
+                "Annotation %s: sentence=%r content=%r",
+                i + 1,
+                anno["sentence"],
+                anno["content"],
+            )
 
     return annotations
 
@@ -896,7 +1091,7 @@ def clean_markdown(text: str) -> str:
         found = 0
         for i, c in enumerate(text[:500]):  # 只检查前500个字符
             if ord(c) > 127:
-                logging.info(f"clean_markdown: 位置 {i}: U+{ord(c):04X}")
+                logging.info("clean_markdown: position %s: U+%04X", i, ord(c))
                 found += 1
                 if found >= 3:
                     break
@@ -1225,7 +1420,7 @@ def generate_gemini_with_requests(
                 "error_type": "missing_key",
             }
 
-        logging.info("使用系统代理设置连接")
+        logging.info("Gemini requests fallback uses direct connection")
 
         # Gemini API端点
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={current_api_key}"
@@ -1256,14 +1451,22 @@ def generate_gemini_with_requests(
             },
         }
 
-        logging.info(f"使用requests调用Gemini API: 模型={model}, prompt长度={len(prompt)}")
-        response = requests.post(url, headers=headers, json=payload, timeout=180)
+        logging.info(
+            "Calling Gemini API via requests: model=%s prompt_length=%s",
+            model,
+            len(prompt),
+        )
+        response = _request_gemini("POST", url, headers=headers, json=payload, timeout=180)
 
         if response.status_code == 200:
             result = response.json()
             if "candidates" in result and result["candidates"]:
-                text = result["candidates"][0]["content"]["parts"][0]["text"]
-                logging.info(f"requests调用Gemini API成功: 模型={model}, 响应长度={len(text)}")
+                text = _extract_text_from_gemini_json(result)
+                logging.info(
+                    "Requests Gemini API call succeeded: model=%s response_length=%s",
+                    model,
+                    len(text),
+                )
                 return {
                     "success": True,
                     "text": text,
@@ -1358,6 +1561,217 @@ def chat_with_gemini(messages: list[dict[str, str]], api_key: str | None = None)
     return result
 
 
+def build_gemini_chat_prompt(messages: list[dict[str, str]]) -> str:
+    """将聊天消息转换为 Gemini 可用的 prompt。"""
+    full_messages = [{"role": "system", "content": AI_SYSTEM_PROMPT}] + messages
+    prompt = ""
+
+    for msg in full_messages:
+        role = msg["role"]
+        content = msg["content"]
+        if role == "system":
+            prompt += f"系统指令：{content}\n\n"
+        elif role == "user":
+            prompt += f"用户：{content}\n\n"
+        elif role == "assistant":
+            prompt += f"助手：{content}\n\n"
+
+    return prompt + "助手："
+
+
+def _extract_manus_documents(payload: Any) -> list[dict[str, str]]:
+    """Extract downloadable document links from Manus task payload."""
+    url_keys = {
+        "url",
+        "download_url",
+        "downloadUrl",
+        "file_url",
+        "fileUrl",
+        "signed_url",
+        "signedUrl",
+        "public_url",
+        "publicUrl",
+        "remote_url",
+        "remoteUrl",
+        "web_url",
+        "webUrl",
+        "link",
+        "href",
+    }
+    name_keys = {"name", "filename", "file_name", "fileName", "title", "document_name", "documentName"}
+    container_keys = {
+        "documents",
+        "files",
+        "artifacts",
+        "attachments",
+        "resources",
+        "outputs",
+        "result",
+        "data",
+    }
+    document_type_keys = {"type", "content_type", "mime_type"}
+
+    documents: list[dict[str, str]] = []
+    seen_urls: set[str] = set()
+
+    def normalize_url(value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            return ""
+        if trimmed.startswith("//"):
+            return f"https:{trimmed}"
+        if trimmed.startswith("/"):
+            return f"https://api.manus.ai{trimmed}"
+        return trimmed
+
+    def is_http_url(value: str) -> bool:
+        try:
+            parsed = urlparse(value)
+            return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+        except Exception:
+            return False
+
+    def extract_document_urls_from_text(text: str) -> list[str]:
+        if not text:
+            return []
+        url_pattern = re.compile(r"https?://[^\s<>\"]+")
+        markdown_pattern = re.compile(r"\[[^\]]+\]\((https?://[^)\s]+)\)")
+        candidates: list[str] = []
+        candidates.extend(markdown_pattern.findall(text))
+        candidates.extend(url_pattern.findall(text))
+        doc_exts = (".pdf", ".doc", ".docx", ".ppt", ".pptx", ".xlsx", ".csv", ".txt", ".md", ".zip")
+        result: list[str] = []
+        for url in candidates:
+            normalized = normalize_url(url).rstrip(".,;:!?)\"'")
+            lowered = normalized.lower()
+            if any(lowered.endswith(ext) or f"{ext}?" in lowered for ext in doc_exts):
+                result.append(normalized)
+        return result
+
+    def to_document(entry: dict[str, Any], source: str) -> dict[str, str] | None:
+        url_value: str | None = None
+        for key in url_keys:
+            candidate = entry.get(key)
+            if isinstance(candidate, str):
+                normalized_candidate = normalize_url(candidate)
+                if is_http_url(normalized_candidate):
+                    url_value = normalized_candidate
+                    break
+
+        if not url_value:
+            for key in ("path", "file_path", "download_path"):
+                candidate = entry.get(key)
+                if isinstance(candidate, str):
+                    normalized_candidate = normalize_url(candidate)
+                    if is_http_url(normalized_candidate):
+                        url_value = normalized_candidate
+                        break
+
+        if not url_value:
+            text_candidates: list[str] = []
+            for key in ("text", "message", "description", "content", "raw"):
+                value = entry.get(key)
+                if isinstance(value, str) and value.strip():
+                    text_candidates.extend(extract_document_urls_from_text(value))
+            if text_candidates:
+                url_value = text_candidates[0]
+
+        if url_value:
+            url_value = normalize_url(url_value)
+
+        if not url_value or not is_http_url(url_value) or url_value in seen_urls:
+            return None
+
+        lowered_url = url_value.lower()
+        parsed_url = urlparse(url_value)
+        file_ext = parsed_url.path.rsplit(".", 1)[-1].lower() if "." in parsed_url.path else ""
+        has_name_signal = any(
+            isinstance(entry.get(key), str) and entry.get(key, "").strip() for key in name_keys
+        )
+        has_type_signal = entry.get("type") in {"output_file", "file", "document", "artifact"}
+        has_source_signal = source in container_keys
+        has_file_ext_signal = file_ext in {
+            "pdf",
+            "doc",
+            "docx",
+            "ppt",
+            "pptx",
+            "xlsx",
+            "csv",
+            "md",
+            "txt",
+            "zip",
+        }
+        has_keyword_signal = any(
+            keyword in lowered_url for keyword in ("download", "file", "artifact", "document", "report")
+        )
+        if not (
+            has_name_signal
+            or has_type_signal
+            or has_source_signal
+            or has_file_ext_signal
+            or has_keyword_signal
+        ):
+            return None
+
+        name_value = ""
+        for key in name_keys:
+            candidate = entry.get(key)
+            if isinstance(candidate, str) and candidate.strip():
+                name_value = candidate.strip()
+                break
+
+        if not name_value:
+            parsed = urlparse(url_value)
+            name_value = parsed.path.rsplit("/", 1)[-1] or "下载文档"
+
+        doc_type = ""
+        for key in document_type_keys:
+            candidate = entry.get(key)
+            if isinstance(candidate, str) and candidate.strip():
+                doc_type = candidate.strip()
+                break
+
+        seen_urls.add(url_value)
+        result = {"name": name_value, "url": url_value, "source": source}
+        if doc_type:
+            result["type"] = doc_type
+        return result
+
+    def walk(node: Any, source: str = "manus_output") -> None:
+        if isinstance(node, dict):
+            if node.get("type") in {"output_file", "file", "document", "artifact"}:
+                doc = to_document(node, source)
+                if doc:
+                    documents.append(doc)
+
+            if any(key in node for key in url_keys):
+                doc = to_document(node, source)
+                if doc:
+                    documents.append(doc)
+
+            for key, value in node.items():
+                next_source = key if key in container_keys else source
+                walk(value, next_source)
+            return
+
+        if isinstance(node, list):
+            for item in node:
+                walk(item, source)
+            return
+
+        if isinstance(node, str):
+            text_urls = extract_document_urls_from_text(node)
+            for idx, text_url in enumerate(text_urls):
+                if text_url in seen_urls:
+                    continue
+                seen_urls.add(text_url)
+                documents.append({"name": f"文档 {len(documents) + 1 + idx}", "url": text_url, "source": source})
+
+    walk(payload)
+    return documents
+
+
 def chat_with_manus(
     prompt: str,
     api_key: str | None = None,
@@ -1393,6 +1807,7 @@ def chat_with_manus(
             "error_type": "config_error",
             "model_used": "",
             "steps": [],
+            "documents": [],
         }
 
     # 根据生成文献综述选项构建最终prompt（仅当提示词未构建时）
@@ -1403,14 +1818,17 @@ def chat_with_manus(
             generate_literature_review=generate_literature_review,
             use_cache=True,  # 启用缓存提高性能
         )
-        logging.info(f"使用提示词模板系统构建文献调研提示词: generate_literature_review={generate_literature_review}")
-        logging.info(f"提示词模板构建完成，长度: {len(final_prompt)} 字符")
+        logging.info(
+            "Built literature research prompt with template system: generate_literature_review=%s",
+            generate_literature_review,
+        )
+        logging.info("Literature research prompt build completed: length=%s chars", len(final_prompt))
 
         prompt = final_prompt
     else:
-        logging.info("提示词已构建，跳过构建步骤")
-    logging.info(f"开始Manus API对话，prompt长度: {len(prompt)} 字符")
-    logging.info(f"prompt预览: {repr(prompt[:100])}...")
+        logging.info("Prompt already built; skipping prompt construction")
+    logging.info("Starting Manus API chat: prompt_length=%s chars", len(prompt))
+    logging.info("Prompt preview: %r...", prompt[:100])
 
     # 记录开始时间用于计算总处理时间
     start_time = time.time()
@@ -1428,28 +1846,30 @@ def chat_with_manus(
         # 设置超时（对话可能需要较长时间，匹配Render的1800秒超时）
         timeout = 1200  # 20分钟超时，匹配Gunicorn的1800秒超时
         logging.info(
-            f"Manus API超时设置: POST请求超时={timeout}秒, 最大轮询次数=200次(10分钟), 轮询超时=300秒, pending状态超时=1200秒"
+            "Manus timeout config: post_timeout=%ss max_poll_attempts=200 poll_timeout=300s pending_timeout=1200s",
+            timeout,
         )
-        response = requests.post(url, json=data, headers=headers, timeout=timeout)
+        response = _request_direct("POST", url, json=data, headers=headers, timeout=timeout)
         response.raise_for_status()
 
         task_data = response.json()
-        logging.info(f"Manus API响应状态码: {response.status_code}")
-        logging.info(f"任务创建成功: {task_data.get('task_id', 'unknown')}")
+        logging.info("Manus API response status: %s", response.status_code)
+        logging.info("Manus task created successfully: %s", task_data.get("task_id", "unknown"))
 
         # 调用进度回调（任务创建成功）
         if progress_callback:
-            progress_callback(5, "任务已创建，正在等待Manus API处理", {"task_id": task_data.get("task_id")})
+            progress_callback(5, "Task created; waiting for Manus processing", {"task_id": task_data.get("task_id")})
 
         task_id = task_data.get("task_id")
         if not task_id:
-            error_msg = "Manus API响应中没有task_id字段"
+            error_msg = "Manus API response did not include task_id"
             logging.error(f"{error_msg}: {repr(task_data)}")
             return {
                 "success": False,
                 "text": "",
                 "error": error_msg,
                 "error_type": "api_error",
+                "documents": [],
             }
 
         # 轮询任务状态直到完成
@@ -1457,31 +1877,45 @@ def chat_with_manus(
         task_url = task_data.get("task_url")
         if task_url:
             task_status_url = task_url
-            logging.info(f"使用API返回的任务URL: {task_url}")
+            logging.info("Using task URL from API response: %s", task_url)
         else:
             task_status_url = f"https://api.manus.ai/v1/tasks/{task_id}"
-            logging.info(f"使用构建的任务状态URL: {task_status_url}")
+            logging.info("Using constructed task status URL: %s", task_status_url)
         max_poll_attempts = 200  # 最多尝试200次（10分钟，每3秒一次），避免Render负载均衡器超时
         poll_interval = 3  # 每3秒轮询一次，保持连接活跃
 
         # 存储收集到的assistant文本和步骤信息
         all_assistant_texts = []
         all_steps = []  # 存储所有收集到的步骤信息
+        all_documents: list[dict[str, str]] = []
+        initial_documents = _extract_manus_documents(task_data)
+        if initial_documents:
+            all_documents.extend(initial_documents)
+            logging.info("Captured %s document links from task creation response", len(initial_documents))
         last_status = None
         pending_with_content_start_time = None  # 跟踪待处理状态但有内容的开始时间
 
         # 调用进度回调（开始轮询）
         if progress_callback:
-            progress_callback(10, "开始轮询任务状态", {"max_poll_attempts": max_poll_attempts, "poll_interval": poll_interval})
+            progress_callback(10, "Starting task status polling", {"max_poll_attempts": max_poll_attempts, "poll_interval": poll_interval})
 
         for attempt in range(max_poll_attempts):
-            logging.info(f"轮询任务状态，尝试 {attempt + 1}/{max_poll_attempts}，任务ID: {task_id}")
+            logging.info(
+                "Polling task status: attempt %s/%s task_id=%s",
+                attempt + 1,
+                max_poll_attempts,
+                task_id,
+            )
 
             # 更新轮询进度 (10% - 90%)
             if progress_callback:
                 # 从10%开始，逐步增加到90%
                 progress_percentage = 10 + int((attempt / max_poll_attempts) * 80)
-                progress_callback(progress_percentage, f"轮询任务状态 ({attempt + 1}/{max_poll_attempts})", {"attempt": attempt + 1, "total_attempts": max_poll_attempts})
+                progress_callback(
+                    progress_percentage,
+                    f"Polling task status ({attempt + 1}/{max_poll_attempts})",
+                    {"attempt": attempt + 1, "total_attempts": max_poll_attempts},
+                )
 
             try:
                 # 尝试可能的URL获取任务状态
@@ -1504,26 +1938,44 @@ def chat_with_manus(
                             # 增加状态查询超时时间，从60秒增加到120秒，避免网络波动导致的假性超时
                             # 最后一次重试使用更长的超时时间
                             current_timeout = 180 if retry == max_retries - 1 else 120
-                            status_response = requests.get(url, headers=headers, timeout=current_timeout)
+                            status_response = _request_direct(
+                                "GET", url, headers=headers, timeout=current_timeout
+                            )
                             if status_response.status_code == 200:
                                 # 成功获取
                                 status_data = status_response.json()
-                                logging.info(f"使用URL获取任务状态成功: {url} (重试{retry})")
+                                logging.info("Fetched task status successfully: url=%s retry=%s", url, retry)
                                 break
                             else:
-                                logging.info(f"URL返回状态码 {status_response.status_code}: {url} (重试{retry})")
+                                logging.info(
+                                    "Task status URL returned status %s: %s (retry=%s)",
+                                    status_response.status_code,
+                                    url,
+                                    retry,
+                                )
                                 if retry < max_retries - 1:
                                     time.sleep(2)  # 重试前等待2秒
                                 continue
                         except requests.exceptions.Timeout as e:
                             last_exception = e
-                            logging.warning(f"URL请求超时 {type(e).__name__}: {url} (重试{retry}, 超时{current_timeout}秒)")
+                            logging.warning(
+                                "Task status URL timeout %s: %s (retry=%s timeout=%ss)",
+                                type(e).__name__,
+                                url,
+                                retry,
+                                current_timeout,
+                            )
                             if retry < max_retries - 1:
                                 time.sleep(2)  # 重试前等待2秒
                             continue
                         except requests.exceptions.RequestException as e:
                             last_exception = e
-                            logging.info(f"URL请求异常 {type(e).__name__}: {url} (重试{retry})")
+                            logging.info(
+                                "Task status URL request exception %s: %s (retry=%s)",
+                                type(e).__name__,
+                                url,
+                                retry,
+                            )
                             if retry < max_retries - 1:
                                 time.sleep(2)  # 重试前等待2秒
                             continue
@@ -1534,17 +1986,24 @@ def chat_with_manus(
                     if last_exception:
                         raise last_exception
                     else:
-                        raise requests.exceptions.HTTPError("无法获取任务状态，所有URL尝试失败")
+                        raise requests.exceptions.HTTPError("Unable to fetch task status; all URL attempts failed")
 
                 status = status_data.get("status", "unknown")
-                logging.info(f"任务状态: {status}")
+                current_documents = _extract_manus_documents(status_data)
+                if current_documents:
+                    existing_urls = {doc["url"] for doc in all_documents}
+                    for doc in current_documents:
+                        if doc["url"] not in existing_urls:
+                            all_documents.append(doc)
+                            existing_urls.add(doc["url"])
+                logging.info("Manus task status: %s", status)
 
                 # 如果状态发生变化，重置计时器
                 if status != last_status:
                     # 当状态从pending/running/processing变为其他状态时，重置pending计时器
                     if last_status in ["pending", "running", "processing"] and status not in ["pending", "running", "processing"]:
                         pending_with_content_start_time = None
-                        logging.info(f"状态从{last_status}变为{status}，重置pending计时器")
+                        logging.info("Task status changed from %s to %s; resetting pending timer", last_status, status)
                     last_status = status
 
                 # 收集所有assistant消息的文本和步骤信息
@@ -1570,7 +2029,7 @@ def chat_with_manus(
                                     content_type in ["step", "query", "action", "operation"]):
                                     if cleaned_text not in current_steps:
                                         current_steps.append(cleaned_text)
-                                        logging.info(f"识别到Manus步骤: {cleaned_text[:100]}...")
+                                        logging.info("Detected Manus step: %s...", cleaned_text[:100])
 
                 # 更新所有收集到的文本（去重）
                 for text in assistant_texts:
@@ -1586,38 +2045,46 @@ def chat_with_manus(
                 if status in ["completed", "succeeded", "finished"]:
                     result_text = "\n\n".join(all_assistant_texts)
                     if not result_text:
-                        result_text = "对话已完成，但没有生成具体的回复内容。"
+                        result_text = "The task completed but did not return a reply body."
 
                     # 应用clean_markdown清理文本，确保与普通对话格式一致
                     # 注释掉clean_markdown，因为Manus API已返回纯文本，清理可能导致格式问题
                     # result_text = clean_markdown(result_text)
 
-                    logging.info(f"Manus API对话成功，文本长度: {len(result_text)} 字符")
+                    logging.info("Manus API chat succeeded: text_length=%s chars", len(result_text))
                     # 记录响应体字节大小（UTF-8编码）
                     byte_size = len(result_text.encode('utf-8'))
-                    logging.info(f"Manus API响应体字节大小: {byte_size} 字节 ({byte_size/1024:.2f} KB)")
+                    logging.info("Manus API response byte size: %s bytes (%.2f KB)", byte_size, byte_size / 1024)
                     # 调试：记录前200个字符
                     if result_text:
                         preview = result_text[:200].replace('\n', ' ')
-                        logging.info(f"Manus API返回文本预览: {preview}")
+                        logging.info("Manus API text preview: %s", preview)
 
                     # 计算总处理时间
                     total_time = time.time() - start_time
-                    logging.info(f"Manus API总处理时间: {total_time:.2f}秒, 轮询次数: {attempt + 1}次")
+                    logging.info("Manus API total processing time: %.2fs polls=%s", total_time, attempt + 1)
 
                     # 处理结果文本：转换URL为可点击链接，规范化段落间距
                     if result_text:
                         # 转换URL为Markdown链接格式
                         result_text = convert_urls_to_markdown(result_text)
-                        logging.info(f"URL转换后文本长度: {len(result_text)} 字符")
+                        logging.info("Text length after URL conversion: %s chars", len(result_text))
 
                         # 规范化段落间距，确保不超过一个空行
                         result_text = normalize_paragraph_spacing(result_text, max_empty_lines=1)
-                        logging.info(f"段落规范化后文本长度: {len(result_text)} 字符")
+                        logging.info("Text length after paragraph normalization: %s chars", len(result_text))
+
+                    if not all_documents:
+                        logging.warning(
+                            "Manus task completed without document links: task_id=%s, status_keys=%s",
+                            task_id,
+                            list(status_data.keys()) if isinstance(status_data, dict) else [],
+                        )
 
                     return {
                         "success": True,
                         "text": result_text,
+                        "documents": all_documents,
                         "steps": all_steps,  # 返回收集到的步骤信息
                         "error": "",
                         "error_type": "",
@@ -1629,10 +2096,14 @@ def chat_with_manus(
                 # 移除pending状态超时返回逻辑，让Manus有足够时间完成复杂调研
                 if status in ["pending", "running", "processing"]:
                     # 简单记录状态，不设置超时返回
-                    logging.info(f"任务状态为{status}，继续等待完成...")
+                    logging.info("Task status is %s; waiting for completion", status)
                     # 如果有内容，记录进度但不返回
                     if assistant_texts:
-                        logging.info(f"任务状态{status}下已收集到{len(assistant_texts)}条新内容")
+                        logging.info(
+                            "Collected %s new content blocks while task status=%s",
+                            len(assistant_texts),
+                            status,
+                        )
                     # 重置pending计时器（因为不再使用超时返回逻辑）
                     pending_with_content_start_time = None
 
@@ -1642,47 +2113,274 @@ def chat_with_manus(
             except requests.exceptions.Timeout as e:
                 # 状态查询超时异常，这通常是网络问题或API响应慢
                 # 不立即返回内容，而是继续轮询，除非达到重试次数限制
-                logging.warning(f"状态查询超时: {str(e)}，继续轮询")
+                logging.warning("Task status query timed out: %s; continuing to poll", str(e))
                 # 记录超时但继续尝试
                 time.sleep(poll_interval)
                 continue
             except Exception as e:
-                logging.error(f"轮询任务状态异常: {type(e).__name__}: {str(e)}", exc_info=True)
+                logging.error("Task status polling exception %s: %s", type(e).__name__, str(e), exc_info=True)
                 # 根据用户要求：即使发生异常，如果任务未完成，也不返回内容
                 # 记录异常但继续轮询，让系统有更多机会完成任务
-                logging.warning(f"轮询异常，但任务未完成，继续尝试轮询...")
+                logging.warning("Polling exception occurred before completion; continuing to poll...")
                 # 继续轮询，不返回任何内容
                 time.sleep(poll_interval)
                 continue
 
         # 如果达到最大轮询次数
-        timeout_msg = f"任务轮询超时（{max_poll_attempts}次尝试，{max_poll_attempts * poll_interval}秒），任务仍未完成"
+        timeout_msg = (
+            f"Task polling timed out after {max_poll_attempts} attempts "
+            f"({max_poll_attempts * poll_interval} seconds); task did not complete"
+        )
         logging.error(timeout_msg)
         # 计算总处理时间
         total_time = time.time() - start_time
-        logging.error(f"Manus API超时，总处理时间: {total_time:.2f}秒, 轮询次数: {max_poll_attempts}次")
+        logging.error("Manus API timed out: total_time=%.2fs polls=%s", total_time, max_poll_attempts)
         # 根据用户要求：即使有部分内容，如果任务未完成，也不返回内容
         # 始终返回错误，表示任务未能在预期时间内完成
         return {
             "success": False,
             "text": "",
             "steps": all_steps,  # 返回已收集到的步骤信息供调试
+            "documents": all_documents,
             "error": timeout_msg,
             "error_type": "timeout",
             "model_used": "manus-1.6",
         }
 
     except Exception as e:
-        error_msg = f"Manus API对话异常: {type(e).__name__}: {str(e)}"
+        error_msg = f"Manus API chat exception: {type(e).__name__}: {str(e)}"
         logging.error(error_msg, exc_info=True)
         # 计算总处理时间
         total_time = time.time() - start_time
-        logging.error(f"Manus API异常，总处理时间: {total_time:.2f}秒")
+        logging.error("Manus API exception total_time=%.2fs", total_time)
         return {
             "success": False,
             "text": "",
             "steps": [],  # 异常时没有收集到步骤
+            "documents": [],
             "error": error_msg,
             "error_type": "unknown",
             "model_used": "",
+        }
+
+
+def chat_with_manus_stream(
+    prompt: str,
+    api_key: str | None = None,
+    generate_literature_review: bool = False,
+    prompt_already_built: bool = False,
+) -> Generator[dict[str, Any], None, None]:
+    """以增量事件形式返回 Manus 调研进度与文本。"""
+    from config import settings
+
+    if api_key is None:
+        api_key = settings.MANUS_API_KEY
+
+    if not api_key:
+        yield {
+            "type": "error",
+            "error": "MANUS_API_KEY is not configured",
+            "model_used": "manus-1.6",
+        }
+        return
+
+    if not prompt_already_built:
+        prompt = build_literature_research_prompt(
+            prompt=prompt,
+            generate_literature_review=generate_literature_review,
+            use_cache=True,
+        )
+
+    logging.info("Starting Manus streaming chat: prompt_length=%s", len(prompt))
+    start_time = time.time()
+    url = "https://api.manus.ai/v1/tasks"
+    headers = {
+        "accept": "application/json",
+        "content-type": "application/json",
+        "API_KEY": api_key,
+    }
+    data = {"prompt": prompt, "model": "manus-1.6"}
+
+    try:
+        response = _request_direct("POST", url, json=data, headers=headers, timeout=1200)
+        response.raise_for_status()
+
+        task_data = response.json()
+        task_id = task_data.get("task_id")
+        if not task_id:
+            yield {
+                "type": "error",
+                "error": "Manus API响应中没有task_id字段",
+                "model_used": "manus-1.6",
+            }
+            return
+
+        yield {
+            "type": "step",
+            "step": "任务已创建，正在等待 Manus 开始处理",
+            "model_used": "manus-1.6",
+        }
+
+        task_url = task_data.get("task_url")
+        max_poll_attempts = 200
+        poll_interval = 3
+        all_assistant_texts: list[str] = []
+        all_steps: list[str] = []
+        all_documents: list[dict[str, str]] = []
+        initial_documents = _extract_manus_documents(task_data)
+        if initial_documents:
+            all_documents.extend(initial_documents)
+
+        last_status = None
+        last_emitted_text = ""
+
+        for attempt in range(max_poll_attempts):
+            possible_urls = []
+            if task_url:
+                possible_urls.append(task_url)
+            possible_urls.append(f"https://api.manus.ai/v1/tasks/{task_id}")
+            possible_urls.append(f"https://api.manus.ai/v1/task/{task_id}")
+            possible_urls.append(f"https://api.manus.ai/v1/tasks/{task_id}/output")
+            possible_urls.append(f"https://api.manus.ai/v1/tasks/{task_id}/result")
+
+            status_data = None
+            last_exception = None
+
+            for candidate_url in possible_urls:
+                for retry in range(3):
+                    try:
+                        current_timeout = 180 if retry == 2 else 120
+                        status_response = _request_direct(
+                            "GET", candidate_url, headers=headers, timeout=current_timeout
+                        )
+                        if status_response.status_code == 200:
+                            status_data = status_response.json()
+                            break
+                        if retry < 2:
+                            time.sleep(2)
+                    except requests.exceptions.RequestException as exc:
+                        last_exception = exc
+                        if retry < 2:
+                            time.sleep(2)
+                if status_data is not None:
+                    break
+
+            if status_data is None:
+                if last_exception:
+                    raise last_exception
+                raise requests.exceptions.HTTPError("无法获取任务状态，所有URL尝试失败")
+
+            status = status_data.get("status", "unknown")
+            if status != last_status:
+                yield {
+                    "type": "step",
+                    "step": f"当前状态：{status}",
+                    "steps": list(all_steps),
+                    "model_used": "manus-1.6",
+                }
+                last_status = status
+
+            current_documents = _extract_manus_documents(status_data)
+            if current_documents:
+                existing_urls = {doc["url"] for doc in all_documents}
+                for doc in current_documents:
+                    if doc["url"] not in existing_urls:
+                        all_documents.append(doc)
+                        existing_urls.add(doc["url"])
+
+            assistant_texts: list[str] = []
+            current_steps: list[str] = []
+            output = status_data.get("output", [])
+            for item in output:
+                if item.get("role") != "assistant" or not item.get("content"):
+                    continue
+
+                for content_item in item.get("content", []):
+                    content_type = content_item.get("type")
+                    text = content_item.get("text")
+                    if not text or not text.strip():
+                        continue
+
+                    cleaned_text = text.strip()
+                    if content_type == "output_text":
+                        assistant_texts.append(cleaned_text)
+
+                    if (
+                        "搜索" in cleaned_text
+                        or "访问" in cleaned_text
+                        or "保存" in cleaned_text
+                        or content_type in ["step", "query", "action", "operation"]
+                    ) and cleaned_text not in current_steps:
+                        current_steps.append(cleaned_text)
+
+            for text in assistant_texts:
+                if text not in all_assistant_texts:
+                    all_assistant_texts.append(text)
+
+            for step in current_steps:
+                if step not in all_steps:
+                    all_steps.append(step)
+                    yield {
+                        "type": "step",
+                        "step": step,
+                        "steps": list(all_steps),
+                        "model_used": "manus-1.6",
+                    }
+
+            combined_text = "\n\n".join(all_assistant_texts)
+            if combined_text:
+                combined_text = convert_urls_to_markdown(combined_text)
+                combined_text = normalize_paragraph_spacing(combined_text, max_empty_lines=1)
+                if combined_text != last_emitted_text:
+                    yield {
+                        "type": "replace",
+                        "text": combined_text,
+                        "full_text": combined_text,
+                        "steps": list(all_steps),
+                        "documents": list(all_documents),
+                        "model_used": "manus-1.6",
+                    }
+                    last_emitted_text = combined_text
+
+            if status in ["completed", "succeeded", "finished"]:
+                final_text = combined_text or "对话已完成，但没有生成具体的回复内容。"
+                logging.info(
+                    "Manus 流式对话完成，耗时 %.2f 秒，轮询次数 %s",
+                    time.time() - start_time,
+                    attempt + 1,
+                )
+                yield {
+                    "type": "complete",
+                    "text": final_text,
+                    "full_text": final_text,
+                    "steps": list(all_steps),
+                    "documents": list(all_documents),
+                    "model_used": "manus-1.6",
+                }
+                return
+
+            if status in ["pending", "running", "processing"]:
+                time.sleep(poll_interval)
+                continue
+
+            time.sleep(poll_interval)
+
+        yield {
+            "type": "error",
+            "error": f"任务轮询超时（{max_poll_attempts}次尝试，{max_poll_attempts * poll_interval}秒），任务仍未完成",
+            "steps": list(all_steps),
+            "documents": list(all_documents),
+            "model_used": "manus-1.6",
+        }
+    except Exception as exc:
+        logging.error(
+            "Manus streaming chat exception %s: %s",
+            type(exc).__name__,
+            str(exc),
+            exc_info=True,
+        )
+        yield {
+            "type": "error",
+            "error": f"Manus API对话异常: {type(exc).__name__}: {str(exc)}",
+            "model_used": "manus-1.6",
         }

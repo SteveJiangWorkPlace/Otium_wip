@@ -5,8 +5,7 @@ import { useCorrectionStore } from '../store/useCorrectionStore';
 import { useGlobalProgressStore } from '../store/useGlobalProgressStore';
 import { useAIChatStore } from '../store/useAIChatStore';
 import { apiClient } from '../api/client';
-import { debugLog } from '../utils/logger';
-import { cleanTextFromMarkdown, renderMarkdownAsHtml } from '../utils/textCleaner';
+import { cleanTextFromMarkdown } from '../utils/textCleaner';
 import Card from '../components/ui/Card/Card';
 import Textarea from '../components/ui/Textarea/Textarea';
 import Button from '../components/ui/Button/Button';
@@ -14,10 +13,37 @@ import GlobalProgressBar from '../components/GlobalProgressBar/GlobalProgressBar
 import AIChatPanel from '../components/AIChatPanel/AIChatPanel';
 import styles from './TextCorrection.module.css';
 
+const INPUT_TITLE = '\u8f93\u5165\u4e2d\u6587\u6587\u672c';
+const INPUT_PLACEHOLDER = '\u8bf7\u8f93\u5165\u4e2d\u6587\u6587\u672c...';
+const START_BUTTON_LABEL = '\u667a\u80fd\u7ea0\u9519';
+const CLEAR_LABEL = '\u6e05\u7a7a\u5168\u6587';
+const COPY_FULL_TEXT_LABEL = '\u590d\u5236\u5168\u6587';
+const RESULT_TITLE = '\u7ea0\u9519\u7ed3\u679c';
+const COPY_RESULT_LABEL = '\u590d\u5236\u7ed3\u679c';
+const SHOW_AI_TITLE = '\u663e\u793a Otium \u52a9\u624b';
+const HIDE_AI_TITLE = '\u9690\u85cf Otium \u52a9\u624b';
+const INPUT_EMPTY_ALERT = '\u8bf7\u5148\u8f93\u5165\u6587\u672c\u3002';
+const COMPLETE_TEXT = '\u667a\u80fd\u7ea0\u9519\u5df2\u5b8c\u6210\u3002';
+const EMPTY_RESULT_TEXT = '\u7ea0\u9519\u672a\u8fd4\u56de\u53ef\u663e\u793a\u5185\u5bb9\u3002';
+const ERROR_DEFAULT_TEXT = '\u5904\u7406\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002';
+const COPY_INPUT_SUCCESS = '\u8f93\u5165\u6587\u672c\u5df2\u590d\u5236\u3002';
+const COPY_RESULT_SUCCESS = '\u7ed3\u679c\u5df2\u590d\u5236\u3002';
+const COPY_FAILED = '\u590d\u5236\u5931\u8d25\u3002';
+const REFRESH_USER_FAILED = '\u5237\u65b0\u7528\u6237\u4fe1\u606f\u5931\u8d25:';
+
+const CORRECTION_LOADING_MESSAGES = [
+  '\u6b63\u5728\u68c0\u67e5\u7c97\u5fc3\u7a0b\u5ea6\uff08\u63a8\u773c\u955c\uff09',
+  '\u6b63\u5728\u9010\u53e5\u68c0\u67e5\u7ec6\u8282',
+  '\u6b63\u5728\u6293\u6355\u53ef\u7591\u9519\u5b57',
+  '\u6b63\u5728\u6821\u51c6\u6587\u672c\u4e25\u8c28\u5ea6',
+] as const;
+
+const getCorrectionLoadingMessage = () =>
+  CORRECTION_LOADING_MESSAGES[Math.floor(Math.random() * CORRECTION_LOADING_MESSAGES.length)];
+
 const TextCorrection: React.FC = () => {
   const navigate = useNavigate();
   const { userInfo, updateUserInfo } = useAuthStore();
-
   const {
     inputText,
     loading,
@@ -30,25 +56,19 @@ const TextCorrection: React.FC = () => {
     setEditableText,
     clear,
   } = useCorrectionStore();
-
   const { showProgress, hideProgress, updateProgress } = useGlobalProgressStore();
-
-  // AI聊天状态
   const { conversations, toggleExpanded, setCurrentPage } = useAIChatStore();
 
+  const [successNotification, setSuccessNotification] = useState<string | null>(null);
+  const [loadingMessage, setLoadingMessage] = useState<string>('');
   const containerRef = useRef<HTMLDivElement>(null);
+  const notificationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pageKey = 'global';
 
-  // 成功通知状态
-  const [successNotification, setSuccessNotification] = useState<string | null>(null);
-  const notificationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // 初始化当前页面
   useEffect(() => {
     setCurrentPage(pageKey);
   }, [setCurrentPage]);
 
-  // 清理通知定时器
   useEffect(() => {
     return () => {
       if (notificationTimerRef.current) {
@@ -63,15 +83,12 @@ const TextCorrection: React.FC = () => {
     }
   }, [userInfo, navigate]);
 
-  // 显示成功通知
   const showNotification = (message: string) => {
-    // 清除之前的定时器
     if (notificationTimerRef.current) {
       clearTimeout(notificationTimerRef.current);
     }
-    // 设置通知
+
     setSuccessNotification(message);
-    // 2秒后自动清除通知
     notificationTimerRef.current = setTimeout(() => {
       setSuccessNotification(null);
     }, 2000);
@@ -79,106 +96,110 @@ const TextCorrection: React.FC = () => {
 
   const handleErrorCheck = async () => {
     if (!inputText.trim()) {
-      alert('请先输入文本');
+      alert(INPUT_EMPTY_ALERT);
       return;
     }
 
-    // 显示全局进度
-    showProgress('智能纠错运行中，请稍后', 'correction');
-
+    const nextLoadingMessage = getCorrectionLoadingMessage();
+    setLoadingMessage(nextLoadingMessage);
+    showProgress(nextLoadingMessage, 'correction');
     setLoading(true);
     setLoadingStep('error_checking');
+    setResultText(nextLoadingMessage);
+    setEditableText(nextLoadingMessage);
     try {
       const response = await apiClient.checkText({
         text: inputText,
         operation: 'error_check',
       });
 
-      if (response.success) {
-        setResultText(response.text);
-        setEditableText(response.text);
-        // 更新进度消息
-        updateProgress('智能纠错完成');
-        // 2秒后隐藏进度（全局状态栏会显示完成状态）
-        setTimeout(() => {
-          hideProgress();
-        }, 2000);
+      if (!response.success || !response.text) {
+        throw new Error(response.message || EMPTY_RESULT_TEXT);
+      }
 
-        // 处理成功后，获取最新的用户信息以更新剩余次数（如果API扣除了次数）
-        try {
-          const updatedUserInfo = await apiClient.getCurrentUser();
-          updateUserInfo(updatedUserInfo);
-          debugLog('用户信息已更新');
-        } catch (error) {
-          console.warn('获取更新后的用户信息失败:', error);
-          // 不再需要处理剩余次数，现在只使用每日限制
-        }
+      setResultText(response.text);
+      setEditableText(response.text);
+
+      updateProgress(COMPLETE_TEXT);
+
+      try {
+        const updatedUserInfo = await apiClient.getCurrentUser();
+        updateUserInfo(updatedUserInfo);
+      } catch (error) {
+        console.warn(REFRESH_USER_FAILED, error);
       }
     } catch (error) {
-      let errorMessage = '处理失败，请稍后重试';
+      let errorMessage = ERROR_DEFAULT_TEXT;
       if (error instanceof Error) {
         errorMessage = error.message;
-      } else if (error && typeof error === 'object' && 'response' in error) {
-        const axiosError = error as any;
-        errorMessage = axiosError.response?.data?.detail || errorMessage;
       }
-      updateProgress(`智能纠错失败: ${errorMessage}`);
-      // 2秒后隐藏进度
-      setTimeout(() => {
-        hideProgress();
-      }, 2000);
+
+      setResultText('');
+      setEditableText('');
+      setLoadingMessage('');
+      updateProgress(`\u667a\u80fd\u7ea0\u9519\u5931\u8d25: ${errorMessage}`);
       alert(errorMessage);
     } finally {
       setLoading(false);
       setLoadingStep(null);
+      setTimeout(() => {
+        hideProgress();
+      }, 1200);
     }
   };
 
   const handleClear = () => {
+    setLoadingMessage('');
     clear();
   };
 
   const handleCopyInput = () => {
-    if (inputText) {
-      try {
-        navigator.clipboard.writeText(inputText);
-        showNotification('已复制输入文本到剪贴板');
-      } catch (error) {
-        console.error('复制失败:', error);
-        showNotification('复制失败，请手动复制');
-      }
+    if (!inputText) {
+      return;
+    }
+
+    try {
+      navigator.clipboard.writeText(inputText);
+      showNotification(COPY_INPUT_SUCCESS);
+    } catch (error) {
+      console.error(COPY_FAILED, error);
+      showNotification(COPY_FAILED);
     }
   };
 
   const handleCopyResult = () => {
-    if (resultText) {
-      try {
-        // 清理markdown符号后复制
-        const cleanedText = cleanTextFromMarkdown(resultText);
-        navigator.clipboard.writeText(cleanedText);
-        showNotification('已复制到剪贴板');
-      } catch (error) {
-        console.error('复制失败:', error);
-        showNotification('复制失败，请手动复制');
-      }
+    if (!resultText) {
+      return;
+    }
+
+    try {
+      const cleanedText = cleanTextFromMarkdown(resultText);
+      navigator.clipboard.writeText(cleanedText);
+      showNotification(COPY_RESULT_SUCCESS);
+    } catch (error) {
+      console.error(COPY_FAILED, error);
+      showNotification(COPY_FAILED);
     }
   };
 
   const renderHighlightedText = (text: string) => {
-    // 先将markdown符号转换为HTML（处理粗体、斜体、换行等）
-    let highlightedText = renderMarkdownAsHtml(text);
+    const segments = text.split(/(\*\*[\s\S]*?\*\*|__[\s\S]*?__)/g).filter(Boolean);
 
-    // 将粗体标签（<strong>和<b>）转换为高亮标记，用于突出显示修改部分
-    highlightedText = highlightedText.replace(
-      /<strong>(.*?)<\/strong>/g,
-      '<mark style="background-color: var(--color-black); color: var(--color-white); padding: 2px 4px; border-radius: 4px;">$1</mark>'
-    );
-    highlightedText = highlightedText.replace(
-      /<b>(.*?)<\/b>/g,
-      '<mark style="background-color: var(--color-black); color: var(--color-white); padding: 2px 4px; border-radius: 4px;">$1</mark>'
-    );
-    // 保持<i>和<em>斜体标签不变
-    return { __html: highlightedText };
+    return segments.map((segment, index) => {
+      const isDoubleAsterisk = segment.startsWith('**') && segment.endsWith('**');
+      const isDoubleUnderscore = segment.startsWith('__') && segment.endsWith('__');
+
+      if (isDoubleAsterisk || isDoubleUnderscore) {
+        const content = segment.slice(2, -2);
+        return (
+          <mark key={index} className={styles.inlineHighlight}>
+            {content}
+          </mark>
+        );
+      }
+
+      return <React.Fragment key={index}>{segment}</React.Fragment>;
+    });
   };
 
   const conversation = conversations[pageKey] || {
@@ -186,36 +207,34 @@ const TextCorrection: React.FC = () => {
     messages: [],
     inputText: '',
     loading: false,
+    activeTaskId: null,
     sessionId: null,
     splitPosition: 60,
   };
 
   const workspaceWidth = conversation.isExpanded ? 60 : 100;
+  const aiToggleTitle = conversation.isExpanded ? HIDE_AI_TITLE : SHOW_AI_TITLE;
 
   return (
     <div className={styles.correctionContainer} ref={containerRef}>
-      {/* 成功通知 */}
       {successNotification && <div className={styles.copyNotification}>{successNotification}</div>}
       <div className={styles.pageContainer}>
-        {/* 工作区 */}
         <div className={styles.workspaceContainer} style={{ width: `${workspaceWidth}%` }}>
-          {/* 顶部状态栏：全局进度条 */}
           <div className={styles.topBarContainer}>
             <GlobalProgressBar />
           </div>
 
-          <div className={styles.workspaceHeader}>{/* 标题已移除，AI按钮已移到输入区域 */}</div>
+          <div className={styles.workspaceHeader} />
 
           <div className={styles.workspaceContent}>
             <div className={styles.content}>
-              {/* 输入区域 */}
               <Card variant="ghost" padding="medium" className={styles.inputCard}>
                 <div className={styles.inputHeader}>
-                  <h2 className={styles.cardTitle}>输入中文文本</h2>
+                  <h2 className={styles.cardTitle}>{INPUT_TITLE}</h2>
                   <div
                     className={styles.aiToggleButton}
                     onClick={() => toggleExpanded(pageKey)}
-                    title={conversation.isExpanded ? '隐藏Otium' : '显示Otium'}
+                    title={aiToggleTitle}
                   >
                     <img src="/google-gemini.svg" alt="Otium" className={styles.aiToggleIcon} />
                   </div>
@@ -225,11 +244,12 @@ const TextCorrection: React.FC = () => {
                   <Textarea
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
-                    placeholder="请输入中文文本..."
-                    rows={19}
+                    placeholder={INPUT_PLACEHOLDER}
+                    rows={25}
                     resize="vertical"
                     fullWidth
                     maxLength={1000}
+                    className={styles.inputTextarea}
                   />
                   <div className={styles.charCount}>{inputText.length} / 1000</div>
                 </div>
@@ -244,12 +264,12 @@ const TextCorrection: React.FC = () => {
                         loading={loading && loadingStep === 'error_checking'}
                         disabled={loading}
                       >
-                        智能纠错
+                        {START_BUTTON_LABEL}
                       </Button>
                     </div>
                     <div className={styles.rightButtonGroup}>
                       <Button variant="ghost" size="small" onClick={handleClear} disabled={loading}>
-                        清空全文
+                        {CLEAR_LABEL}
                       </Button>
                       <Button
                         variant="ghost"
@@ -257,33 +277,43 @@ const TextCorrection: React.FC = () => {
                         onClick={handleCopyInput}
                         disabled={loading || !inputText.trim()}
                       >
-                        复制全文
+                        {COPY_FULL_TEXT_LABEL}
                       </Button>
                     </div>
                   </div>
                 </div>
               </Card>
 
-              {/* 结果显示 */}
-              {resultText && (
+              {(loading || resultText) && (
                 <Card variant="ghost" padding="medium" className={styles.resultCard}>
                   <div className={styles.resultHeader}>
-                    <h3 className={styles.resultTitle}>纠错结果</h3>
-                    <Button variant="ghost" size="small" onClick={handleCopyResult}>
-                      复制结果
-                    </Button>
+                    <h3 className={styles.resultTitle}>{RESULT_TITLE}</h3>
+                    {!loading && resultText && (
+                      <Button variant="ghost" size="small" onClick={handleCopyResult}>
+                        {COPY_RESULT_LABEL}
+                      </Button>
+                    )}
                   </div>
-                  <div
-                    className={styles.resultText}
-                    dangerouslySetInnerHTML={renderHighlightedText(resultText)}
-                  />
+                  <div className={styles.resultText}>
+                    {loading ? (
+                      <div className={styles.loadingPlaceholder}>
+                        <span>{loadingMessage || resultText}</span>
+                        <div className={styles.waveDots}>
+                          <div className={styles.waveDot} />
+                          <div className={styles.waveDot} />
+                          <div className={styles.waveDot} />
+                        </div>
+                      </div>
+                    ) : (
+                      renderHighlightedText(resultText)
+                    )}
+                  </div>
                 </Card>
               )}
             </div>
           </div>
         </div>
 
-        {/* AI面板 */}
         {conversation.isExpanded && (
           <div className={styles.aiPanelContainer} style={{ width: '40%' }}>
             <AIChatPanel pageKey={pageKey} />

@@ -18,6 +18,7 @@ import type {
   UserInfo,
   AIChatRequest,
   AIChatResponse,
+  AIChatStreamChunk,
   StreamTranslationRequest,
   StreamTranslationChunk,
   StreamRefineTextRequest,
@@ -29,59 +30,74 @@ import type {
 } from '../types';
 import { BackgroundTaskStatus } from '../types';
 
-debugLog('API客户端模块加载 - 环境变量REACT_APP_API_BASE_URL:', process.env.REACT_APP_API_BASE_URL);
+debugLog('api client module loaded - REACT_APP_API_BASE_URL:', process.env.REACT_APP_API_BASE_URL);
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
-debugLog('API客户端 - 使用的基础URL:', API_BASE_URL);
+debugLog('api client base url:', API_BASE_URL);
 
 const axiosInstance = axios.create({
   baseURL: `${API_BASE_URL}/api`,
-  timeout: 1800000, // 增加超时时间到1800秒（30分钟），匹配后端Gunicorn timeout设置
+  timeout: 1800000, // 濠电姭鎷冮崨顓濈捕婵犳鍠氶崑鐔煎箹妤ｅ啫宸濇い鏃傜摂濡差垶姊洪崫鍕殭闁绘牜鍘ц灋闁秆勵殔缁€?800缂傚倷绀侀ˇ鎵暜椤忓棙顫?0闂備礁鎲＄敮鎺懳涘┑瀣闁瑰墽绮弲顒€顭块懜鐢点€掔紒鈧径鎰厱闁哄诞鍛ㄩ梺鍛娗滈崐婵嗙暦閵夛附鍎熼柨婵嗙凹缁辨弸unicorn timeout闂佽崵濮崇粈浣规櫠娴犲鍋?
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// 合并两个拦截器的逻辑，统一处理 token 和 API keys
+// 闂備礁鎲￠懝楣冩偋閸℃稒鍤愰柣鏂挎憸閳绘棃鏌曢崼婵嗩伃闁搞倕顑夐弻鐔煎礄閵堝顎嶉梺绯曟櫅閹虫ê鐣烽幎钘壩╃憸搴ㄦ偩闁秵鈷戞い鎰剁稻椤绱掓０婵嗕喊闁轰礁绉撮悾婵嬪焵椤掑倸鍨濋柣鎴烆焽閳绘棃鏌嶈閸撴艾顕ラ崟顖氱妞ゆ挾鍠庨埀?token 闂?API keys
+const isTokenFormatValid = (rawValue: string): boolean => {
+  const token = rawValue.trim();
+  if (!token) return false;
+
+  if (token.startsWith('admin:')) {
+    const parts = token.split(':');
+    return parts.length === 3 && parts[1].length > 0 && parts[2].length > 0;
+  }
+
+  return token.split('.').length === 3;
+};
+
+const getPreferredAuthToken = (): string | undefined => {
+  const tokenSources = [
+    { key: 'auth_token', value: localStorage.getItem('auth_token') },
+    { key: 'admin_token', value: localStorage.getItem('admin_token') },
+    { key: 'token', value: localStorage.getItem('token') },
+  ];
+  const validSource = tokenSources.find((entry) => entry.value && isTokenFormatValid(entry.value));
+  const fallbackSource = tokenSources.find((entry) => entry.value && entry.value.trim() !== '');
+  return (validSource ?? fallbackSource)?.value?.trim();
+};
+
 axiosInstance.interceptors.request.use(
   (config) => {
-    debugLog('请求拦截器执行 - 请求URL:', config.url);
-    debugLog('请求拦截器执行 - 请求方法:', config.method);
+    debugLog('request interceptor - url:', config.url);
+    debugLog('request interceptor - method:', config.method);
 
-    // 检查所有可能的 token 存储位置
-    const token =
-      localStorage.getItem('token') ||
-      localStorage.getItem('auth_token') ||
-      localStorage.getItem('admin_token');
-
+    const token = getPreferredAuthToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
 
-    // 添加 API 密钥到请求头
     try {
       const apiKeysStr = localStorage.getItem('otium_api_keys');
       debugLog(
-        '请求拦截器 - 检查用户自定义API密钥 (otium_api_keys):',
-        apiKeysStr ? '已设置' : '未设置（使用后端默认密钥）'
+        'request interceptor - custom API keys (otium_api_keys):',
+        apiKeysStr ? 'configured' : 'not configured'
       );
-
-      // 调试：列出所有localStorage项
-      debugLog('请求拦截器 - localStorage所有键:', Object.keys(localStorage));
+      debugLog('request interceptor - localStorage keys:', Object.keys(localStorage));
 
       if (apiKeysStr) {
         const apiKeys = JSON.parse(apiKeysStr);
-        debugLog('请求拦截器 - 解析后的API密钥对象:', {
+        debugLog('request interceptor - parsed API keys:', {
           hasGeminiApiKey: !!(apiKeys.geminiApiKey && apiKeys.geminiApiKey.trim()),
           hasGptzeroApiKey: !!(apiKeys.gptzeroApiKey && apiKeys.gptzeroApiKey.trim()),
           geminiLength: apiKeys.geminiApiKey ? apiKeys.geminiApiKey.length : 0,
           gptzeroLength: apiKeys.gptzeroApiKey ? apiKeys.gptzeroApiKey.length : 0,
           geminiKeyPreview: apiKeys.geminiApiKey
             ? `${apiKeys.geminiApiKey.substring(0, Math.min(5, apiKeys.geminiApiKey.length))}...`
-            : '空',
+            : 'empty',
           gptzeroKeyPreview: apiKeys.gptzeroApiKey
             ? `${apiKeys.gptzeroApiKey.substring(0, Math.min(5, apiKeys.gptzeroApiKey.length))}...`
-            : '空',
+            : 'empty',
         });
 
         if (apiKeys.geminiApiKey && apiKeys.geminiApiKey.trim() !== '') {
@@ -89,11 +105,8 @@ axiosInstance.interceptors.request.use(
             0,
             Math.min(8, apiKeys.geminiApiKey.length)
           );
-          debugLog('请求拦截器 - 设置X-Gemini-Api-Key头部，密钥前缀:', keyPrefix + '...');
+          debugLog('request interceptor - set X-Gemini-Api-Key header, prefix:', keyPrefix + '...');
           config.headers['X-Gemini-Api-Key'] = apiKeys.geminiApiKey;
-          debugLog('请求拦截器 - 已设置X-Gemini-Api-Key头部');
-        } else {
-          debugLog('请求拦截器 - geminiApiKey为空或未设置');
         }
 
         if (apiKeys.gptzeroApiKey && apiKeys.gptzeroApiKey.trim() !== '') {
@@ -101,18 +114,17 @@ axiosInstance.interceptors.request.use(
             0,
             Math.min(8, apiKeys.gptzeroApiKey.length)
           );
-          debugLog('请求拦截器 - 设置X-Gptzero-Api-Key头部，密钥前缀:', keyPrefix + '...');
+          debugLog(
+            'request interceptor - set X-Gptzero-Api-Key header, prefix:',
+            keyPrefix + '...'
+          );
           config.headers['X-Gptzero-Api-Key'] = apiKeys.gptzeroApiKey;
-          debugLog('请求拦截器 - 已设置X-Gptzero-Api-Key头部');
-        } else {
-          debugLog('请求拦截器 - gptzeroApiKey为空或未设置');
         }
       } else {
-        debugLog('请求拦截器 - 用户自定义API密钥未设置，将使用后端默认API密钥');
+        debugLog('request interceptor - using backend default API keys');
       }
 
-      // 调试：打印所有请求头
-      debugLog('请求拦截器 - 最终的请求头:', JSON.stringify(config.headers, null, 2));
+      debugLog('request interceptor - final headers:', JSON.stringify(config.headers, null, 2));
     } catch (error) {
       console.error('Failed to parse API keys from localStorage:', error);
     }
@@ -128,98 +140,91 @@ axiosInstance.interceptors.response.use(
     const { response } = error;
     const status = response?.status;
 
-    // 统一错误消息提取
     const extractErrorMessage = (): string => {
-      if (!response) return '网络错误，请检查连接';
+      if (!response) return 'Network error, please check your connection.';
 
       const data = response.data;
-
-      // 尝试从新统一错误格式提取
       if (data && typeof data === 'object') {
-        // 优先使用 message 字段（新格式）
         if (typeof data.message === 'string' && data.message) {
           return data.message;
         }
 
-        // 处理 detail 字段
         if (data.detail) {
-          // detail 是字符串（旧格式）
           if (typeof data.detail === 'string') {
             return data.detail;
           }
-          // detail 是对象（可能是新格式的字符串化）
           if (typeof data.detail === 'object') {
             const detailObj = data.detail as Record<string, any>;
             if (typeof detailObj.message === 'string' && detailObj.message) {
               return detailObj.message;
             }
-            // 如果对象没有 message 字段，尝试序列化或使用默认
             return JSON.stringify(detailObj);
           }
         }
       }
 
-      // 默认错误消息
       switch (status) {
         case 400:
-          return '请求参数错误';
+          return 'Bad request parameters';
         case 401:
-          return '未授权，请重新登录';
+          return 'Unauthorized, please log in again';
         case 403:
-          return '权限不足';
+          return 'Permission denied';
         case 404:
-          return '请求的资源不存在';
+          return 'Requested resource not found';
         case 429:
-          return '请求过于频繁，请稍后重试';
+          return 'Too many requests, please try again later';
         case 500:
-          return '服务器内部错误';
+          return 'Internal server error';
         case 502:
-          return '网关错误';
+          return 'Bad gateway';
         case 503:
-          return '服务不可用';
+          return 'Service unavailable';
         case 504:
-          return '网关超时';
+          return 'Gateway timeout';
         default:
-          return `请求失败（状态码：${status}）`;
+          return `Request failed (status ${status})`;
       }
     };
 
-    // 429 错误自动重试
+    // 429 闂傚倷鐒︾€笛囨偡閵娾晩鏁嬮柕鍫濐槹閸ゅ﹥銇勮箛鎾愁仼鐞氱喖姊绘担鐟扮祷缂佸鍏橀幆?
     if (status === 429) {
       const maxRetries = 3;
       const retryCount = (error.config as any)?._retryCount || 0;
 
       if (retryCount < maxRetries) {
-        // 计算等待时间（秒）
+        // 闂佽崵濮崇欢銈囨閺囥垺鍋╅柤濮愬€楁す鍐差熆鐠虹尨鍔熺紒鎰剁節閺岋繝宕橀妸褍鐓熷┑鈽嗗亜濞硷繝寮澶婇唶闁靛繆鏅滈崑銉╂⒑?
         const retryAfterHeader = (response?.headers as any)?.['retry-after'];
         const retryAfter = retryAfterHeader
           ? parseInt(retryAfterHeader, 10)
-          : Math.pow(2, retryCount); // 指数退避：1, 2, 4 秒
+          : Math.pow(2, retryCount); // 闂備礁婀遍…鍫澝洪敃鍌氭辈闁绘柨鍚嬮悞濠氭煃瑜滈崜鐔煎蓟閸℃稑绀岄柨娑樺閻?, 2, 4 缂?
 
-        debugLog(`429 错误，${retryAfter} 秒后重试 (${retryCount + 1}/${maxRetries})`);
+        debugLog(`429 retry after ${retryAfter}s (${retryCount + 1}/${maxRetries})`);
 
-        // 标记重试计数
+        // 闂備礁鎼粔鏉懨洪埡鍜佹晩闁搞儺鍓氶悡鍌溾偓骞垮劚閻楀繐危閹间焦鍋ｅù锝嗗絻婢ф煡鏌?
         const newConfig = {
           ...error.config,
           _retryCount: retryCount + 1,
         };
 
-        // 等待后重试
+        // 缂傚倷鐒︾粙鎴λ囬婊勵偨闁绘梻鍘х憴锕傚箹濞ｎ剙濡兼繛鍛灲閹?
         await new Promise((resolve) => setTimeout(resolve, retryAfter * 1000));
         return axiosInstance.request(newConfig);
       }
     }
 
-    // 503/502/504 服务器错误自动重试（用于处理Render冷启动）
+    // 503/502/504 闂備礁鎼悧鍡欑矓鐎涙ɑ鍙忛柣鏃傚帶闂傤垶鏌曟繛鐐珕闁哄應鏅犻幃褰掑炊鐠鸿櫣浠撮梺鎼炲€栫划鎾崇暦濠靛惟闁宠桨鐒﹂鐔兼煟閻樺弶澶勬繛娴嬫櫇濡叉劕鈻庨幘鏉戜缓闂侀潧顭堥崐妤呮嚌閹岀唵閻犲搫鎼顐︽煙椤旂⒈娈糴nder闂備礁鎲￠崝鏇㈠床閺屻儱绠氶幖娣妼缁€澶嬨亜椤撶喎绗х紒鈧?
     if (status === 503 || status === 502 || status === 504) {
       const maxRetries = 4;
       const retryCount = (error.config as any)?._retryCount || 0;
 
       if (retryCount < maxRetries) {
-        // 固定间隔重试：25, 50, 75, 100秒（总等待时间250秒，约4.2分钟）
+        // 闂備焦鎮堕崕閬嶅箹椤愶附鍋╁Δ锝呭暞閳锋帡鏌熺紒銏犳灍妞ゆ捇绠栧娲箵閹烘枬銉╂煟閿旇鐏﹂柡?5, 50, 75, 100缂傚倷绀侀ˇ鎵暜椤忓棙顫曟繛鍡樻尭缁犳垿鏌ゆ慨鎰偓妤呭箹閼测斁鍋撻崹顐ｇ凡闁瑰啿绻愰—鍐磼閻愮补鎷?50缂傚倷绀侀ˇ鎵暜椤忓棙顫曟繝闈涚墢濡?.2闂備礁鎲＄敮鎺懳涘┑瀣闁瑰墽绮弲?
         const retryIntervals = [25, 50, 75, 100];
         const retryAfter = retryIntervals[retryCount];
-        debugLog(`服务器错误 ${status}，${retryAfter}秒后重试 (${retryCount + 1}/${maxRetries})`);
+        debugLog(
+          `server error ${status}, retry after ${retryAfter}s (${retryCount + 1}/${maxRetries})`
+        );
 
         const newConfig = {
           ...error.config,
@@ -231,24 +236,24 @@ axiosInstance.interceptors.response.use(
       }
     }
 
-    // 401 错误统一跳转登录
+    // 401 闂傚倷鐒︾€笛囨偡閵娾晩鏁嬮柕鍫濇川绾惧ジ鏌ｉ弬鍨暢妞ゅ繘浜堕幃褰掑传閸曨厽鐎┑鐐存綑濡繈骞嗛崒婊勫珰闁肩⒈鍓涘崗
     if (status === 401) {
-      // 调用logout函数清除所有认证状态和store状态
+      // 闂佽崵濮撮鍛村疮娴兼潙鏋佹い锔藉Иgout闂備礁鎲￠崹鍏兼叏閵堝姹查柣鏃€鐏氶埀顒佸浮瀹曘劎鈧稒顭囪ぐ鎴︽⒑閸︻収鏆柛瀣崌閺岋繝宕煎┑鎰銈嗘崄瀹曠敻骞忛悩铏闁告繂瀚呴敃鍌涚厵妞ゆ垼娉曢ˇ锕傛煙妞嬪孩鐤乼ore闂備胶绮…鍫ュ春閺嶎厼鐒?
       try {
         useAuthStore.getState().logout();
       } catch (error) {
-        console.error('调用logout时出错:', error);
-        // 保底：清除token
+        console.error('logout failed:', error);
+        // 濠电儑绲藉ú锔炬崲閸屾粏濮抽柟鎯板Г閺咁剚鎱ㄥ鍡楀箻妞ゅ繑鎮傚濠氬礋閸倣鎭沰en
         localStorage.removeItem('token');
         localStorage.removeItem('auth_token');
         localStorage.removeItem('admin_token');
       }
       window.location.href = '/login';
-      error.message = '未授权，请重新登录';
+      error.message = 'Unauthorized, please log in again';
       return Promise.reject(error);
     }
 
-    // 其他错误：统一错误消息并拒绝
+    // 闂備胶顭堢换鎴濓耿閸︻厼鍨濇い鎺戝閻撱儲绻涢崱妯轰刊闁搞倖鐗犻弻銊モ槈濞嗘劗娈ょ紓渚囧枤閸庛倗绮欐径鎰劦妞ゆ帒瀚悡銉︾箾閸℃ê淇柛銈嗙墬缁绘盯骞嬪┑鍫濐杸婵炲鍘ч幊姗€鎮伴鈧幊婊堟濞戞艾绲剧紓?
     const errorMessage = extractErrorMessage();
     error.message = errorMessage;
     return Promise.reject(error);
@@ -262,9 +267,100 @@ const getHttpStatus = (error: unknown): number | undefined => {
   return undefined;
 };
 
-// 将 apiClient 定义为普通对象，不使用默认导出
+const getStreamingHeaders = (): Record<string, string> => {
+  const token = getPreferredAuthToken();
+  const apiKeysStr = localStorage.getItem('otium_api_keys');
+  const apiKeys = apiKeysStr ? JSON.parse(apiKeysStr) : {};
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  if (apiKeys.geminiApiKey && apiKeys.geminiApiKey.trim()) {
+    headers['X-Gemini-Api-Key'] = apiKeys.geminiApiKey;
+  }
+
+  return headers;
+};
+
+async function* parseSSEStream<T>(
+  response: Response,
+  onProgress?: (chunk: T) => void
+): AsyncGenerator<T, void, unknown> {
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Streaming request failed: ${response.status} ${errorText}`);
+  }
+
+  if (!response.body) {
+    throw new Error('Response body is not readable');
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const events = buffer.split('\n\n');
+      buffer = events.pop() || '';
+
+      for (const eventBlock of events) {
+        const dataLines = eventBlock
+          .split('\n')
+          .filter((line) => line.startsWith('data: '))
+          .map((line) => line.substring(6).trim())
+          .filter(Boolean);
+
+        if (dataLines.length === 0) {
+          continue;
+        }
+
+        const jsonStr = dataLines.join('\n');
+        try {
+          const chunkData = JSON.parse(jsonStr) as T;
+          if (onProgress) {
+            onProgress(chunkData);
+          }
+          yield chunkData;
+        } catch (error) {
+          console.error('Failed to parse SSE data:', error, 'raw data:', jsonStr);
+        }
+      }
+    }
+
+    const remaining = buffer.trim();
+    if (remaining) {
+      const dataLines = remaining
+        .split('\n')
+        .filter((line) => line.startsWith('data: '))
+        .map((line) => line.substring(6).trim())
+        .filter(Boolean);
+
+      if (dataLines.length > 0) {
+        const jsonStr = dataLines.join('\n');
+        const chunkData = JSON.parse(jsonStr) as T;
+        if (onProgress) {
+          onProgress(chunkData);
+        }
+        yield chunkData;
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+// 闂?apiClient 闂佽姘﹂～澶愭儗椤斿墽涓嶉柣鏂挎憸閳绘棃鏌ｉ幋鐐嗘垿鎮甸鈧娲敃閿濆牆顥濆銈嗘处閸犳岸骞愰幒妤€鐓￠柛娑卞灣椤︻喗绻涢幋鐐村碍缂佸娅曠换娑㈠炊椤掍礁浠洪梺闈浥堥弲婵堟暜濞戙垺鍋ｅù锝夋涧閳ь剚娲熼、姘舵焼瀹ュ懐顦?
 export const apiClient = {
-  // ==================== 用户认证 ====================
+  // ==================== 闂備焦妞垮鍧楀礉瀹ュ鏄ユ繛鎴炵婵ジ鏌曢崼婵堝ⅱ婵?====================
 
   login: async (data: LoginRequest): Promise<LoginResponse> => {
     const response = await axiosInstance.post<LoginResponse>('/login', data);
@@ -276,7 +372,7 @@ export const apiClient = {
     return response.data;
   },
 
-  // ==================== 用户注册和密码重置 ====================
+  // ==================== 闂備焦妞垮鍧楀礉瀹ュ鏄ユ繛鎴炃氶弸鏍煏婵炲灝鍔氶柡鍌楀亾闂備礁鎲＄划宀勬嚐椤栫偞鍎婇柟杈鹃檮閸庢ê銆掑锝呬壕闂侀潻绲介幗婊呮?====================
 
   sendVerificationCode: async (email: string): Promise<ApiResponse> => {
     const response = await axiosInstance.post<ApiResponse>('/register/send-verification', {
@@ -343,11 +439,32 @@ export const apiClient = {
     return response.data;
   },
 
-  // ==================== 文本处理 ====================
+  // ==================== 闂備礁鎼崐绋棵洪敃鈧敃銏ゆ偋閸繄绐為梺鍛婃处閸樹粙宕?====================
 
   checkText: async (data: CheckTextRequest): Promise<CheckTextResponse> => {
     const response = await axiosInstance.post<CheckTextResponse>('/text/check', data);
     return response.data;
+  },
+
+  checkTextStream: async function* (
+    data: CheckTextRequest,
+    options?: {
+      onProgress?: (chunk: StreamTranslationChunk) => void;
+      signal?: AbortSignal;
+    }
+  ) {
+    const { onProgress, signal } = options || {};
+    const headers = getStreamingHeaders();
+    const response = await fetch(`${API_BASE_URL}/api/text/error-check-stream`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(data),
+      signal,
+    });
+
+    for await (const chunk of parseSSEStream<StreamTranslationChunk>(response, onProgress)) {
+      yield chunk;
+    }
   },
 
   translateStream: async function* (
@@ -358,31 +475,9 @@ export const apiClient = {
     }
   ) {
     const { onProgress, signal } = options || {};
+    const headers = getStreamingHeaders();
 
-    // 获取认证token和API密钥
-    const token =
-      localStorage.getItem('token') ||
-      localStorage.getItem('auth_token') ||
-      localStorage.getItem('admin_token');
-
-    const apiKeysStr = localStorage.getItem('otium_api_keys');
-    const apiKeys = apiKeysStr ? JSON.parse(apiKeysStr) : {};
-    const geminiApiKey = apiKeys.geminiApiKey;
-
-    // 构建请求头
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    if (geminiApiKey && geminiApiKey.trim()) {
-      headers['X-Gemini-Api-Key'] = geminiApiKey;
-    }
-
-    // 使用 fetch API 进行流式请求
+    // 濠电偠鎻紞鈧繛澶嬫礋瀵?fetch API 闂佸搫顦弲婊呯矙閺嶎厹鈧線骞嬪婵婎潐閹峰懘宕妷褜鏀ㄩ梺鑽ゅТ濞差參寮ㄩ柆宥嗗剳?
     const response = await fetch(`${API_BASE_URL}/api/text/translate-stream`, {
       method: 'POST',
       headers,
@@ -390,46 +485,8 @@ export const apiClient = {
       signal,
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`流式翻译请求失败: ${response.status} ${errorText}`);
-    }
-
-    if (!response.body) {
-      throw new Error('响应体不可读');
-    }
-
-    // 创建读取器
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const jsonStr = line.substring(6).trim();
-            if (jsonStr) {
-              try {
-                const chunkData: StreamTranslationChunk = JSON.parse(jsonStr);
-                if (onProgress) {
-                  onProgress(chunkData);
-                }
-                yield chunkData;
-              } catch (e) {
-                console.error('解析SSE数据失败:', e, '原始数据:', jsonStr);
-              }
-            }
-          }
-        }
-      }
-    } finally {
-      reader.releaseLock();
+    for await (const chunk of parseSSEStream<StreamTranslationChunk>(response, onProgress)) {
+      yield chunk;
     }
   },
 
@@ -441,31 +498,9 @@ export const apiClient = {
     }
   ) {
     const { onProgress, signal } = options || {};
+    const headers = getStreamingHeaders();
 
-    // 获取认证token和API密钥
-    const token =
-      localStorage.getItem('token') ||
-      localStorage.getItem('auth_token') ||
-      localStorage.getItem('admin_token');
-
-    const apiKeysStr = localStorage.getItem('otium_api_keys');
-    const apiKeys = apiKeysStr ? JSON.parse(apiKeysStr) : {};
-    const geminiApiKey = apiKeys.geminiApiKey;
-
-    // 构建请求头
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    if (geminiApiKey && geminiApiKey.trim()) {
-      headers['X-Gemini-Api-Key'] = geminiApiKey;
-    }
-
-    // 使用 fetch API 进行流式请求
+    // 濠电偠鎻紞鈧繛澶嬫礋瀵?fetch API 闂佸搫顦弲婊呯矙閺嶎厹鈧線骞嬪婵婎潐閹峰懘宕妷褜鏀ㄩ梺鑽ゅТ濞差參寮ㄩ柆宥嗗剳?
     const response = await fetch(`${API_BASE_URL}/api/text/refine-stream`, {
       method: 'POST',
       headers,
@@ -473,46 +508,8 @@ export const apiClient = {
       signal,
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`流式文本修改请求失败: ${response.status} ${errorText}`);
-    }
-
-    if (!response.body) {
-      throw new Error('响应体不可读');
-    }
-
-    // 创建读取器
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const jsonStr = line.substring(6).trim();
-            if (jsonStr) {
-              try {
-                const chunkData: StreamRefineTextChunk = JSON.parse(jsonStr);
-                if (onProgress) {
-                  onProgress(chunkData);
-                }
-                yield chunkData;
-              } catch (e) {
-                console.error('解析SSE数据失败:', e, '原始数据:', jsonStr);
-              }
-            }
-          }
-        }
-      }
-    } finally {
-      reader.releaseLock();
+    for await (const chunk of parseSSEStream<StreamRefineTextChunk>(response, onProgress)) {
+      yield chunk;
     }
   },
 
@@ -526,19 +523,40 @@ export const apiClient = {
     return response.data;
   },
 
-  // ==================== AI聊天 ====================
+  // ==================== AI闂備胶鍘у畷顒勬晝閵堝桅?====================
   chat: async (data: AIChatRequest): Promise<AIChatResponse> => {
     const response = await axiosInstance.post<AIChatResponse>('/chat', data);
     return response.data;
   },
 
-  // ==================== 后台任务管理 ====================
+  chatStream: async function* (
+    data: AIChatRequest,
+    options?: {
+      onProgress?: (chunk: AIChatStreamChunk) => void;
+      signal?: AbortSignal;
+    }
+  ) {
+    const { onProgress, signal } = options || {};
+    const headers = getStreamingHeaders();
+    const response = await fetch(`${API_BASE_URL}/api/chat-stream`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(data),
+      signal,
+    });
 
-  // 创建后台任务（已弃用 - 现在通过/chat端点创建）
+    for await (const chunk of parseSSEStream<AIChatStreamChunk>(response, onProgress)) {
+      yield chunk;
+    }
+  },
+
+  // ==================== 闂備礁鎲￠懝鐐殽濮濆被浜归悗娑欘焽椤╃兘鎮归崶銊ョ祷妞ゎ偁鍊楃槐鎺楁偑閸涱垳锛熼梺?====================
+
+  // 闂備礁鎲＄敮妤冪矙閹寸姷纾介柟鎹愵嚙鐟欙箓骞栫划鍏夊亾閹惰棄褰欏┑鐐差嚟婵箖顢氳閹便劑鎮㈤崗鍏兼珫闂佸壊鍋呯换鍌炲吹閹烘柡鍋撳▓鍨灈闁哥喍鍗冲?- 闂備胶绮划宥咁熆濡尨鑰挎い蹇撶墛閻掔粯鎱ㄥΟ铏癸紞缂?chat缂傚倷鐒﹀Λ蹇涘垂閹惰棄纾婚柨婵嗩槸缁€鍡樼箾閹寸儐鐒界紒鎲嬬畵閺?
   createBackgroundTask: async (
     data: CreateBackgroundTaskRequest
   ): Promise<CreateBackgroundTaskResponse> => {
-    // 注意：这个端点可能不存在，现在后台任务通过/chat端点创建
+    // 婵犵數鍋涢ˇ顓㈠礉瀹ュ绀堝ù鐓庣摠閺咁剚鎱ㄥΟ铏癸紞缂佺姷鎳撻埥澶愬箼閸愌呮晼濡炪倕娴氶崜鐔煎箖濞嗘挻鍋￠柡澶庡劵椤斿姊洪懝鐗堢彧闁搞劍绻勭划顓熷緞鐏炵浜炬繛鎴烆仾椤忓嫸鑰挎い蹇撶墛閺咁剛鈧厜鍋撻柍褜鍓熼悰顕€宕堕鈧幑鍫曟煏婵炲灝鍔滈柛濠勬暬閺屾稑鈻庨幙鍐╂闂佺懓绠嶉崹钘夌暦濠靛鏅搁柣姗嗗亜娴滅偓鎱ㄥΟ铏癸紞缂?chat缂傚倷鐒﹀Λ蹇涘垂閹惰棄纾婚柨婵嗩槸缁€鍡樼箾閹寸儐鐒界紒?
     const response = await axiosInstance.post<CreateBackgroundTaskResponse>(
       '/background-tasks',
       data
@@ -546,21 +564,21 @@ export const apiClient = {
     return response.data;
   },
 
-  // 获取任务状态
+  // 闂備礁鍚嬮崕鎶藉床閼艰翰浜归柛銉ｅ妿椤╃兘鎮归崶銊ョ祷妞ゎ偁鍊濋弻锝呂熼崹顔惧帿闂?
   getTaskStatus: async (taskId: number): Promise<GetTaskStatusResponse> => {
     const response = await axiosInstance.get<GetTaskStatusResponse>(`/tasks/${taskId}/status`);
     return response.data;
   },
 
-  // 轮询任务结果（使用指数退避）
+  // 闂佸搫顦遍崕鎰板窗濞戙埄鏁嬫俊銈勮兌椤╃兘鎮归崶銊ョ祷妞ゎ偁鍊楃槐鎾存媴鐟欏嫬闉嶉梺璇茬箰椤︾敻寮澶婇唶婵犲﹤鍟犻弸蹇涙⒑濞茬粯濞囬柛鏂跨Ф閳ь剙鐏氬畝绋款嚕椤愶絽顕辩紒顔炬嚀娴滈箖鏌嶈閸撶喖寮婚崱娑樼闁挎稑瀚ˇ?
   pollTaskResult: async (
     taskId: number,
     options?: {
-      interval?: number; // 初始轮询间隔（毫秒）
-      maxAttempts?: number; // 最大轮询次数
-      maxElapsedMs?: number; // 最大总轮询时长（毫秒）
-      onProgress?: (task: BackgroundTask) => void; // 进度回调
-      signal?: AbortSignal; // 取消信号
+      interval?: number;
+      maxAttempts?: number;
+      maxElapsedMs?: number;
+      onProgress?: (task: BackgroundTask) => void;
+      signal?: AbortSignal;
     }
   ): Promise<BackgroundTask> => {
     const {
@@ -576,11 +594,11 @@ export const apiClient = {
 
     while (attempts < maxAttempts) {
       if (signal?.aborted) {
-        throw new Error('轮询被取消');
+        throw new Error('Polling aborted');
       }
       if (Date.now() - startedAt > maxElapsedMs) {
         throw new Error(
-          `轮询任务 ${taskId} 超时，已超过 ${(maxElapsedMs / 60000).toFixed(1)} 分钟`
+          `Polling task ${taskId} timed out after ${(maxElapsedMs / 60000).toFixed(1)} minutes`
         );
       }
 
@@ -588,12 +606,12 @@ export const apiClient = {
       try {
         const response = await axiosInstance.get<GetTaskStatusResponse>(`/tasks/${taskId}/status`, {
           signal,
-          timeout: 25000, // 轮询接口使用更短超时，避免单次请求长时间挂起
+          timeout: 25000, // 闂佸搫顦遍崕鎰板窗濞戙埄鏁嬫俊銈呮噹缁犳娊鏌曟径鍫濆姎缂傚秵鎸搁湁闁挎繂鐗婄涵鍫曟煛娴ｉ潧鈧繂顕ｇ€电硶鍋撻棃娑欐喐闁告瑦宀搁幃娲箳閹寸偛娅ゅ┑锛勫仜閸婂潡寮鍛殕闁告洦浜炵槐姘舵⒑缁嬭法绠扮紒澶嬫綑閻ｇ兘鎮㈢亸浣圭€婚梻鍕喘椤㈡岸顢楅埀顒佹櫏闂佺鐬奸崑鐐残掗幇鐗堢厸闁告劑鍔庨崺锝嗕繆椤愩垺鍋ユ鐐村姍瀹曟帒鈹戦崶褔妫?
         });
         const { success, task, error } = response.data;
 
         if (!success) {
-          throw new Error(error || '获取任务状态失败');
+          throw new Error(error || 'Failed to get task status');
         }
 
         if (onProgress) {
@@ -605,56 +623,51 @@ export const apiClient = {
         }
 
         if (task.status === BackgroundTaskStatus.FAILED) {
-          throw new Error(task.error_message || '任务处理失败');
+          throw new Error(task.error_message || 'Task processing failed');
         }
 
-        // 如果任务还在处理中，等待后继续轮询
         if (
           task.status === BackgroundTaskStatus.PENDING ||
           task.status === BackgroundTaskStatus.PROCESSING
         ) {
-          // 指数退避：每次等待时间增加50%
           const interval = currentInterval;
           await new Promise((resolve) => setTimeout(resolve, interval));
-          currentInterval = Math.min(currentInterval * 1.5, 10000); // 最大10秒间隔
+          currentInterval = Math.min(currentInterval * 1.5, 10000);
           continue;
         }
 
-        // 未知状态，继续轮询
         const interval = currentInterval;
         await new Promise((resolve) => setTimeout(resolve, interval));
         currentInterval = Math.min(currentInterval * 1.5, 10000);
       } catch (error) {
         if (signal?.aborted) {
-          throw new Error('轮询被取消');
+          throw new Error('Polling aborted');
         }
 
-        // 明确的客户端/权限类错误直接失败，避免无意义长时间重试
         const status = getHttpStatus(error);
         if (status && [400, 401, 403, 404, 422].includes(status)) {
           throw new Error(
-            `轮询任务 ${taskId} 失败: HTTP ${status}（任务不存在、无权限或登录状态异常）`
+            `Polling task ${taskId} failed: HTTP ${status} (task missing, permission denied, or invalid login state)`
           );
         }
 
-        // 如果是网络错误，继续重试
         if (attempts < maxAttempts) {
-          console.warn(`轮询任务 ${taskId} 失败，尝试 ${attempts}/${maxAttempts}:`, error);
+          console.warn(`Polling task ${taskId} failed, retry ${attempts}/${maxAttempts}:`, error);
           const interval = currentInterval;
           await new Promise((resolve) => setTimeout(resolve, interval));
           currentInterval = Math.min(currentInterval * 1.5, 10000);
         } else {
           throw new Error(
-            `轮询任务 ${taskId} 超时: ${error instanceof Error ? error.message : String(error)}`
+            `Polling task ${taskId} timed out: ${error instanceof Error ? error.message : String(error)}`
           );
         }
       }
     }
 
-    throw new Error(`轮询任务 ${taskId} 超时，已达到最大尝试次数 ${maxAttempts}`);
+    throw new Error(`Polling task ${taskId} timed out after ${maxAttempts} attempts`);
   },
 
-  // ==================== 指令管理 ====================
+  // ==================== 闂備礁婀遍…鍫澝洪敐澶婄闁靛牆娲ㄦ稉宥夋煥濞戞ê顏柛?====================
 
   getDirectives: async (): Promise<TranslationDirective[]> => {
     const response = await axiosInstance.get<TranslationDirective[]>('/directives');
@@ -687,14 +700,14 @@ export const apiClient = {
     return response.data;
   },
 
-  // ==================== 管理员统计 ====================
+  // ==================== 缂傚倷鑳舵刊瀵告閺囥垹绠栧┑鐘叉搐瀹告繃淇婇婵嗕汗闁糕晝濞€閹?====================
 
   getStats: async (): Promise<UsageStats> => {
     const response = await axiosInstance.get<UsageStats>('/admin/stats');
     return response.data;
   },
 
-  // ==================== 当前用户信息 ====================
+  // ==================== 闁荤喐绮庢晶妤呭箰閸涘﹥娅犻柣妯肩帛閸嬨劑鏌曟繝蹇曠暠闁绘挻娲栬彁闁搞儻绲芥晶鎻捗?====================
 
   getCurrentUser: async (): Promise<UserInfo> => {
     // Try known endpoints. Prefer currently implemented backend route first.
@@ -704,11 +717,11 @@ export const apiClient = {
       try {
         const response = await axiosInstance.get(endpoint);
 
-        // 检查返回的数据是否有用户信息字段
+        // 婵犵妲呴崑鈧柛瀣崌閺岋紕浠︾拠鎻掑Г缂備胶绮崹鍨暦閸洘鍊烽柛顭戝亞閺嗙娀姊烘潪鎷屽厡濠⒀勵殔閻ｅ灚绗熼埀顒€顕ｆ导鎼晬婵﹩鍘奸崜銊╂⒑閸濆嫮澧曟い锕備憾瀵偊濡舵径濠勵吅闂佺偓鑹鹃崐椋庢崲閸℃稒鐓欐い鎾楀啰浠╅梺鐑╁閸愶絾鐏?
         const data = response.data;
         if (data.user_info || data.user || data.username) {
           const userInfo = data.user_info || data.user || data;
-          // 确保返回的数据有必要的字段
+          // 缂備胶铏庨崣搴ㄥ窗閺囩姵宕叉慨姗嗗幗娴溿倝鏌￠崒娑橆嚋缂佲偓閳ь剟姊哄Ч鍥у閻庢凹鍙冨鎶芥偄閻撳海顔夊銈嗘婵倗绮婚幒妤冨彄闁搞儜鍕畬濡炪倐鏅粻鎾诲箚閸愵喖绀嬫い鎰╁€栭幉璇测攽?
           if (userInfo.username && userInfo.daily_translation_limit !== undefined) {
             return userInfo;
           }
@@ -719,10 +732,10 @@ export const apiClient = {
       }
     }
 
-    throw new Error('无法获取用户信息：所有端点尝试失败');
+    throw new Error('Unable to load current user info: all endpoint probes failed');
   },
 
-  // ==================== 管理员用户管理 ====================
+  // ==================== 缂傚倷鑳舵刊瀵告閺囥垹绠栧┑鐘叉搐瀹告繃淇婇姘倯闁哄棗绻橀弻鐔煎箻椤曞懏顥栧銈嗘尰閹倿骞?====================
 
   getAllUsers: async (): Promise<{ users: any[] }> => {
     const response = await axiosInstance.get('/admin/users');
@@ -745,5 +758,5 @@ export const apiClient = {
   },
 };
 
-// 将 axiosInstance 设置为默认导出
+// 闂?axiosInstance 闂佽崵濮崇粈浣规櫠娴犲鍋柛鈩冾焽閳绘梹绻涘顔荤敖閻㈩垱鐩幃瑙勬媴闂堟稈鍋撻弴銏╂晪闂侇剙绉寸粈?
 export default axiosInstance;

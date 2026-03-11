@@ -35,6 +35,12 @@ interface AIChatState {
   setCurrentPage: (page: string) => void;
   toggleExpanded: (page: string) => void;
   addMessage: (page: string, message: AIChatMessage) => void;
+  updateMessage: (
+    page: string,
+    messageId: string,
+    updater: (message: AIChatMessage) => AIChatMessage
+  ) => void;
+  appendMessageContent: (page: string, messageId: string, content: string) => void;
   setInputText: (page: string, text: string) => void;
   setLoading: (page: string, loading: boolean) => void;
   setActiveTaskId: (page: string, taskId: number | null) => void;
@@ -51,7 +57,7 @@ const DEFAULT_SPLIT_POSITION = 30;
 const createMessageId = () =>
   `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
-const DEFAULT_CONVERSATION_STATE: ConversationState = {
+const createDefaultConversationState = (): ConversationState => ({
   isExpanded: false,
   messages: [],
   inputText: '',
@@ -59,7 +65,7 @@ const DEFAULT_CONVERSATION_STATE: ConversationState = {
   activeTaskId: null,
   sessionId: null,
   splitPosition: DEFAULT_SPLIT_POSITION,
-};
+});
 
 export const useAIChatStore = create<AIChatState>()(
   persist(
@@ -78,7 +84,7 @@ export const useAIChatStore = create<AIChatState>()(
         set((state) => {
           const conversations = { ...state.conversations };
           if (!conversations[page]) {
-            conversations[page] = { ...DEFAULT_CONVERSATION_STATE };
+            conversations[page] = createDefaultConversationState();
           }
           conversations[page].isExpanded = !conversations[page].isExpanded;
           return { conversations };
@@ -89,7 +95,7 @@ export const useAIChatStore = create<AIChatState>()(
         set((state) => {
           const conversations = { ...state.conversations };
           if (!conversations[page]) {
-            conversations[page] = { ...DEFAULT_CONVERSATION_STATE };
+            conversations[page] = createDefaultConversationState();
           }
           const normalizedMessage: AIChatMessage = {
             ...message,
@@ -100,11 +106,50 @@ export const useAIChatStore = create<AIChatState>()(
         });
       },
 
+      updateMessage: (
+        page: string,
+        messageId: string,
+        updater: (message: AIChatMessage) => AIChatMessage
+      ) => {
+        set((state) => {
+          const conversations = { ...state.conversations };
+          if (!conversations[page]) {
+            conversations[page] = createDefaultConversationState();
+          }
+
+          conversations[page].messages = conversations[page].messages.map((message) =>
+            message.id === messageId ? updater(message) : message
+          );
+
+          return { conversations };
+        });
+      },
+
+      appendMessageContent: (page: string, messageId: string, content: string) => {
+        set((state) => {
+          const conversations = { ...state.conversations };
+          if (!conversations[page]) {
+            conversations[page] = createDefaultConversationState();
+          }
+
+          conversations[page].messages = conversations[page].messages.map((message) =>
+            message.id === messageId
+              ? {
+                  ...message,
+                  content: `${message.content}${content}`,
+                }
+              : message
+          );
+
+          return { conversations };
+        });
+      },
+
       setInputText: (page: string, text: string) => {
         set((state) => {
           const conversations = { ...state.conversations };
           if (!conversations[page]) {
-            conversations[page] = { ...DEFAULT_CONVERSATION_STATE };
+            conversations[page] = createDefaultConversationState();
           }
           conversations[page].inputText = text;
           return { conversations };
@@ -115,7 +160,7 @@ export const useAIChatStore = create<AIChatState>()(
         set((state) => {
           const conversations = { ...state.conversations };
           if (!conversations[page]) {
-            conversations[page] = { ...DEFAULT_CONVERSATION_STATE };
+            conversations[page] = createDefaultConversationState();
           }
           conversations[page].loading = loading;
           return { conversations };
@@ -126,7 +171,7 @@ export const useAIChatStore = create<AIChatState>()(
         set((state) => {
           const conversations = { ...state.conversations };
           if (!conversations[page]) {
-            conversations[page] = { ...DEFAULT_CONVERSATION_STATE };
+            conversations[page] = createDefaultConversationState();
           }
           conversations[page].activeTaskId = taskId;
           return { conversations };
@@ -138,7 +183,7 @@ export const useAIChatStore = create<AIChatState>()(
           const conversations = { ...state.conversations };
           if (conversations[page]) {
             conversations[page] = {
-              ...DEFAULT_CONVERSATION_STATE,
+              ...createDefaultConversationState(),
               isExpanded: conversations[page].isExpanded,
               splitPosition: conversations[page].splitPosition,
             };
@@ -151,7 +196,7 @@ export const useAIChatStore = create<AIChatState>()(
         set((state) => {
           const conversations = { ...state.conversations };
           if (!conversations[page]) {
-            conversations[page] = { ...DEFAULT_CONVERSATION_STATE };
+            conversations[page] = createDefaultConversationState();
           }
           return { conversations };
         });
@@ -161,7 +206,7 @@ export const useAIChatStore = create<AIChatState>()(
         set((state) => {
           const conversations = { ...state.conversations };
           if (!conversations[page]) {
-            conversations[page] = { ...DEFAULT_CONVERSATION_STATE };
+            conversations[page] = createDefaultConversationState();
           }
           // 限制分割线位置在20%到80%之间
           conversations[page].splitPosition = Math.max(20, Math.min(80, position));

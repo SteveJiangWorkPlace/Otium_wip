@@ -79,7 +79,7 @@ class TestUserLimitManager:
         assert manager.allowed_users["admin"]["expiry_date"] == "2099-12-31"
         assert manager.allowed_users["admin"]["max_translations"] == 99999
         mock_logging.warning.assert_called_with(
-            "UserLimitManager 已弃用，请使用 services.user_service.UserService 替代"
+            "UserLimitManager is deprecated; use services.user_service.UserService instead"
         )
 
     @patch.dict(

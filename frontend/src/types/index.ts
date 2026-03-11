@@ -52,10 +52,33 @@ export interface AIChatResponse {
   model_used: string;
   error?: string;
   steps?: string[]; // Manus API步骤信息，仅文献调研模式使用
+  documents?: Array<{
+    name: string;
+    url: string;
+    source?: string;
+    type?: string;
+  }>;
   // 后台任务相关字段（当启用后台工作器时）
   task_id?: number; // 后台任务ID，当任务被提交到后台处理时返回
   status?: string; // 任务状态，如"pending"、"processing"等
   estimated_time?: number; // 预计处理时间（秒）
+}
+
+export interface AIChatStreamChunk {
+  type: 'start' | 'delta' | 'replace' | 'step' | 'complete' | 'error';
+  text?: string;
+  full_text?: string;
+  step?: string;
+  steps?: string[];
+  session_id?: string;
+  model_used?: string;
+  error?: string;
+  documents?: Array<{
+    name: string;
+    url: string;
+    source?: string;
+    type?: string;
+  }>;
 }
 
 // 流式翻译请求

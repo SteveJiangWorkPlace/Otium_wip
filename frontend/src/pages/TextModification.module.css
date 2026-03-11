@@ -71,6 +71,11 @@
   margin-bottom: var(--spacing-4);
 }
 
+.inputTextarea {
+  font-size: var(--font-size-base) !important;
+  line-height: var(--line-height-normal) !important;
+}
+
 .inputFooter {
   margin-top: var(--spacing-4);
 }
@@ -193,21 +198,41 @@
   color: var(--color-text-primary);
   line-height: var(--line-height-normal);
   white-space: pre-wrap;
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  padding: var(--spacing-3);
+  background-color: var(--color-gray-50);
+  border-radius: var(--radius-md);
+  border: none;
 }
 
 .annotatedText {
-  padding: var(--spacing-3);
-  background-color: var(--color-gray-50);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-border);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .plainText {
-  padding: var(--spacing-3);
-  background-color: var(--color-gray-50);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-border);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  overflow-wrap: anywhere;
   white-space: pre-wrap; /* 保留换行符 */
+}
+
+.inlineHighlight {
+  background-color: var(--color-black);
+  color: var(--color-white);
+  padding: 2px 4px;
+  border-radius: 4px;
 }
 
 .infoCard {
@@ -472,57 +497,48 @@
   }
 }
 
-/* 三个点跳动动画 */
-.loadingDots {
+.loadingPlaceholder {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--spacing-2);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+}
+
+
+.waveDots {
   display: inline-flex;
   align-items: center;
-  height: 1em;
+  gap: 4px;
+  height: 14px;
+  margin-top: 1px;
 }
 
-.loadingDots span {
-  animation: dotPulse 1.5s infinite ease-in-out;
-  opacity: 0;
+.waveDot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background-color: var(--color-text-primary);
+  animation: wave 1.2s ease-in-out infinite;
 }
 
-.loadingDots span:nth-child(1) {
+.waveDot:nth-child(1) {
+  animation-delay: -0.24s;
+}
+
+.waveDot:nth-child(2) {
+  animation-delay: -0.12s;
+}
+
+.waveDot:nth-child(3) {
   animation-delay: 0s;
 }
 
-.loadingDots span:nth-child(2) {
-  animation-delay: 0.2s;
-}
-
-.loadingDots span:nth-child(3) {
-  animation-delay: 0.4s;
-}
-
-@keyframes dotPulse {
-  0%,
-  60%,
-  100% {
-    opacity: 0;
+@keyframes wave {
+  0%, 60%, 100% {
+    transform: translateY(0);
   }
   30% {
-    opacity: 1;
-  }
-}
-
-/* 流式光标动画 */
-.streamingCursor {
-  display: inline-block;
-  animation: cursorBlink 1s infinite;
-  font-weight: bold;
-  color: var(--color-primary);
-  margin-left: 2px;
-}
-
-@keyframes cursorBlink {
-  0%,
-  50% {
-    opacity: 1;
-  }
-  51%,
-  100% {
-    opacity: 0;
+    transform: translateY(-6px);
   }
 }

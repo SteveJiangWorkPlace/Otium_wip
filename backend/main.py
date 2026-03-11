@@ -6,6 +6,7 @@
 版本：1.0.0
 """
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -13,6 +14,7 @@ import os
 import sys
 import time
 import warnings
+from contextlib import asynccontextmanager
 
 from pydantic.warnings import ArbitraryTypeWarning
 
@@ -22,10 +24,12 @@ warnings.filterwarnings("ignore", category=ArbitraryTypeWarning)
 os.environ["PYTHONIOENCODING"] = "utf-8"
 os.environ["PYTHONUTF8"] = "1"
 
-# Windows控制台编码修复 - 确保UTF-8编码
-if sys.platform == "win32":
+def configure_windows_utf8_streams():
+    """Configure UTF-8 stdio only for direct service execution on Windows."""
+    if sys.platform != "win32":
+        return
+
     try:
-        # 重新配置标准流使用UTF-8编码
         sys.stdout = open(
             sys.stdout.fileno(),
             mode="w",
@@ -41,7 +45,7 @@ if sys.platform == "win32":
             buffering=1,
         )
     except Exception:
-        pass  # 如果失败，继续使用默认编码
+        pass
 
 # 配置logging使用UTF-8编码并过滤非ASCII字符
 
@@ -85,7 +89,14 @@ class ASCIIFilter(logging.Filter):
 
 
 # 将过滤器添加到根日志记录器
-logging.getLogger().addFilter(ASCIIFilter())
+def apply_ascii_filter_to_console_handlers():
+    if sys.platform != "win32":
+        return
+
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers:
+        if isinstance(handler, logging.StreamHandler) and not isinstance(handler, logging.FileHandler):
+            handler.addFilter(ASCIIFilter())
 
 # 已提前导入并配置ArbitraryTypeWarning警告过滤
 from datetime import datetime  # noqa: E402
@@ -109,8 +120,10 @@ from sqlalchemy.orm import Session  # noqa: E402
 
 # 导入自定义模块
 from api_services import (  # noqa: E402
+    build_gemini_chat_prompt,
     chat_with_gemini,
     chat_with_manus,
+    chat_with_manus_stream,
     check_gptzero,
     extract_annotations_with_context,
     generate_gemini_content_stream,
@@ -132,6 +145,7 @@ from schemas import (  # noqa: E402
     AdminLoginRequest,
     AIChatRequest,
     AIChatResponse,
+    AIChatStreamChunk,
     AIDetectionRequest,
     BackgroundTaskResponse,
     CheckEmailResponse,
@@ -165,6 +179,90 @@ from background_task_service import get_background_task_service  # noqa: E402
 
 # 加载环境变量
 load_dotenv()
+
+
+def _sse_payload(chunk: dict) -> str:
+    return f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+
+
+def _error_detail(
+    error_code: str, message: str, details: dict | None = None
+) -> dict:
+    return ErrorResponse(
+        error_code=error_code,
+        message=message,
+        details=details,
+    ).model_dump()
+
+
+def _get_gemini_api_key_from_request(http_request: Request) -> tuple[str | None, str]:
+    api_key = os.environ.get("GEMINI_API_KEY")
+    source = "environment"
+    if not api_key:
+        api_key = http_request.headers.get("X-Gemini-Api-Key")
+        source = "request_header"
+    return api_key, source
+
+
+def _extract_latest_user_message(messages) -> str:
+    for msg in reversed(messages):
+        if msg.role == "user":
+            return msg.content.strip()
+    return ""
+
+
+def _require_gemini_api_key(http_request: Request) -> str:
+    api_key, _ = _get_gemini_api_key_from_request(http_request)
+    if api_key:
+        return api_key
+
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=_error_detail(
+            "GEMINI_API_KEY_MISSING",
+            "需要提供Gemini API密钥（可通过环境变量GEMINI_API_KEY或侧边栏输入设置）",
+            {"service": "Gemini"},
+        ),
+    )
+
+
+def _build_text_task_cache_key(text: str, scope: str) -> str:
+    return generate_safe_hash_for_cache(text, scope)
+
+
+ERROR_CHECK_PRIMARY_MODEL = "gemini-2.5-flash-lite"
+ERROR_CHECK_FALLBACK_MODEL = "gemini-2.5-flash"
+
+
+async def _synthetic_text_stream(
+    full_text: str,
+    chunk_model,
+    *,
+    chunk_size: int = 100,
+    delay_seconds: float = 0.015,
+    complete_extra: dict | None = None,
+):
+    for start in range(0, len(full_text), chunk_size):
+        piece = full_text[start : start + chunk_size]
+        chunk = chunk_model(
+            type="chunk",
+            text=piece,
+            full_text=full_text[: start + len(piece)],
+            chunk_index=start,
+        )
+        yield f"data: {chunk.model_dump_json(exclude_none=True)}\n\n"
+        await asyncio.sleep(delay_seconds)
+
+    complete_payload = {
+        "type": "complete",
+        "text": full_text,
+        "full_text": full_text,
+    }
+    if complete_extra:
+        complete_payload.update(complete_extra)
+
+    complete_chunk = chunk_model(**complete_payload)
+    yield f"data: {complete_chunk.model_dump_json(exclude_none=True)}\n\n"
 
 
 def run_migrations_if_needed():
@@ -260,7 +358,7 @@ def ensure_email_column_exists():
             with engine.connect() as conn:
                 conn.execute(text("ALTER TABLE users ADD COLUMN email VARCHAR(255)"))
                 conn.execute(text("ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT 0"))
-                conn.execute(text("CREATE INDEX ix_users_email ON users(email)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_users_email ON users(email)"))
                 conn.commit()
                 logging.info("SQLite ALTER TABLE执行成功")
 
@@ -272,11 +370,22 @@ def ensure_email_column_exists():
 
 # 日志配置
 setup_logging()
+apply_ascii_filter_to_console_handlers()
 
 logger = logging.getLogger(__name__)
 
 
-app = FastAPI(title="Just Trans API", version="1.0.0")
+@asynccontextmanager
+async def app_lifespan(application: FastAPI):
+    logger.info("=== Registered API Routes ===")
+    for route in application.routes:
+        if hasattr(route, "methods"):
+            logger.info(f"{route.path} - {route.methods}")
+    logger.info("============================")
+    yield
+
+
+app = FastAPI(title="Just Trans API", version="1.0.0", lifespan=app_lifespan)
 
 # 在应用初始化时添加环境变量检查日志
 logging.info("应用启动，环境变量检查:")
@@ -387,10 +496,6 @@ ALGORITHM = "HS256"
 
 # 检查SECRET_KEY是否为默认值，如果是则记录警告
 DEFAULT_SECRET_KEY = "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92"
-if SECRET_KEY == DEFAULT_SECRET_KEY:
-    logging.warning(
-        "[警告] SECRET_KEY使用的是默认值！在生产环境中应设置JWT_SECRET_KEY或SECRET_KEY环境变量来增强安全性"
-    )
 
 # ==========================================
 # 统一错误响应模型（已从schemas.py导入）
@@ -576,11 +681,11 @@ async def login(data: LoginRequest):
         logging.error(f"登录失败: {message}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=ErrorResponse(
-                error_code="AUTHENTICATION_FAILED",
-                message="用户名或密码错误",
-                details={"username": data.username},
-            ).dict(),
+            detail=_error_detail(
+                "AUTHENTICATION_FAILED",
+                "用户名或密码错误",
+                {"username": data.username},
+            ),
         )
 
 
@@ -602,22 +707,22 @@ async def send_verification_code(request: SendVerificationRequest):
     if "@" not in request.email or "." not in request.email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ErrorResponse(
-                error_code="INVALID_EMAIL",
-                message="邮箱格式不正确",
-                details={"email": request.email},
-            ).dict(),
+            detail=_error_detail(
+                "INVALID_EMAIL",
+                "邮箱格式不正确",
+                {"email": request.email},
+            ),
         )
 
     # 检查速率限制
     if verification_service.is_rate_limited(request.email, "verify"):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=ErrorResponse(
-                error_code="RATE_LIMIT_EXCEEDED",
-                message="验证码发送过于频繁，请稍后再试",
-                details={"email": request.email},
-            ).dict(),
+            detail=_error_detail(
+                "RATE_LIMIT_EXCEEDED",
+                "验证码发送过于频繁，请稍后再试",
+                {"email": request.email},
+            ),
         )
 
     # 检查邮箱是否已被注册
@@ -625,11 +730,11 @@ async def send_verification_code(request: SendVerificationRequest):
     if user_info:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ErrorResponse(
-                error_code="EMAIL_ALREADY_REGISTERED",
-                message="该邮箱已被注册",
-                details={"email": request.email},
-            ).dict(),
+            detail=_error_detail(
+                "EMAIL_ALREADY_REGISTERED",
+                "该邮箱已被注册",
+                {"email": request.email},
+            ),
         )
 
     # 生成验证码
@@ -669,11 +774,11 @@ async def verify_email_code(request: VerifyEmailRequest):
     if not is_valid:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ErrorResponse(
-                error_code="INVALID_VERIFICATION_CODE",
-                message=error_message,
-                details={"email": request.email},
-            ).dict(),
+            detail=_error_detail(
+                "INVALID_VERIFICATION_CODE",
+                error_message,
+                {"email": request.email},
+            ),
         )
 
     # 验证成功，生成临时令牌（用于后续注册）
@@ -715,11 +820,11 @@ async def register_user(request: RegisterRequest):
     if not is_valid or token_email != request.email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ErrorResponse(
-                error_code="INVALID_VERIFICATION_TOKEN",
-                message="邮箱验证已过期或无效，请重新验证邮箱",
-                details={"email": request.email},
-            ).dict(),
+            detail=_error_detail(
+                "INVALID_VERIFICATION_TOKEN",
+                "邮箱验证已过期或无效，请重新验证邮箱",
+                {"email": request.email},
+            ),
         )
 
     # 验证用户名可用性
@@ -727,11 +832,11 @@ async def register_user(request: RegisterRequest):
     if not is_available:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ErrorResponse(
-                error_code="USERNAME_UNAVAILABLE",
-                message=username_message,
-                details={"username": request.username},
-            ).dict(),
+            detail=_error_detail(
+                "USERNAME_UNAVAILABLE",
+                username_message,
+                {"username": request.username},
+            ),
         )
 
     # 验证邮箱可用性
@@ -739,11 +844,11 @@ async def register_user(request: RegisterRequest):
     if not email_available:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ErrorResponse(
-                error_code="EMAIL_UNAVAILABLE",
-                message=email_message,
-                details={"email": request.email},
-            ).dict(),
+            detail=_error_detail(
+                "EMAIL_UNAVAILABLE",
+                email_message,
+                {"email": request.email},
+            ),
         )
 
     # 注册用户（邮箱已验证）
@@ -757,11 +862,11 @@ async def register_user(request: RegisterRequest):
     if not success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ErrorResponse(
-                error_code="REGISTRATION_FAILED",
-                message=error_message,
-                details={"username": request.username, "email": request.email},
-            ).dict(),
+            detail=_error_detail(
+                "REGISTRATION_FAILED",
+                error_message,
+                {"username": request.username, "email": request.email},
+            ),
         )
 
     # 发送欢迎邮件（异步或后台任务）
@@ -808,11 +913,11 @@ async def request_password_reset(request: PasswordResetRequest):
     if "@" not in request.email or "." not in request.email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ErrorResponse(
-                error_code="INVALID_EMAIL",
-                message="邮箱格式不正确",
-                details={"email": request.email},
-            ).dict(),
+            detail=_error_detail(
+                "INVALID_EMAIL",
+                "邮箱格式不正确",
+                {"email": request.email},
+            ),
         )
 
     # 检查邮箱是否存在
@@ -859,11 +964,11 @@ async def reset_password(request: ResetPasswordRequest):
     if not email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ErrorResponse(
-                error_code="INVALID_RESET_TOKEN",
-                message="重置链接已过期或无效，请重新申请",
-                details={},
-            ).dict(),
+            detail=_error_detail(
+                "INVALID_RESET_TOKEN",
+                "重置链接已过期或无效，请重新申请",
+                {},
+            ),
         )
 
     # 获取用户名
@@ -871,11 +976,11 @@ async def reset_password(request: ResetPasswordRequest):
     if not user_info:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ErrorResponse(
-                error_code="USER_NOT_FOUND",
-                message="用户不存在",
-                details={"email": email},
-            ).dict(),
+            detail=_error_detail(
+                "USER_NOT_FOUND",
+                "用户不存在",
+                {"email": email},
+            ),
         )
 
     username = user_info["username"]
@@ -886,11 +991,11 @@ async def reset_password(request: ResetPasswordRequest):
     if not success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ErrorResponse(
-                error_code="PASSWORD_RESET_FAILED",
-                message=error_message,
-                details={"username": username},
-            ).dict(),
+            detail=_error_detail(
+                "PASSWORD_RESET_FAILED",
+                error_message,
+                {"username": username},
+            ),
         )
 
     logger.info(f"密码重置成功: {username}")
@@ -926,11 +1031,11 @@ async def get_user_info(user: UserObject = Depends(get_current_user)):
     if not user_info:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=ErrorResponse(
-                error_code="USER_NOT_FOUND",
-                message="用户不存在",
-                details={"username": username},
-            ).dict(),
+            detail=_error_detail(
+                "USER_NOT_FOUND",
+                "用户不存在",
+                {"username": username},
+            ),
         )
     return user_info
 
@@ -943,44 +1048,39 @@ async def check_text(
     user: UserObject = Depends(get_current_user),
 ):
     """文本检查（纠错或翻译）"""
-
-    # 提取用户名
     username = user.username if hasattr(user, "username") else str(user)
-
-    # 速率限制检查
     allowed, wait_time = rate_limiter.is_allowed(username)
     if not allowed:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=ErrorResponse(
-                error_code="RATE_LIMIT_EXCEEDED",
-                message=f"请求过于频繁，请等待 {wait_time} 秒",
-                details={"wait_time": wait_time, "username": username},
-            ).dict(),
+            detail=_error_detail(
+                "RATE_LIMIT_EXCEEDED",
+                f"请求过于频繁，请等待 {wait_time} 秒",
+                {"wait_time": wait_time, "username": username},
+            ),
         )
 
-    # 文本验证
     is_valid, message = TextValidator.validate_for_gemini(request.text)
     if not is_valid:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ErrorResponse(
-                error_code="TEXT_VALIDATION_ERROR",
-                message=message,
-                details={"text_length": len(request.text)},
-            ).dict(),
+            detail=_error_detail(
+                "TEXT_VALIDATION_ERROR",
+                message,
+                {"text_length": len(request.text)},
+            ),
         )
 
-    # 生成缓存键
-    cache_key = generate_safe_hash_for_cache(request.text, f"{request.operation}_{request.version}")
-
-    # 检查缓存
+    cache_scope = f"{request.operation}_{request.version or 'professional'}"
+    if request.operation == "error_check":
+        cache_scope = (
+            f"{request.operation}_{ERROR_CHECK_PRIMARY_MODEL}_{ERROR_CHECK_FALLBACK_MODEL}"
+        )
+    cache_key = _build_text_task_cache_key(request.text, cache_scope)
     cached_result = gemini_cache.get(cache_key)
     if cached_result:
-        logging.info(f"使用缓存结果: {cache_key}")
         return cached_result
 
-    # 根据操作类型构建prompt
     if request.operation == "error_check":
         prompt = build_error_check_prompt(request.text)
     elif request.operation == "translate_us":
@@ -994,56 +1094,24 @@ async def check_text(
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ErrorResponse(
-                error_code="UNSUPPORTED_OPERATION",
-                message="不支持的操作类型",
-                details={"operation": request.operation},
-            ).dict(),
+            detail=_error_detail(
+                "UNSUPPORTED_OPERATION",
+                "不支持的操作类型",
+                {"operation": request.operation},
+            ),
         )
 
-    # 获取API密钥（优先从环境变量获取，其次从请求头获取）
-    gemini_api_key = None
-    source = "环境变量"
+    gemini_api_key = _require_gemini_api_key(http_request)
 
-    # 从环境变量获取Gemini API密钥
-    gemini_api_key = os.environ.get("GEMINI_API_KEY")
-    logging.info(f"check_text函数: 从环境变量获取GEMINI_API_KEY: {gemini_api_key is not None}")
-    if not gemini_api_key:
-        # 从请求头获取
-        gemini_api_key = http_request.headers.get("X-Gemini-Api-Key")
-        source = "请求头"
-        logging.info(f"check_text函数: 从请求头获取X-Gemini-Api-Key: {gemini_api_key is not None}")
-
-    # 调试日志：记录API密钥信息
-    if gemini_api_key:
-        key_prefix = (
-            gemini_api_key[:8] if len(gemini_api_key) > 8 else gemini_api_key[: len(gemini_api_key)]
-        )
-        logging.info(f"从{source}获取到Gemini API密钥，前缀: {key_prefix}...")
-    else:
-        logging.warning(f"Gemini API密钥未提供：{source}中未找到")
-
-    # 检查API密钥是否存在
-    if not gemini_api_key:
-        logging.warning("Gemini API密钥未提供：环境变量和请求头中都未找到")
-        # 记录所有请求头用于调试
-        all_headers = dict(http_request.headers)
-        logging.info(f"所有请求头: {all_headers}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ErrorResponse(
-                error_code="GEMINI_API_KEY_MISSING",
-                message="需要提供Gemini API密钥（可通过环境变量GEMINI_API_KEY或侧边栏输入设置）",
-                details={"service": "Gemini"},
-            ).dict(),
-        )
-
-    # 调用 Gemini API，文本相关功能使用 gemini-2.5-flash 作为主模型
     result = generate_gemini_content_with_fallback(
         prompt,
         api_key=gemini_api_key,
-        primary_model="gemini-2.5-flash",
-        fallback_model="gemini-2.5-pro",
+        primary_model=ERROR_CHECK_PRIMARY_MODEL
+        if request.operation == "error_check"
+        else "gemini-2.5-flash",
+        fallback_model=ERROR_CHECK_FALLBACK_MODEL
+        if request.operation == "error_check"
+        else "gemini-2.5-pro",
     )
 
     if not result["success"]:
@@ -1051,11 +1119,11 @@ async def check_text(
         error_type = result.get("error_type", "unknown")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=ErrorResponse(
-                error_code="GEMINI_API_ERROR",
-                message=error_message,
-                details={"error_type": error_type},
-            ).dict(),
+            detail=_error_detail(
+                "GEMINI_API_ERROR",
+                error_message,
+                {"error_type": error_type},
+            ),
         )
 
     response_data = {
@@ -1078,44 +1146,40 @@ async def check_text(
             logging.error(f"记录翻译次数失败: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=ErrorResponse(
-                    error_code="USER_VALIDATION_ERROR",
-                    message=str(e),
-                    details={"username": username, "exception_type": "ValueError"},
-                ).dict(),
+                detail=_error_detail(
+                    "USER_VALIDATION_ERROR",
+                    str(e),
+                    {"username": username, "exception_type": "ValueError"},
+                ),
             ) from e
         except RuntimeError as e:
-            # 数据保存失败
             logging.error(f"保存翻译记录失败: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=ErrorResponse(
-                    error_code="DATA_SAVE_ERROR",
-                    message="系统错误：无法保存翻译记录",
-                    details={
+                detail=_error_detail(
+                    "DATA_SAVE_ERROR",
+                    "系统错误：无法保存翻译记录",
+                    {
                         "original_error": str(e),
                         "exception_type": "RuntimeError",
                     },
-                ).dict(),
+                ),
             ) from e
         except Exception as e:
-            # 其他未知错误
             logging.error(f"记录翻译次数时发生未知错误: {str(e)}", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=ErrorResponse(
-                    error_code="INTERNAL_SERVER_ERROR",
-                    message="系统内部错误",
-                    details={
+                detail=_error_detail(
+                    "INTERNAL_SERVER_ERROR",
+                    "系统内部错误",
+                    {
                         "original_error": str(e),
                         "exception_type": e.__class__.__name__,
                     },
-                ).dict(),
+                ),
             ) from e
 
-    # 缓存结果
     gemini_cache.set(cache_key, response_data)
-
     return response_data
 
 
@@ -1130,123 +1194,226 @@ async def translate_stream(
 
     使用 Server-Sent Events (SSE) 返回流式翻译结果
     """
-    # 提取用户名
     username = user.username if hasattr(user, "username") else str(user)
-
-    # 速率限制检查
     allowed, wait_time = rate_limiter.is_allowed(username)
     if not allowed:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=ErrorResponse(
-                error_code="RATE_LIMIT_EXCEEDED",
-                message=f"请求过于频繁，请等待 {wait_time} 秒",
-                details={"wait_time": wait_time, "username": username},
-            ).dict(),
+            detail=_error_detail(
+                "RATE_LIMIT_EXCEEDED",
+                f"请求过于频繁，请等待 {wait_time} 秒",
+                {"wait_time": wait_time, "username": username},
+            ),
         )
 
-    # 文本验证
     is_valid, message = TextValidator.validate_for_gemini(request.text)
     if not is_valid:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ErrorResponse(
-                error_code="TEXT_VALIDATION_ERROR",
-                message=message,
-                details={"text_length": len(request.text)},
-            ).dict(),
+            detail=_error_detail(
+                "TEXT_VALIDATION_ERROR",
+                message,
+                {"text_length": len(request.text)},
+            ),
         )
 
-    # 检查操作类型
     if request.operation not in ["translate_us", "translate_uk"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ErrorResponse(
-                error_code="UNSUPPORTED_OPERATION",
-                message="流式翻译仅支持 translate_us 和 translate_uk 操作",
-                details={"operation": request.operation},
-            ).dict(),
+            detail=_error_detail(
+                "UNSUPPORTED_OPERATION",
+                "流式翻译仅支持 translate_us 和 translate_uk 操作",
+                {"operation": request.operation},
+            ),
         )
 
-    # 生成缓存键（流式翻译不适用缓存，但保留逻辑用于统计）
-    generate_safe_hash_for_cache(request.text, f"{request.operation}_{request.version}")
-
-    # 根据操作类型构建prompt
+    cache_key = _build_text_task_cache_key(
+        request.text, f"{request.operation}_{request.version or 'professional'}"
+    )
     style = "US" if request.operation == "translate_us" else "UK"
     prompt = build_academic_translate_prompt(request.text, style, request.version or "professional")
-
-    # 获取API密钥（优先从环境变量获取，其次从请求头获取）
-    gemini_api_key = None
-
-    # 从环境变量获取Gemini API密钥
-    gemini_api_key = os.environ.get("GEMINI_API_KEY")
-    logging.info(
-        f"translate_stream函数: 从环境变量获取GEMINI_API_KEY: {gemini_api_key is not None}"
-    )
-    if not gemini_api_key:
-        # 从请求头获取
-        gemini_api_key = http_request.headers.get("X-Gemini-Api-Key")
-        logging.info(
-            f"translate_stream函数: 从请求头获取X-Gemini-Api-Key: {gemini_api_key is not None}"
-        )
-
-    # 检查API密钥是否存在
-    if not gemini_api_key:
-        logging.warning("Gemini API密钥未提供：环境变量和请求头中都未找到")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ErrorResponse(
-                error_code="GEMINI_API_KEY_MISSING",
-                message="需要提供Gemini API密钥（可通过环境变量GEMINI_API_KEY或侧边栏输入设置）",
-                details={"service": "Gemini"},
-            ).dict(),
-        )
+    gemini_api_key = _require_gemini_api_key(http_request)
 
     async def stream_generator():
-        """流式生成器，产生SSE格式的数据"""
         try:
-            # 调用流式翻译服务，使用 gemini-2.5-flash 作为主模型
-            stream = generate_gemini_content_stream(
-                prompt=prompt,
-                api_key=gemini_api_key,
-                primary_model="gemini-2.5-flash",
-                fallback_model="gemini-2.5-pro",
-            )
+            cached_result = gemini_cache.get(cache_key)
+            if cached_result:
+                full_text = cached_result.get("text", "") or ""
+            else:
+                result = generate_gemini_content_with_fallback(
+                    prompt=prompt,
+                    api_key=gemini_api_key,
+                    primary_model="gemini-2.5-flash",
+                    fallback_model="gemini-2.5-pro",
+                )
 
-            # 处理流式响应
-            async for chunk in stream:
-                # 将字典转换为JSON字符串
-                chunk_data = StreamTranslationChunk(**chunk)
-                json_str = chunk_data.json()
+                if not result.get("success"):
+                    error_chunk = StreamTranslationChunk(
+                        type="error",
+                        error=result.get("error", "流式翻译失败"),
+                        error_type=result.get("error_type", "translation_error"),
+                    )
+                    yield f"data: {error_chunk.model_dump_json(exclude_none=True)}\n\n"
+                    return
 
-                # SSE格式：data: {json}\n\n
-                yield f"data: {json_str}\n\n"
+                full_text = result.get("text", "") or ""
+                if full_text.strip():
+                    gemini_cache.set(
+                        cache_key,
+                        {
+                            "success": True,
+                            "text": full_text,
+                            "model_used": result.get("model_used", "unknown"),
+                        },
+                    )
 
+            if not full_text.strip():
+                error_chunk = StreamTranslationChunk(
+                    type="error",
+                    error="翻译未返回可显示内容",
+                    error_type="empty_result",
+                )
+                yield f"data: {error_chunk.model_dump_json(exclude_none=True)}\n\n"
+                return
+
+            async for payload in _synthetic_text_stream(
+                full_text,
+                StreamTranslationChunk,
+                chunk_size=100,
+                delay_seconds=0.015,
+            ):
+                yield payload
         except Exception as e:
             logging.error(f"流式翻译异常: {str(e)}", exc_info=True)
             error_chunk = StreamTranslationChunk(
                 type="error", error=f"流式翻译异常: {str(e)}", error_type="stream_error"
             )
-            yield f"data: {error_chunk.json()}\n\n"
+            yield f"data: {error_chunk.model_dump_json(exclude_none=True)}\n\n"
 
-    # 记录使用情况（异步，不阻塞流式响应）
     try:
         remaining = user_service.record_usage(
             username, operation_type=request.operation, text_length=len(request.text)
         )
-        logging.info(f"用户 {username} 流式翻译使用记录，剩余次数: {remaining}")
+        logging.info(f"stream translation usage recorded for {username}, remaining={remaining}")
     except Exception as e:
-        logging.error(f"记录流式翻译使用失败: {str(e)}")
-        # 不中断流式响应，仅记录错误
+        logging.error(f"failed to record stream translation usage: {str(e)}")
 
-    # 返回流式响应
     return StreamingResponse(
         stream_generator(),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",  # 禁用Nginx缓冲
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.post("/api/text/error-check-stream")
+@api_error_handler
+async def error_check_stream(
+    http_request: Request,
+    request: CheckTextRequest,
+    user: UserObject = Depends(get_current_user),
+):
+    """流式智能纠错端点。"""
+    username = user.username if hasattr(user, "username") else str(user)
+
+    allowed, wait_time = rate_limiter.is_allowed(username)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=_error_detail(
+                "RATE_LIMIT_EXCEEDED",
+                f"请求过于频繁，请等待 {wait_time} 秒",
+                {"wait_time": wait_time, "username": username},
+            ),
+        )
+
+    is_valid, message = TextValidator.validate_for_gemini(request.text)
+    if not is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=_error_detail(
+                "TEXT_VALIDATION_ERROR",
+                message,
+                {"text_length": len(request.text)},
+            ),
+        )
+
+    if request.operation != "error_check":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=_error_detail(
+                "UNSUPPORTED_OPERATION",
+                "流式纠错仅支持 error_check 操作",
+                {"operation": request.operation},
+            ),
+        )
+
+    prompt = build_error_check_prompt(request.text)
+    gemini_api_key = _require_gemini_api_key(http_request)
+    cache_key = _build_text_task_cache_key(
+        request.text,
+        f"{request.operation}_{ERROR_CHECK_PRIMARY_MODEL}_{ERROR_CHECK_FALLBACK_MODEL}",
+    )
+
+    async def stream_generator():
+        cached_result = gemini_cache.get(cache_key)
+        if cached_result:
+            full_text = cached_result.get("text", "") or ""
+        else:
+            result = await asyncio.to_thread(
+                generate_gemini_content_with_fallback,
+                prompt,
+                gemini_api_key,
+                ERROR_CHECK_PRIMARY_MODEL,
+                ERROR_CHECK_FALLBACK_MODEL,
+            )
+            if not result.get("success"):
+                error_chunk = StreamTranslationChunk(
+                    type="error",
+                    error=result.get("error") or "Gemini correction failed",
+                    error_type=result.get("error_type", "correction_error"),
+                )
+                yield f"data: {error_chunk.model_dump_json(exclude_none=True)}\n\n"
+                return
+
+            full_text = result.get("text", "") or ""
+            if full_text.strip():
+                gemini_cache.set(
+                    cache_key,
+                    {
+                        "success": True,
+                        "text": full_text,
+                        "model_used": result.get("model_used", "unknown"),
+                    },
+                )
+
+        if not full_text.strip():
+            error_chunk = StreamTranslationChunk(
+                type="error",
+                error="纠错未返回可显示内容",
+                error_type="empty_result",
+            )
+            yield f"data: {error_chunk.model_dump_json(exclude_none=True)}\n\n"
+            return
+
+        async for payload in _synthetic_text_stream(
+            full_text,
+            StreamTranslationChunk,
+            chunk_size=100,
+            delay_seconds=0.015,
+        ):
+            yield payload
+
+    return StreamingResponse(
+        stream_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
         },
     )
 
@@ -1262,100 +1429,99 @@ async def refine_stream(
 
     使用 Server-Sent Events (SSE) 返回流式修改结果
     """
-    # 提取用户名
     username = user.username if hasattr(user, "username") else str(user)
-
-    # 速率限制检查
     allowed, wait_time = rate_limiter.is_allowed(username)
     if not allowed:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=ErrorResponse(
-                error_code="RATE_LIMIT_EXCEEDED",
-                message=f"请求过于频繁，请等待 {wait_time} 秒",
-                details={"wait_time": wait_time, "username": username},
-            ).dict(),
+            detail=_error_detail(
+                "RATE_LIMIT_EXCEEDED",
+                f"请求过于频繁，请等待 {wait_time} 秒",
+                {"wait_time": wait_time, "username": username},
+            ),
         )
 
-    # 文本验证
     is_valid, message = TextValidator.validate_for_gemini(request.text)
     if not is_valid:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ErrorResponse(
-                error_code="TEXT_VALIDATION_ERROR",
-                message=message,
-                details={"text_length": len(request.text)},
-            ).dict(),
+            detail=_error_detail(
+                "TEXT_VALIDATION_ERROR",
+                message,
+                {"text_length": len(request.text)},
+            ),
         )
 
-    # 构建隐藏指令
     hidden_prompts = []
     for directive in request.directives:
         if directive in SHORTCUT_ANNOTATIONS:
             hidden_prompts.append(f"- {SHORTCUT_ANNOTATIONS[directive]}")
 
     hidden_instructions = "\n".join(hidden_prompts)
-
-    # 提取批注信息
     annotations = extract_annotations_with_context(request.text)
-    if annotations:
-        logging.info(f"检测到 {len(annotations)} 个局部批注")
-        # 记录更详细的批注信息，便于调试
-        for i, anno in enumerate(annotations):
-            logging.info(f"批注 {i + 1}: 句子='{anno['sentence']}', 内容='{anno['content']}'")
-
-    # 构建prompt
     prompt = build_english_refine_prompt(request.text, hidden_instructions, annotations)
-
-    # 记录完整的prompt用于调试
-    logging.info(f"流式文本修改 - 完整的提示词: {prompt}")
-
-    # 获取API密钥（优先从环境变量获取，其次从请求头获取）
-    gemini_api_key = None
-
-    # 从环境变量获取Gemini API密钥
-    gemini_api_key = os.environ.get("GEMINI_API_KEY")
-    logging.info(f"refine_stream函数: 从环境变量获取GEMINI_API_KEY: {gemini_api_key is not None}")
-    if not gemini_api_key:
-        # 从请求头获取
-        gemini_api_key = http_request.headers.get("X-Gemini-Api-Key")
-        logging.info(
-            f"refine_stream函数: 从请求头获取X-Gemini-Api-Key: {gemini_api_key is not None}"
-        )
-
-    # 检查API密钥是否存在
-    if not gemini_api_key:
-        logging.warning("Gemini API密钥未提供：环境变量和请求头中都未找到")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ErrorResponse(
-                error_code="GEMINI_API_KEY_MISSING",
-                message="需要提供Gemini API密钥（可通过环境变量GEMINI_API_KEY或侧边栏输入设置）",
-                details={"service": "Gemini"},
-            ).dict(),
-        )
+    cache_scope = "_".join(request.directives) if request.directives else "refine"
+    cache_key = _build_text_task_cache_key(request.text, cache_scope)
+    gemini_api_key = _require_gemini_api_key(http_request)
 
     async def stream_generator():
-        """流式生成器，产生SSE格式的数据"""
         try:
-            # 调用流式翻译服务（与翻译共用同一个流式函数），使用 gemini-2.5-flash 作为主模型
-            stream = generate_gemini_content_stream(
-                prompt=prompt,
-                api_key=gemini_api_key,
-                primary_model="gemini-2.5-flash",
-                fallback_model="gemini-2.5-pro",
-            )
+            cached_result = gemini_cache.get(cache_key)
+            if cached_result:
+                full_text = cached_result.get("text", "") or ""
+                model_used = cached_result.get("model_used", "unknown")
+                annotations_processed = cached_result.get(
+                    "annotations_processed", len(annotations) if annotations else 0
+                )
+            else:
+                result = generate_gemini_content_with_fallback(
+                    prompt,
+                    api_key=gemini_api_key,
+                    primary_model="gemini-2.5-flash",
+                    fallback_model="gemini-2.5-pro",
+                )
+                if not result.get("success"):
+                    error_chunk = StreamRefineTextChunk(
+                        type="error",
+                        error=result.get("error", "流式文本修改失败"),
+                        error_type=result.get("error_type", "refine_error"),
+                    )
+                    yield f"data: {error_chunk.model_dump_json(exclude_none=True)}\n\n"
+                    return
 
-            # 处理流式响应
-            async for chunk in stream:
-                # 将字典转换为JSON字符串
-                chunk_data = StreamRefineTextChunk(**chunk)
-                json_str = chunk_data.json()
+                full_text = result.get("text", "") or ""
+                model_used = result.get("model_used", "unknown")
+                annotations_processed = len(annotations) if annotations else 0
+                if full_text.strip():
+                    gemini_cache.set(
+                        cache_key,
+                        {
+                            "success": True,
+                            "text": full_text,
+                            "model_used": model_used,
+                            "annotations_processed": annotations_processed,
+                        },
+                    )
 
-                # SSE格式：data: {json}\n\n
-                yield f"data: {json_str}\n\n"
+            if not full_text.strip():
+                error_chunk = StreamRefineTextChunk(
+                    type="error",
+                    error="文本修改未返回可显示内容",
+                    error_type="empty_result",
+                )
+                yield f"data: {error_chunk.model_dump_json(exclude_none=True)}\n\n"
+                return
 
+            async for payload in _synthetic_text_stream(
+                full_text,
+                StreamRefineTextChunk,
+                chunk_size=100,
+                delay_seconds=0.015,
+                complete_extra={
+                    "total_sentences": None,
+                },
+            ):
+                yield payload
         except Exception as e:
             logging.error(f"流式文本修改异常: {str(e)}", exc_info=True)
             error_chunk = StreamRefineTextChunk(
@@ -1363,16 +1529,15 @@ async def refine_stream(
                 error=f"流式文本修改异常: {str(e)}",
                 error_type="stream_error",
             )
-            yield f"data: {error_chunk.json()}\n\n"
+            yield f"data: {error_chunk.model_dump_json(exclude_none=True)}\n\n"
 
-    # 返回流式响应
     return StreamingResponse(
         stream_generator(),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",  # 禁用Nginx缓冲
+            "X-Accel-Buffering": "no",
         },
     )
 
@@ -1385,89 +1550,34 @@ async def refine_text(
     user: UserObject = Depends(get_current_user),
 ):
     """英文精修"""
-
-    # 提取用户名
     username = user.username if hasattr(user, "username") else str(user)
-
-    # 速率限制检查
     allowed, wait_time = rate_limiter.is_allowed(username)
     if not allowed:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=ErrorResponse(
-                error_code="RATE_LIMIT_EXCEEDED",
-                message=f"请求过于频繁，请等待 {wait_time} 秒",
-                details={"wait_time": wait_time, "username": username},
-            ).dict(),
+            detail=_error_detail(
+                "RATE_LIMIT_EXCEEDED",
+                f"请求过于频繁，请等待 {wait_time} 秒",
+                {"wait_time": wait_time, "username": username},
+            ),
         )
 
-    # 构建隐藏指令
     hidden_prompts = []
     for directive in request.directives:
         if directive in SHORTCUT_ANNOTATIONS:
             hidden_prompts.append(f"- {SHORTCUT_ANNOTATIONS[directive]}")
 
     hidden_instructions = "\n".join(hidden_prompts)
-
-    # 提取批注信息
     annotations = extract_annotations_with_context(request.text)
-    if annotations:
-        logging.info(f"检测到 {len(annotations)} 个局部批注")
-        # 记录更详细的批注信息，便于调试
-        for i, anno in enumerate(annotations):
-            logging.info(f"批注 {i + 1}: 句子='{anno['sentence']}', 内容='{anno['content']}'")
-
-    # 构建prompt
     prompt = build_english_refine_prompt(request.text, hidden_instructions, annotations)
-
-    # 记录完整的prompt用于调试
-    logging.info(f"完整的提示词: {prompt}")
-
-    # 生成缓存键
-    cache_key = generate_safe_hash_for_cache(request.text, "_".join(request.directives))
-
-    # 检查缓存
+    cache_scope = "_".join(request.directives) if request.directives else "refine"
+    cache_key = _build_text_task_cache_key(request.text, cache_scope)
     cached_result = gemini_cache.get(cache_key)
     if cached_result:
-        logging.info(f"使用缓存结果: {cache_key}")
         return cached_result
 
-    # 获取API密钥（优先从环境变量获取，其次从请求头获取）
-    gemini_api_key = None
-    source = "环境变量"
+    gemini_api_key = _require_gemini_api_key(http_request)
 
-    # 从环境变量获取Gemini API密钥
-    gemini_api_key = os.environ.get("GEMINI_API_KEY")
-    if not gemini_api_key:
-        # 从请求头获取
-        gemini_api_key = http_request.headers.get("X-Gemini-Api-Key")
-        source = "请求头"
-
-    # 调试日志：记录API密钥信息
-    if gemini_api_key:
-        key_prefix = (
-            gemini_api_key[:8] if len(gemini_api_key) > 8 else gemini_api_key[: len(gemini_api_key)]
-        )
-        logging.info(f"从{source}获取到Gemini API密钥，前缀: {key_prefix}...")
-    else:
-        logging.warning(f"Gemini API密钥未提供：{source}中未找到")
-
-    # 检查API密钥是否存在
-    if not gemini_api_key:
-        logging.warning("Gemini API密钥未提供：环境变量和请求头中都未找到")
-        # 记录所有请求头用于调试
-        all_headers = dict(http_request.headers)
-        logging.info(f"所有请求头: {all_headers}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ErrorResponse(
-                error_code="GEMINI_API_KEY_MISSING",
-                message="需要提供Gemini API密钥（可通过环境变量GEMINI_API_KEY或侧边栏输入设置）",
-                details={"service": "Gemini"},
-            ).dict(),
-        )
-
-    # 调用 Gemini API，文本相关功能使用 gemini-2.5-flash 作为主模型
     result = generate_gemini_content_with_fallback(
         prompt,
         api_key=gemini_api_key,
@@ -1480,11 +1590,11 @@ async def refine_text(
         error_type = result.get("error_type", "unknown")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=ErrorResponse(
-                error_code="GEMINI_API_ERROR",
-                message=error_message,
-                details={"error_type": error_type},
-            ).dict(),
+            detail=_error_detail(
+                "GEMINI_API_ERROR",
+                error_message,
+                {"error_type": error_type},
+            ),
         )
 
     response_data = {
@@ -1494,9 +1604,7 @@ async def refine_text(
         "annotations_processed": len(annotations) if annotations else 0,
     }
 
-    # 缓存结果
     gemini_cache.set(cache_key, response_data)
-
     return response_data
 
 
@@ -1517,11 +1625,11 @@ async def detect_ai(
     if not allowed:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=ErrorResponse(
-                error_code="RATE_LIMIT_EXCEEDED",
-                message=f"请求过于频繁，请等待 {wait_time} 秒",
-                details={"wait_time": wait_time, "username": username},
-            ).dict(),
+            detail=_error_detail(
+                "RATE_LIMIT_EXCEEDED",
+                f"请求过于频繁，请等待 {wait_time} 秒",
+                {"wait_time": wait_time, "username": username},
+            ),
         )
 
     # 优先从环境变量读取GPTZero API密钥
@@ -1564,11 +1672,11 @@ async def detect_ai(
         logging.info(f"所有请求头: {all_headers}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ErrorResponse(
-                error_code="GPTZERO_API_KEY_MISSING",
-                message="需要提供GPTZero API密钥（可通过环境变量GPTZERO_API_KEY或请求头X-Gptzero-Api-Key提供）",
-                details={"service": "GPTZero"},
-            ).dict(),
+            detail=_error_detail(
+                "GPTZERO_API_KEY_MISSING",
+                "需要提供GPTZero API密钥（可通过环境变量GPTZERO_API_KEY或请求头X-Gptzero-Api-Key提供）",
+                {"service": "GPTZero"},
+            ),
         )
 
     # 调试日志：记录API密钥信息
@@ -1595,11 +1703,11 @@ async def detect_ai(
         error_message = result.get("message", "检测失败")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=ErrorResponse(
-                error_code="GPTZERO_API_ERROR",
-                message=error_message,
-                details={"service": "GPTZero"},
-            ).dict(),
+            detail=_error_detail(
+                "GPTZERO_API_ERROR",
+                error_message,
+                {"service": "GPTZero"},
+            ),
         )
 
     # 缓存结果
@@ -1614,6 +1722,194 @@ async def detect_ai(
         logging.warning(f"记录AI检测使用失败，但不影响返回结果: {str(e)}")
 
     return result
+
+
+@app.post("/api/chat-stream")
+@api_error_handler
+async def chat_stream_endpoint(
+    http_request: Request,
+    request: AIChatRequest,
+    user: UserObject = Depends(get_current_user),
+):
+    """AI聊天流式接口。"""
+    logging.info(
+        "chat_stream_endpoint called: literature_research_mode=%s, messages_count=%s",
+        request.literature_research_mode,
+        len(request.messages),
+    )
+
+    username = user.username if hasattr(user, "username") else str(user)
+    allowed, wait_time = rate_limiter.is_allowed(username)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=_error_detail(
+                "RATE_LIMIT_EXCEEDED",
+                f"请求过于频繁，请等待{wait_time}秒",
+                {"wait_time": wait_time},
+            ),
+        )
+
+    user_info = user_service.get_user_info(username)
+    if not user_info:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=_error_detail(
+                "USER_NOT_FOUND",
+                "用户不存在",
+                {"username": username},
+            ),
+        )
+
+    messages = [{"role": msg.role, "content": msg.content} for msg in request.messages]
+
+    if request.literature_research_mode:
+        manus_api_key = os.environ.get("MANUS_API_KEY")
+        if not manus_api_key:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=_error_detail(
+                    "API_KEY_MISSING",
+                    "未提供Manus API密钥",
+                    {"hint": "请设置MANUS_API_KEY环境变量"},
+                ),
+            )
+
+        prompt = _extract_latest_user_message(request.messages) or "请帮助我进行学术研究"
+        final_prompt = build_literature_research_prompt(
+            prompt=prompt,
+            generate_literature_review=request.generate_literature_review,
+            use_cache=True,
+        )
+
+        def manus_stream_generator():
+            start_chunk = AIChatStreamChunk(
+                type="start",
+                model_used="manus-ai",
+                session_id=request.session_id,
+            )
+            yield _sse_payload(start_chunk.model_dump(exclude_none=True))
+
+            for chunk in chat_with_manus_stream(
+                prompt=final_prompt,
+                api_key=manus_api_key,
+                generate_literature_review=request.generate_literature_review,
+                prompt_already_built=True,
+            ):
+                payload = AIChatStreamChunk(
+                    type=chunk.get("type", "error"),
+                    text=chunk.get("text"),
+                    full_text=chunk.get("full_text"),
+                    step=chunk.get("step"),
+                    steps=chunk.get("steps"),
+                    session_id=request.session_id,
+                    model_used=chunk.get("model_used", "manus-ai"),
+                    error=chunk.get("error"),
+                    documents=chunk.get("documents"),
+                )
+                yield _sse_payload(payload.model_dump(exclude_none=True))
+
+        return StreamingResponse(
+            manus_stream_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
+    api_key, source = _get_gemini_api_key_from_request(http_request)
+    logging.info(f"chat_stream_endpoint函数: Gemini API密钥来源 {source}: {api_key is not None}")
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=_error_detail(
+                "API_KEY_MISSING",
+                "未提供Gemini API密钥",
+                {"hint": "请在侧边栏输入Gemini API密钥，或设置GEMINI_API_KEY环境变量"},
+            ),
+        )
+
+    prompt = build_gemini_chat_prompt(messages)
+
+    async def gemini_stream_generator():
+        full_text = ""
+        start_chunk = AIChatStreamChunk(
+            type="start",
+            model_used="gemini-2.5-flash",
+            session_id=request.session_id,
+        )
+        yield _sse_payload(start_chunk.model_dump(exclude_none=True))
+
+        try:
+            async for chunk in generate_gemini_content_stream(
+                prompt=prompt,
+                api_key=api_key,
+                primary_model="gemini-2.5-flash",
+                fallback_model="gemini-2.5-pro",
+            ):
+                chunk_type = chunk.get("type")
+                if chunk_type == "chunk":
+                    text = chunk.get("text", "")
+                    if text:
+                        full_text += text
+                        payload = AIChatStreamChunk(
+                            type="delta",
+                            text=text,
+                            full_text=full_text,
+                            session_id=request.session_id,
+                            model_used=chunk.get("model_used", "gemini-2.5-flash"),
+                        )
+                        yield _sse_payload(payload.model_dump(exclude_none=True))
+                elif chunk_type == "complete":
+                    final_text = chunk.get("text") or full_text
+                    payload = AIChatStreamChunk(
+                        type="complete",
+                        text=final_text,
+                        full_text=final_text,
+                        session_id=request.session_id,
+                        model_used=chunk.get("model_used", "gemini-2.5-flash"),
+                    )
+                    yield _sse_payload(payload.model_dump(exclude_none=True))
+                    return
+                elif chunk_type == "error":
+                    payload = AIChatStreamChunk(
+                        type="error",
+                        error=chunk.get("error", "聊天流式输出失败"),
+                        session_id=request.session_id,
+                        model_used=chunk.get("model_used", "gemini-2.5-flash"),
+                    )
+                    yield _sse_payload(payload.model_dump(exclude_none=True))
+                    return
+
+            payload = AIChatStreamChunk(
+                type="complete",
+                text=full_text,
+                full_text=full_text,
+                session_id=request.session_id,
+                model_used="gemini-2.5-flash",
+            )
+            yield _sse_payload(payload.model_dump(exclude_none=True))
+        except Exception as e:
+            logging.error(f"Gemini流式聊天失败: {str(e)}", exc_info=True)
+            payload = AIChatStreamChunk(
+                type="error",
+                error=f"聊天流式输出失败: {str(e)}",
+                session_id=request.session_id,
+                model_used="gemini-2.5-flash",
+            )
+            yield _sse_payload(payload.model_dump(exclude_none=True))
+
+    return StreamingResponse(
+        gemini_stream_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.post("/api/chat")
@@ -1648,11 +1944,11 @@ async def chat_endpoint(
     if not allowed:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=ErrorResponse(
-                error_code="RATE_LIMIT_EXCEEDED",
-                message=f"请求过于频繁，请等待{wait_time}秒",
-                details={"wait_time": wait_time},
-            ).dict(),
+            detail=_error_detail(
+                "RATE_LIMIT_EXCEEDED",
+                f"请求过于频繁，请等待{wait_time}秒",
+                {"wait_time": wait_time},
+            ),
         )
 
     # 检查用户限制
@@ -1660,11 +1956,11 @@ async def chat_endpoint(
     if not user_info:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=ErrorResponse(
-                error_code="USER_NOT_FOUND",
-                message="用户不存在",
-                details={"username": username},
-            ).dict(),
+            detail=_error_detail(
+                "USER_NOT_FOUND",
+                "用户不存在",
+                {"username": username},
+            ),
         )
 
     # 转换消息格式为chat_with_gemini所需的格式
@@ -1688,11 +1984,11 @@ async def chat_endpoint(
     if not api_key:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ErrorResponse(
-                error_code="API_KEY_MISSING",
-                message="未提供Gemini API密钥",
-                details={"hint": "请在侧边栏输入Gemini API密钥，或设置GEMINI_API_KEY环境变量"},
-            ).dict(),
+            detail=_error_detail(
+                "API_KEY_MISSING",
+                "未提供Gemini API密钥",
+                {"hint": "请在侧边栏输入Gemini API密钥，或设置GEMINI_API_KEY环境变量"},
+            ),
         )
 
     logging.info(f"使用{source}的Gemini API密钥进行聊天，用户: {username}")
@@ -1717,11 +2013,11 @@ async def chat_endpoint(
             if not user_obj:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=ErrorResponse(
-                        error_code="USER_NOT_FOUND",
-                        message="用户不存在",
-                        details={"username": username},
-                    ).dict(),
+                    detail=_error_detail(
+                        "USER_NOT_FOUND",
+                        "用户不存在",
+                        {"username": username},
+                    ),
                 )
 
             # 创建请求数据
@@ -1797,11 +2093,11 @@ async def chat_endpoint(
         if not manus_api_key:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=ErrorResponse(
-                    error_code="API_KEY_MISSING",
-                    message="未提供Manus API密钥",
-                    details={"hint": "请设置MANUS_API_KEY环境变量"},
-                ).dict(),
+                detail=_error_detail(
+                    "API_KEY_MISSING",
+                    "未提供Manus API密钥",
+                    {"hint": "请设置MANUS_API_KEY环境变量"},
+                ),
             )
 
         # 使用Manus API进行通用对话
@@ -1833,6 +2129,7 @@ async def chat_endpoint(
                         session_id=request.session_id,
                         model_used="manus-ai",
                         steps=result.get("steps", []),  # 传递Manus API步骤信息
+                        documents=result.get("documents", []),  # 传递Manus文档下载信息
                     )
                     json_str = json.dumps(response_data.dict(), ensure_ascii=False)
 
@@ -1873,6 +2170,7 @@ async def chat_endpoint(
                     session_id=request.session_id,
                     model_used="manus-ai",
                     steps=result.get("steps", []),  # 传递Manus API步骤信息
+                    documents=result.get("documents", []),  # 传递Manus文档下载信息
                 )
             else:
                 # 记录总处理时间
@@ -1885,6 +2183,7 @@ async def chat_endpoint(
                     session_id=request.session_id,
                     model_used="manus-ai",
                     steps=[],  # 失败时返回空步骤列表
+                    documents=[],
                     error=result.get("error", "Manus API对话失败"),
                 )
 
@@ -1896,6 +2195,7 @@ async def chat_endpoint(
                 session_id=request.session_id,
                 model_used="manus-ai",
                 steps=[],  # Manus API异常时返回空步骤列表
+                documents=[],
                 error=f"Manus API对话失败: {str(e)}",
             )
 
@@ -1925,11 +2225,11 @@ async def chat_endpoint(
         logging.error(f"聊天请求处理失败: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=ErrorResponse(
-                error_code="CHAT_PROCESSING_FAILED",
-                message="聊天请求处理失败",
-                details={"error": str(e)},
-            ).dict(),
+            detail=_error_detail(
+                "CHAT_PROCESSING_FAILED",
+                "聊天请求处理失败",
+                {"error": str(e)},
+            ),
         ) from e
 
 
@@ -1948,11 +2248,11 @@ async def get_task_status(
     if not task:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=ErrorResponse(
-                error_code="TASK_NOT_FOUND",
-                message="任务不存在",
-                details={"task_id": task_id},
-            ).dict(),
+            detail=_error_detail(
+                "TASK_NOT_FOUND",
+                "任务不存在",
+                {"task_id": task_id},
+            ),
         )
 
     # 检查任务是否属于当前用户（非管理员用户只能查看自己的任务）
@@ -1962,22 +2262,22 @@ async def get_task_status(
     if not user_obj:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=ErrorResponse(
-                error_code="USER_NOT_FOUND",
-                message="用户不存在",
-                details={"username": username},
-            ).dict(),
+            detail=_error_detail(
+                "USER_NOT_FOUND",
+                "用户不存在",
+                {"username": username},
+            ),
         )
 
     # 非管理员用户只能查看自己的任务
     if not user_obj.is_admin and task.user_id != user_obj.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=ErrorResponse(
-                error_code="ACCESS_DENIED",
-                message="无权访问此任务",
-                details={"task_id": task_id},
-            ).dict(),
+            detail=_error_detail(
+                "ACCESS_DENIED",
+                "无权访问此任务",
+                {"task_id": task_id},
+            ),
         )
 
     # 计算进度百分比（如果任务正在处理中）
@@ -2188,11 +2488,11 @@ async def admin_login(request: AdminLoginRequest):
     if request.password != ADMIN_PASSWORD:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=ErrorResponse(
-                error_code="ADMIN_AUTHENTICATION_FAILED",
-                message="密码错误",
-                details={"service": "admin_login"},
-            ).dict(),
+            detail=_error_detail(
+                "ADMIN_AUTHENTICATION_FAILED",
+                "密码错误",
+                {"service": "admin_login"},
+            ),
         )
 
     timestamp = str(int(time.time()))
@@ -2211,11 +2511,11 @@ async def get_all_users(credentials: HTTPAuthorizationCredentials = Depends(secu
     if not token.startswith("admin:"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=ErrorResponse(
-                error_code="ADMIN_PERMISSION_REQUIRED",
-                message="需要管理员权限",
-                details={"token_provided": token[:20] if token else None},
-            ).dict(),
+            detail=_error_detail(
+                "ADMIN_PERMISSION_REQUIRED",
+                "需要管理员权限",
+                {"token_provided": token[:20] if token else None},
+            ),
         )
 
     users = user_service.get_all_users()
@@ -2233,11 +2533,11 @@ async def update_user(
     if not token.startswith("admin:"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=ErrorResponse(
-                error_code="ADMIN_PERMISSION_REQUIRED",
-                message="需要管理员权限",
-                details={"token_provided": token[:20] if token else None},
-            ).dict(),
+            detail=_error_detail(
+                "ADMIN_PERMISSION_REQUIRED",
+                "需要管理员权限",
+                {"token_provided": token[:20] if token else None},
+            ),
         )
 
     success, message = user_service.update_user(
@@ -2250,11 +2550,11 @@ async def update_user(
     if not success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ErrorResponse(
-                error_code="USER_UPDATE_FAILED",
-                message=message,
-                details={"username": request.username},
-            ).dict(),
+            detail=_error_detail(
+                "USER_UPDATE_FAILED",
+                message,
+                {"username": request.username},
+            ),
         )
 
     return {"success": True, "message": message}
@@ -2271,11 +2571,11 @@ async def add_user(
     if not token.startswith("admin:"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=ErrorResponse(
-                error_code="ADMIN_PERMISSION_REQUIRED",
-                message="需要管理员权限",
-                details={"token_provided": token[:20] if token else None},
-            ).dict(),
+            detail=_error_detail(
+                "ADMIN_PERMISSION_REQUIRED",
+                "需要管理员权限",
+                {"token_provided": token[:20] if token else None},
+            ),
         )
 
     success, message = user_service.add_user(
@@ -2288,11 +2588,11 @@ async def add_user(
     if not success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ErrorResponse(
-                error_code="USER_ADD_FAILED",
-                message=message,
-                details={"username": request.username},
-            ).dict(),
+            detail=_error_detail(
+                "USER_ADD_FAILED",
+                message,
+                {"username": request.username},
+            ),
         )
 
     return {"success": True, "message": message}
@@ -2304,17 +2604,9 @@ async def test_endpoint():
 
 
 # 添加启动事件来打印所有路由
-@app.on_event("startup")
-async def print_routes():
-    """打印所有注册的路由"""
-    logger.info("=== 注册的API路由 ===")
-    for route in app.routes:
-        if hasattr(route, "methods"):
-            logger.info(f"{route.path} - {route.methods}")
-    logger.info("===================")
-
-
+# Startup route logging moved to app_lifespan.
 if __name__ == "__main__":
     import uvicorn
 
+    configure_windows_utf8_streams()
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)

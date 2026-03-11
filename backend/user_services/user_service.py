@@ -1,8 +1,7 @@
 """
-用户服务模块
+User service backed by the database.
 
-替代原有的UserLimitManager，使用数据库存储用户数据。
-保持相同的API接口，实现向后兼容。
+Replaces the legacy UserLimitManager while keeping the same external API.
 """
 
 import json
@@ -19,66 +18,65 @@ from models.database import TranslationRecord, User, UserUsage, hash_password, v
 
 
 class UserService:
-    """用户服务类 - 使用数据库存储用户数据"""
+    """User service backed by database storage."""
 
     DAILY_LIMIT = 3  # 每个用户每天的翻译使用次数限制
 
     def __init__(self):
-        """初始化用户服务"""
+        """Initialize the user service."""
         self._lock = threading.RLock()  # 线程锁，防止并发访问
         self._ensure_admin_user()
-        logging.info("UserService初始化完成，使用数据库存储")
-        logging.info(f"每日翻译限制: {settings.DAILY_TRANSLATION_LIMIT} 次")
-        logging.info(f"每日AI检测限制: {settings.DAILY_AI_DETECTION_LIMIT} 次")
+        logging.info("UserService initialized with database storage")
+        logging.info("Daily translation limit: %s", settings.DAILY_TRANSLATION_LIMIT)
+        logging.info("Daily AI detection limit: %s", settings.DAILY_AI_DETECTION_LIMIT)
 
     def _ensure_admin_user(self):
-        """确保管理员用户存在"""
+        """Ensure the admin user exists."""
         from models.database import ensure_admin_user_exists
 
         ensure_admin_user_exists()
 
     def _get_db_session(self) -> Session:
-        """获取数据库会话（独立会话）"""
+        """Get an isolated database session."""
         from models.database import get_session_local
 
         SessionLocal = get_session_local()
         return SessionLocal()  # type: ignore[no-any-return]
 
     def authenticate_user(self, username: str, password: str | None = None) -> tuple[bool, str]:
-        """验证用户（对应原is_user_allowed方法）"""
-        logging.info("=== 登录验证开始 ===")
-        logging.info(f"用户名: {username}")
-        logging.info(f"输入密码: {'*****' if password else 'None'}")
+        """Validate a user, matching the legacy is_user_allowed API."""
+        logging.info("Starting user authentication for %s", username)
+        logging.debug("Password provided: %s", "yes" if password else "no")
 
         db = self._get_db_session()
         try:
             user = db.query(User).filter(User.username == username).first()
 
             if not user:
-                logging.error(f"用户不存在: {username}")
-                return False, "用户不存在"
+                logging.error("User not found: %s", username)
+                return False, "User not found"
 
             if not user.is_active:
-                logging.error(f"用户已被禁用: {username}")
-                return False, "用户已被禁用"
+                logging.error("User is disabled: %s", username)
+                return False, "User is disabled"
 
-            logging.info(f"用户数据: {user.to_dict()}")
+            logging.debug("User record loaded for %s", username)
 
             if password is not None:
                 if not verify_password(password, user.password_hash):  # type: ignore[arg-type]
-                    logging.error("密码不匹配！")
-                    return False, "密码错误"
+                    logging.error("Password mismatch for %s", username)
+                    return False, "Incorrect password"
 
-            logging.info("密码验证通过！")
+            logging.info("Password verification passed for %s", username)
 
             # 检查账户有效性（仅检查是否被禁用）
             if not user.is_active:
-                logging.error(f"用户已被禁用: {username}")
-                return False, "用户已被禁用"
+                logging.error("User is disabled: %s", username)
+                return False, "User is disabled"
 
-            logging.info("用户验证通过")
+            logging.info("Authentication succeeded for %s", username)
 
-            return True, "验证通过"
+            return True, "Authenticated"
 
         finally:
             db.close()
@@ -90,7 +88,7 @@ class UserService:
         text_length: int | None = None,
         metadata: dict | None = None,
     ) -> int:
-        """记录一次使用（翻译、AI检测等）"""
+        """Record usage for translation, AI detection, and related actions."""
         # 添加类型检查和转换
         if hasattr(username, "username"):
             username = username.username
@@ -104,8 +102,8 @@ class UserService:
                 user = db.query(User).filter(User.username == username).first()
 
                 if not user:
-                    logging.error(f"用户 {username} 不存在，无法记录翻译使用")
-                    raise ValueError(f"用户 {username} 不存在")
+                    logging.error("Cannot record usage; user not found: %s", username)
+                    raise ValueError(f"User {username} does not exist")
 
                 # 检查每日限制
                 today = datetime.utcnow().date()
@@ -114,13 +112,13 @@ class UserService:
                 daily_limit: int
                 if operation_type in ["translate_us", "translate_uk"]:
                     daily_limit = user.daily_translation_limit  # type: ignore[assignment]
-                    limit_type = "翻译"
+                    limit_type = "translation"
                 elif operation_type == "ai_detection":
                     daily_limit = user.daily_ai_detection_limit  # type: ignore[assignment]
-                    limit_type = "AI检测"
+                    limit_type = "AI detection"
                 else:
                     daily_limit = 10  # 默认限制
-                    limit_type = "操作"
+                    limit_type = "operation"
 
                 # 查询今日该操作类型的记录数
                 daily_count = (
@@ -135,9 +133,14 @@ class UserService:
 
                 if daily_count >= daily_limit:
                     logging.warning(
-                        f"用户 {username} 今日{limit_type}次数已达上限 ({daily_limit} 次)"
+                        "Daily %s limit reached for user %s (%s)",
+                        limit_type,
+                        username,
+                        daily_limit,
                     )
-                    raise ValueError(f"今日{limit_type}次数已达上限 ({daily_limit} 次)，请明天再试")
+                    raise ValueError(
+                        f"Daily {limit_type} limit reached ({daily_limit}). Please try again tomorrow."
+                    )
 
                 # 获取或创建使用记录
                 usage = user.usage
@@ -167,9 +170,13 @@ class UserService:
 
                 new_count = usage.translations_count
                 logging.info(
-                    f"记录使用({operation_type}): 用户 {username}, 之前总次数: {previous_count}, 现在总次数: {new_count}"
+                    "Recorded usage (%s): user=%s previous_total=%s new_total=%s",
+                    operation_type,
+                    username,
+                    previous_count,
+                    new_count,
                 )
-                logging.info(f"使用记录保存成功: 用户 {username}, 总使用次数: {new_count}")
+                logging.info("Usage record saved: user=%s total=%s", username, new_count)
 
                 # 不再计算和返回剩余次数，现在只使用每日限制
                 # 返回0表示成功，前端不需要处理剩余次数
@@ -178,9 +185,12 @@ class UserService:
             except Exception as e:
                 db.rollback()
                 logging.error(
-                    f"保存使用记录失败，数据可能丢失！用户: {username}, 操作类型: {operation_type}, 错误: {str(e)}"
+                    "Failed to save usage record: user=%s operation=%s error=%s",
+                    username,
+                    operation_type,
+                    str(e),
                 )
-                raise RuntimeError(f"无法保存使用记录: {str(e)}") from e
+                raise RuntimeError(f"Unable to save usage record: {str(e)}") from e
             finally:
                 db.close()
 
@@ -261,9 +271,13 @@ class UserService:
                 .count()
             )
 
-            logging.info(f"获取用户信息: {username}")
+            logging.info("Fetching user info for %s", username)
             logging.info(
-                f"今日使用: 翻译 {daily_translation_used}/{user.daily_translation_limit} 次, AI检测 {daily_ai_detection_used}/{user.daily_ai_detection_limit} 次"
+                "Daily usage: translation %s/%s, ai_detection %s/%s",
+                daily_translation_used,
+                user.daily_translation_limit,
+                daily_ai_detection_used,
+                user.daily_ai_detection_limit,
             )
 
             return {
@@ -310,7 +324,7 @@ class UserService:
 
         except Exception as e:
             db.rollback()
-            logging.error(f"更新用户密码失败: {str(e)}")
+            logging.error("Failed to update user settings: %s", str(e))
             return False, f"更新失败: {str(e)}"
         finally:
             db.close()
@@ -393,7 +407,7 @@ class UserService:
 
         except Exception as e:
             db.rollback()
-            logging.error(f"添加用户失败: {str(e)}")
+            logging.error("Failed to add user: %s", str(e))
             return False, f"添加失败: {str(e)}"
         finally:
             db.close()
@@ -516,7 +530,7 @@ class UserService:
 
         except Exception as e:
             db.rollback()
-            logging.error(f"重置用户使用次数失败: {str(e)}")
+            logging.error("Failed to reset user usage: %s", str(e))
             return False, f"重置失败: {str(e)}"
         finally:
             db.close()
@@ -572,7 +586,7 @@ class UserService:
 
         except Exception as e:
             db.rollback()
-            logging.error(f"禁用用户失败: {str(e)}")
+            logging.error("Failed to deactivate user: %s", str(e))
             return False, f"禁用失败: {str(e)}"
         finally:
             db.close()
@@ -625,7 +639,7 @@ class UserService:
 
         except Exception as e:
             db.rollback()
-            logging.error(f"启用用户失败: {str(e)}")
+            logging.error("Failed to activate user: %s", str(e))
             return False, f"启用失败: {str(e)}"
         finally:
             db.close()
@@ -695,12 +709,12 @@ class UserService:
             db.add(usage)
 
             db.commit()
-            logging.info(f"用户注册成功: {username} ({email})")
+            logging.info("User registered successfully: %s (%s)", username, email)
             return True, "注册成功"
 
         except Exception as e:
             db.rollback()
-            logging.error(f"注册用户失败: {str(e)}")
+            logging.error("Failed to register user: %s", str(e))
             return False, f"注册失败: {str(e)}"
         finally:
             db.close()
@@ -740,12 +754,12 @@ class UserService:
             user.email_verified = email_verified  # type: ignore[assignment]
             db.commit()
 
-            logging.info(f"用户邮箱更新成功: {username} -> {email}")
+            logging.info("User email updated successfully: %s -> %s", username, email)
             return True, "邮箱更新成功"
 
         except Exception as e:
             db.rollback()
-            logging.error(f"更新用户邮箱失败: {str(e)}")
+            logging.error("Failed to update user email: %s", str(e))
             return False, f"更新失败: {str(e)}"
         finally:
             db.close()
@@ -772,12 +786,12 @@ class UserService:
             user.email_verified = True  # type: ignore[assignment]
             db.commit()
 
-            logging.info(f"用户邮箱验证成功: {username}")
+            logging.info("User email verified: %s", username)
             return True, "邮箱验证成功"
 
         except Exception as e:
             db.rollback()
-            logging.error(f"验证用户邮箱失败: {str(e)}")
+            logging.error("Failed to verify user email: %s", str(e))
             return False, f"验证失败: {str(e)}"
         finally:
             db.close()
@@ -802,11 +816,11 @@ class UserService:
             if not user.is_active:
                 return False, "用户已被禁用", None
 
-            logging.info(f"密码重置请求: {email} -> {user.username}")
+            logging.info("Password reset requested: %s -> %s", email, user.username)
             return True, "重置请求已接受", user.username  # type: ignore[return-value]
 
         except Exception as e:
-            logging.error(f"处理密码重置请求失败: {str(e)}")
+            logging.error("Failed to handle password reset request: %s", str(e))
             return False, f"处理失败: {str(e)}", None
         finally:
             db.close()
@@ -839,12 +853,12 @@ class UserService:
             user.password_hash = hash_password(new_password)  # type: ignore[assignment]
             db.commit()
 
-            logging.info(f"密码重置成功: {username}")
+            logging.info("Password reset succeeded: %s", username)
             return True, "密码重置成功"
 
         except Exception as e:
             db.rollback()
-            logging.error(f"重置密码失败: {str(e)}")
+            logging.error("Failed to reset password: %s", str(e))
             return False, f"重置失败: {str(e)}"
         finally:
             db.close()

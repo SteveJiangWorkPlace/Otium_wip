@@ -288,6 +288,21 @@ class AIChatResponse(BaseModel):
     model_used: str
     error: str | None = None
     steps: list[str] | None = None  # Manus API步骤信息，仅文献调研模式使用
+    documents: list[dict[str, str]] | None = None  # Manus 生成的文档下载信息
+
+
+class AIChatStreamChunk(BaseModel):
+    """AI聊天流式数据块模型"""
+
+    type: str  # "start", "delta", "replace", "step", "complete", "error"
+    text: str | None = None
+    full_text: str | None = None
+    step: str | None = None
+    steps: list[str] | None = None
+    session_id: str | None = None
+    model_used: str | None = None
+    error: str | None = None
+    documents: list[dict[str, str]] | None = None
 
 
 class BackgroundTaskResponse(BaseModel):

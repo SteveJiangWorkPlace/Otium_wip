@@ -32,7 +32,7 @@ class EmailService:
                 resend.api_key = self.resend_api_key
                 logger.info(f"邮件服务初始化 [Resend]: 发件人: {self.resend_from}")
             else:
-                logger.warning("RESEND_API_KEY 未设置，邮件发送功能将不可用")
+                logger.warning("RESEND_API_KEY is not set; email delivery will be unavailable.")
 
         else:
             logger.error(f"不支持的邮件提供商: {self.email_provider}，邮件发送功能将不可用")
@@ -118,7 +118,7 @@ class EmailService:
     ) -> bool:
         """通过Resend API发送邮件"""
         if not self.resend_api_key:
-            logger.warning("RESEND_API_KEY未配置，邮件发送功能不可用")
+            logger.warning("RESEND_API_KEY is not configured; email delivery is unavailable.")
             return False
 
         try:

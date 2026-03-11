@@ -5,9 +5,7 @@ import { useTranslationStore } from '../store/useTranslationStore';
 import { useGlobalProgressStore } from '../store/useGlobalProgressStore';
 import { useAIChatStore } from '../store/useAIChatStore';
 import { apiClient } from '../api/client';
-import { debugLog } from '../utils/logger';
 import { cleanTextFromMarkdown, renderMarkdownAsHtml } from '../utils/textCleaner';
-import type { StreamTranslationRequest } from '../types';
 import Card from '../components/ui/Card/Card';
 import Textarea from '../components/ui/Textarea/Textarea';
 import Button from '../components/ui/Button/Button';
@@ -15,12 +13,84 @@ import GlobalProgressBar from '../components/GlobalProgressBar/GlobalProgressBar
 import AIChatPanel from '../components/AIChatPanel/AIChatPanel';
 import styles from './TextTranslation.module.css';
 
-const USE_STREAM_TRANSLATION = false;
+const INPUT_TITLE = '\u8f93\u5165\u4e2d\u6587\u6587\u672c';
+const VERSION_LABEL = '\u7ffb\u8bd1\u7248\u672c';
+const ENGLISH_TYPE_LABEL = '\u82f1\u8bed\u4f53\u7cfb';
+const PROFESSIONAL_LABEL = '\u4e13\u4e1a\u7248';
+const BASIC_LABEL = '\u57fa\u7840\u7248';
+const US_LABEL = '\u7f8e\u5f0f';
+const UK_LABEL = '\u82f1\u5f0f';
+const START_TRANSLATION_LABEL = '\u5f00\u59cb\u7ffb\u8bd1';
+const CLEAR_LABEL = '\u6e05\u7a7a\u5168\u6587';
+const COPY_FULL_TEXT_LABEL = '\u590d\u5236\u5168\u6587';
+const COPY_RESULT_LABEL = '\u590d\u5236\u7ed3\u679c';
+const INPUT_PLACEHOLDER = '\u8bf7\u8f93\u5165\u4e2d\u6587\u6587\u672c...';
+const RESULT_PLACEHOLDER = '\u7ffb\u8bd1\u7ed3\u679c...';
+const TO_EDIT_MODE_LABEL = '\u5207\u6362\u5230\u7f16\u8f91\u6a21\u5f0f';
+const TO_PREVIEW_MODE_LABEL = '\u5207\u6362\u5230\u9884\u89c8\u6a21\u5f0f';
+const SHOW_AI_TITLE = '\u663e\u793a Otium \u52a9\u624b';
+const HIDE_AI_TITLE = '\u9690\u85cf Otium \u52a9\u624b';
+const INPUT_EMPTY_ALERT = '\u8bf7\u5148\u8f93\u5165\u6587\u672c\u3002';
+const TRANSLATING_PROGRESS_US = '\u6b63\u5728\u751f\u6210\u7f8e\u5f0f\u8bd1\u6587';
+const TRANSLATING_PROGRESS_UK = '\u6b63\u5728\u751f\u6210\u82f1\u5f0f\u8bd1\u6587';
+const TRANSLATION_DONE_PROGRESS = '\u667a\u80fd\u7ffb\u8bd1\u5df2\u5b8c\u6210\u3002';
+const TRANSLATION_FAILED_DEFAULT =
+  '\u7ffb\u8bd1\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002';
+const TRANSLATION_EMPTY_RESULT =
+  '\u7ffb\u8bd1\u672a\u8fd4\u56de\u53ef\u663e\u793a\u5185\u5bb9\u3002';
+const COPY_INPUT_SUCCESS = '\u8f93\u5165\u6587\u672c\u5df2\u590d\u5236\u3002';
+const COPY_RESULT_SUCCESS = '\u7ed3\u679c\u5df2\u590d\u5236\u3002';
+const COPY_FAILED = '\u590d\u5236\u5931\u8d25\u3002';
+const REFRESH_USER_FAILED = '\u5237\u65b0\u7528\u6237\u4fe1\u606f\u5931\u8d25:';
+const VERSION_HELP_TITLE =
+  '\u4e13\u4e1a\u7248\uff1a\u5141\u8bb8\u66f4\u81ea\u7136\u7684\u5b66\u672f\u8868\u8fbe\u3002&#13;&#10;' +
+  '\u57fa\u7840\u7248\uff1a\u8f93\u51fa\u66f4\u514b\u5236\u3001\u66f4\u7b80\u6d01\u3002';
+
+const TRANSLATING_MESSAGES = {
+  american: [
+    '\u6b63\u5728\u751f\u6210\u7f8e\u5f0f\u8bd1\u6587\u81ea\u7531\u7684\u5473\u9053',
+    '\u7f8e\u5f0f\u82f1\u8bed\u6765\u54af\uff0c\u5e26\u7740\u6c49\u5821\u7684\u9999\u6c14',
+    '\u6b63\u5728\u53ec\u5524\u7f8e\u5f0f\u7ffb\u8bd1\u7cbe\u7075',
+    '\u7f8e\u5f0f\u8bd1\u6587\u751f\u6210\u4e2d\uff0c\u5f88American',
+    '\u6b63\u5728\u7528\u7f8e\u5f0f\u601d\u7ef4\u7ffb\u8bd1',
+    '\u7f8e\u5f0f\u82f1\u8bed\u52a0\u8f7d\u4e2d\uff0cyeahhhh~',
+    '\u7ffb\u8bd1\u6210\u7f8e\u5f0f\u4e2d\uff0c\u81ea\u7531\u800c\u968f\u6027',
+    '\u6b63\u5728\u751f\u6210\u7f8e\u5f0f\u8bd1\u6587\uff0c\u5e26\u70b9\u897f\u90e8\u725b\u4ed4\u98ce',
+    "\u7f8e\u5f0f\u7ffb\u8bd1\u542f\u52a8\uff0cLet's go!",
+    '\u6b63\u5728\u7f8e\u5f0f\u5316\u5904\u7406\u4e2d',
+    '\u7f8e\u5f0f\u8bd1\u6587\u70f9\u996a\u4e2d\uff0c\u52a0\u70b9\u81ea\u7531\u8c03\u5473\u6599',
+    '\u53ec\u5524\u7f8e\u5f0f\u82f1\u8bed\uff0c\u5e26\u7740\u70ed\u72d7\u548c\u53ef\u4e50',
+    '\u6b63\u5728\u751f\u6210\u7f8e\u5f0f\u8bd1\u6587\uff0c\u4f18\u96c5\u53c8\u968f\u610f',
+    '\u7f8e\u5f0f\u7ffb\u8bd1\u4e2d\uff0c\u611f\u53d7\u81ea\u7531\u7684\u6c14\u606f',
+    '\u6b63\u5728\u7528\u7f8e\u56fd\u8154\u8c03\u7ffb\u8bd1',
+  ],
+  british: [
+    '\u6b63\u5728\u751f\u6210\u82f1\u5f0f\u8bd1\u6587\u4f18\u96c5\u767b\u573a',
+    '\u82f1\u5f0f\u82f1\u8bed\u6765\u54af\uff0c\u5e26\u7740\u4e0b\u5348\u8336\u7684\u6c14\u606f',
+    '\u6b63\u5728\u53ec\u5524\u82f1\u5f0f\u7ffb\u8bd1\u7ba1\u5bb6',
+    '\u82f1\u5f0f\u8bd1\u6587\u751f\u6210\u4e2d\uff0cvery British',
+    '\u6b63\u5728\u7528\u82f1\u5f0f\u601d\u7ef4\u7ffb\u8bd1',
+    '\u82f1\u5f0f\u82f1\u8bed\u52a0\u8f7d\u4e2d\uff0ccheerio~',
+    '\u7ffb\u8bd1\u6210\u82f1\u5f0f\u4e2d\uff0c\u4f18\u96c5\u800c\u7ec5\u58eb',
+    '\u6b63\u5728\u751f\u6210\u82f1\u5f0f\u8bd1\u6587\uff0c\u5e26\u70b9\u8d35\u65cf\u8303\u513f',
+    '\u82f1\u5f0f\u7ffb\u8bd1\u542f\u52a8\uff0cBrilliant!',
+    '\u6b63\u5728\u82f1\u5f0f\u5316\u5904\u7406\u4e2d',
+    '\u82f1\u5f0f\u8bd1\u6587\u70f9\u996a\u4e2d\uff0c\u52a0\u70b9\u7ea2\u8336\u548c\u85b0\u8863\u8349',
+    '\u53ec\u5524\u82f1\u5f0f\u82f1\u8bed\uff0c\u5e26\u7740\u96fe\u90fd\u7684\u97f5\u5473',
+    '\u6b63\u5728\u751f\u6210\u82f1\u5f0f\u8bd1\u6587\uff0c\u8154\u8c03\u62ff\u634f\u4e86',
+    '\u82f1\u5f0f\u7ffb\u8bd1\u4e2d\uff0c\u611f\u53d7\u7ec5\u58eb\u7684\u4f18\u96c5',
+    '\u6b63\u5728\u7528\u4f26\u6566\u8154\u8c03\u7ffb\u8bd1',
+  ],
+} as const;
+
+const getTranslationDisplayMessage = (type: 'american' | 'british') => {
+  const messages = TRANSLATING_MESSAGES[type];
+  return messages[Math.floor(Math.random() * messages.length)];
+};
 
 const TextTranslation: React.FC = () => {
   const navigate = useNavigate();
   const { userInfo, updateUserInfo } = useAuthStore();
-
   const {
     inputText,
     version,
@@ -29,47 +99,33 @@ const TextTranslation: React.FC = () => {
     loadingStep,
     translatedText,
     editableText,
-    streaming,
-    partialText,
-    cancelStream,
     setInputText,
     setVersion,
     setEnglishType,
+    setLoading,
+    setLoadingStep,
     setTranslatedText,
     setEditableText,
-    setStreaming,
-    setPartialText,
-    appendPartialText,
-    setSentences,
-    addSentence,
-    setCurrentSentenceIndex,
-    setTotalSentences,
-    setStreamError,
-    setCancelStream,
-    resetStreamState,
     clear,
   } = useTranslationStore();
 
   const { showProgress, hideProgress, updateProgress } = useGlobalProgressStore();
-
-  // 复制通知状态
   const [copyNotification, setCopyNotification] = useState<string | null>(null);
-  const notificationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // 格式化显示状态
   const [showFormatted, setShowFormatted] = useState<boolean>(true);
+  const [isStreamingTranslation, setIsStreamingTranslation] = useState<boolean>(false);
+  const [isWaitingForTranslationContent, setIsWaitingForTranslationContent] =
+    useState<boolean>(false);
+  const notificationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const formattedResultRef = useRef<HTMLDivElement>(null);
 
-  // AI聊天状态
   const { conversations, toggleExpanded, setCurrentPage } = useAIChatStore();
   const containerRef = useRef<HTMLDivElement>(null);
   const pageKey = 'global';
 
-  // 初始化当前页面
   useEffect(() => {
     setCurrentPage(pageKey);
   }, [setCurrentPage]);
 
-  // 清理通知定时器
   useEffect(() => {
     return () => {
       if (notificationTimerRef.current) {
@@ -84,238 +140,150 @@ const TextTranslation: React.FC = () => {
     }
   }, [userInfo, navigate]);
 
-  const handleTranslation = async () => {
-    if (!inputText.trim()) {
-      alert('请先输入文本');
+  useEffect(() => {
+    if (!isStreamingTranslation || !formattedResultRef.current) {
       return;
     }
 
-    if (USE_STREAM_TRANSLATION) {
-      await handleStreamTranslation();
-      return;
+    formattedResultRef.current.scrollTop = formattedResultRef.current.scrollHeight;
+  }, [editableText, isStreamingTranslation]);
+
+  const showTimedNotification = (message: string) => {
+    if (notificationTimerRef.current) {
+      clearTimeout(notificationTimerRef.current);
     }
 
-    await handleDirectTranslation();
+    setCopyNotification(message);
+    notificationTimerRef.current = setTimeout(() => {
+      setCopyNotification(null);
+    }, 2000);
   };
 
-  const handleDirectTranslation = async () => {
-    // 显示全局进度
-    showProgress('智能翻译运行中，请稍后', 'translation');
-    resetStreamState();
-    setStreaming(false);
+  const handleTranslation = async () => {
+    if (!inputText.trim()) {
+      alert(INPUT_EMPTY_ALERT);
+      return;
+    }
+
+    const progressMessage =
+      englishType === 'us' ? TRANSLATING_PROGRESS_US : TRANSLATING_PROGRESS_UK;
+    const displayMessage =
+      englishType === 'us'
+        ? getTranslationDisplayMessage('american')
+        : getTranslationDisplayMessage('british');
+    showProgress(progressMessage, 'translation');
+    setIsStreamingTranslation(true);
+    setIsWaitingForTranslationContent(true);
+    setLoading(true);
+    setLoadingStep('translating');
+    setTranslatedText(displayMessage);
+    setEditableText(displayMessage);
 
     try {
-      const response = await apiClient.checkText({
+      let hasReceivedContent = false;
+      let finalText = '';
+
+      for await (const chunk of apiClient.translateStream({
         text: inputText,
         operation: englishType === 'us' ? 'translate_us' : 'translate_uk',
         version,
-      });
+      })) {
+        if (chunk.type === 'error') {
+          throw new Error(chunk.error || TRANSLATION_FAILED_DEFAULT);
+        }
 
-      if (!response.success) {
-        throw new Error(response.message || '翻译失败');
+        if (chunk.full_text) {
+          hasReceivedContent = true;
+          setIsWaitingForTranslationContent(false);
+          finalText = chunk.full_text;
+          setTranslatedText(chunk.full_text);
+          setEditableText(chunk.full_text);
+          continue;
+        }
+
+        if (chunk.type === 'chunk' && chunk.text) {
+          hasReceivedContent = true;
+          setIsWaitingForTranslationContent(false);
+          finalText = `${finalText}${chunk.text}`;
+          setTranslatedText(finalText);
+          setEditableText(finalText);
+          continue;
+        }
+
+        if (chunk.type === 'complete') {
+          hasReceivedContent = true;
+          setIsWaitingForTranslationContent(false);
+          finalText = chunk.text || chunk.full_text || finalText;
+          setTranslatedText(finalText);
+          setEditableText(finalText);
+        }
       }
 
-      setTranslatedText(response.text || '');
-      setEditableText(response.text || '');
-      updateProgress('智能翻译完成');
+      if (!hasReceivedContent) {
+        throw new Error(TRANSLATION_EMPTY_RESULT);
+      }
+
+      updateProgress(TRANSLATION_DONE_PROGRESS);
 
       try {
         apiClient.getCurrentUser().then(updateUserInfo);
       } catch (error) {
-        console.warn('获取更新后的用户信息失败:', error);
+        console.warn(REFRESH_USER_FAILED, error);
       }
     } catch (error) {
-      let errorMessage = '翻译失败，请稍后重试';
+      let errorMessage = TRANSLATION_FAILED_DEFAULT;
       if (error instanceof Error) {
         errorMessage = error.message;
       }
-      updateProgress(`智能翻译失败: ${errorMessage}`);
+
+      setTranslatedText('');
+      setEditableText('');
+      setIsWaitingForTranslationContent(false);
+      updateProgress(`\u7ffb\u8bd1\u5931\u8d25: ${errorMessage}`);
       alert(errorMessage);
     } finally {
+      setIsStreamingTranslation(false);
+      setIsWaitingForTranslationContent(false);
+      setLoading(false);
+      setLoadingStep(null);
       setTimeout(() => {
         hideProgress();
       }, 1200);
     }
   };
 
-  const handleStreamTranslation = async () => {
-    if (!inputText.trim()) {
-      alert('请先输入文本');
-      return;
-    }
-
-    // 显示全局进度
-    showProgress('智能翻译运行中，请稍后', 'translation');
-
-    // 重置流式状态
-    resetStreamState();
-    setStreaming(true);
-    setPartialText('');
-    setSentences([]);
-    setCurrentSentenceIndex(0);
-    setTotalSentences(0);
-    setStreamError(null);
-
-    // 创建AbortController用于取消请求
-    const abortController = new AbortController();
-    setCancelStream(() => () => {
-      abortController.abort();
-      hideProgress();
-    });
-
-    try {
-      // 构建流式翻译请求
-      const streamRequest: StreamTranslationRequest = {
-        text: inputText,
-        operation: englishType === 'us' ? 'translate_us' : 'translate_uk',
-        version: version,
-      };
-
-      // 调用流式翻译API
-      const streamGenerator = apiClient.translateStream(streamRequest, {
-        signal: abortController.signal,
-        onProgress: (chunk) => {
-          // 处理不同类型的块
-          switch (chunk.type) {
-            case 'chunk':
-              if (chunk.text) {
-                appendPartialText(chunk.text);
-              }
-              break;
-            case 'sentence':
-              // 句子数据现在显示，实现逐句翻译效果
-              if (chunk.text && chunk.index !== undefined) {
-                // 添加或更新句子
-                addSentence(chunk.text, chunk.index);
-                setCurrentSentenceIndex(chunk.index);
-                setTotalSentences(chunk.total || 0);
-              }
-              break;
-            case 'complete':
-              if (chunk.text) {
-                setTranslatedText(chunk.text);
-                setEditableText(chunk.text);
-                setStreaming(false);
-                // 更新进度消息
-                updateProgress('智能翻译完成');
-                // 2秒后隐藏进度（全局状态栏会显示完成状态）
-                setTimeout(() => {
-                  hideProgress();
-                }, 2000);
-
-                // 更新用户信息
-                try {
-                  apiClient.getCurrentUser().then(updateUserInfo);
-                } catch (error) {
-                  console.warn('获取更新后的用户信息失败:', error);
-                }
-              }
-              break;
-            case 'error':
-              setStreamError(chunk.error || '未知错误');
-              setStreaming(false);
-              updateProgress(`智能翻译错误: ${chunk.error}`);
-              // 2秒后隐藏进度
-              setTimeout(() => {
-                hideProgress();
-              }, 2000);
-              alert(`流式翻译错误: ${chunk.error}`);
-              break;
-          }
-        },
-      });
-
-      // 消费流式生成器
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      for await (const _ of streamGenerator) {
-        // 数据已在onProgress回调中处理
-      }
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        debugLog('流式翻译已取消');
-        setStreamError('翻译已取消');
-        updateProgress('智能翻译已取消');
-      } else {
-        let errorMessage = '流式翻译失败，请稍后重试';
-        if (error instanceof Error) {
-          errorMessage = error.message;
-        }
-        setStreamError(errorMessage);
-        updateProgress(`智能翻译失败: ${errorMessage}`);
-        alert(errorMessage);
-      }
-      setStreaming(false);
-      // 2秒后隐藏进度
-      setTimeout(() => {
-        hideProgress();
-      }, 2000);
-    } finally {
-      setCancelStream(null);
-    }
-  };
-
-  const handleCancelStream = () => {
-    if (cancelStream) {
-      cancelStream();
-      setStreaming(false);
-      setCancelStream(null);
-      setStreamError('翻译已取消');
-      hideProgress();
-    }
-  };
-
   const handleClear = () => {
+    setIsStreamingTranslation(false);
+    setIsWaitingForTranslationContent(false);
     clear();
   };
 
   const handleCopyInput = () => {
-    if (inputText) {
-      try {
-        navigator.clipboard.writeText(inputText);
-        // 清除之前的定时器
-        if (notificationTimerRef.current) {
-          clearTimeout(notificationTimerRef.current);
-        }
-        // 设置通知
-        setCopyNotification('已复制输入文本到剪贴板');
-        // 2秒后自动清除通知
-        notificationTimerRef.current = setTimeout(() => {
-          setCopyNotification(null);
-        }, 2000);
-      } catch (error) {
-        console.error('复制失败:', error);
-        // 可选：显示错误通知
-        setCopyNotification('复制失败，请手动复制');
-        notificationTimerRef.current = setTimeout(() => {
-          setCopyNotification(null);
-        }, 2000);
-      }
+    if (!inputText) {
+      return;
+    }
+
+    try {
+      navigator.clipboard.writeText(inputText);
+      showTimedNotification(COPY_INPUT_SUCCESS);
+    } catch (error) {
+      console.error(COPY_FAILED, error);
+      showTimedNotification(COPY_FAILED);
     }
   };
 
   const handleCopyResult = () => {
-    if (translatedText) {
-      try {
-        // 清理markdown符号后复制
-        const cleanedText = cleanTextFromMarkdown(translatedText);
-        navigator.clipboard.writeText(cleanedText);
-        // 清除之前的定时器
-        if (notificationTimerRef.current) {
-          clearTimeout(notificationTimerRef.current);
-        }
-        // 设置通知
-        setCopyNotification('已复制到剪贴板');
-        // 2秒后自动清除通知
-        notificationTimerRef.current = setTimeout(() => {
-          setCopyNotification(null);
-        }, 2000);
-      } catch (error) {
-        console.error('复制失败:', error);
-        setCopyNotification('复制失败，请手动复制');
-        notificationTimerRef.current = setTimeout(() => {
-          setCopyNotification(null);
-        }, 2000);
-      }
+    if (!translatedText) {
+      return;
+    }
+
+    try {
+      const cleanedText = cleanTextFromMarkdown(translatedText);
+      navigator.clipboard.writeText(cleanedText);
+      showTimedNotification(COPY_RESULT_SUCCESS);
+    } catch (error) {
+      console.error(COPY_FAILED, error);
+      showTimedNotification(COPY_FAILED);
     }
   };
 
@@ -324,47 +292,40 @@ const TextTranslation: React.FC = () => {
     messages: [],
     inputText: '',
     loading: false,
+    activeTaskId: null,
     sessionId: null,
     splitPosition: 60,
   };
 
   const workspaceWidth = conversation.isExpanded ? 60 : 100;
-
-  const handleEditText = (text: string) => {
-    setEditableText(text);
-  };
+  const resultTitle = `${englishType === 'us' ? US_LABEL : UK_LABEL}${'\u7ffb\u8bd1\u7ed3\u679c'}`;
+  const formatToggleText = showFormatted ? TO_EDIT_MODE_LABEL : TO_PREVIEW_MODE_LABEL;
+  const aiToggleTitle = conversation.isExpanded ? HIDE_AI_TITLE : SHOW_AI_TITLE;
 
   return (
     <div className={styles.translationContainer} ref={containerRef}>
-      {/* 复制成功通知 */}
       {copyNotification && <div className={styles.copyNotification}>{copyNotification}</div>}
       <div className={styles.pageContainer}>
-        {/* 工作区 */}
         <div className={styles.workspaceContainer} style={{ width: `${workspaceWidth}%` }}>
-          {/* 顶部状态栏：全局进度条 */}
           <div className={styles.topBarContainer}>
             <GlobalProgressBar />
           </div>
 
-          <div className={styles.workspaceHeader}>{/* 标题已移除，AI按钮已移到输入区域 */}</div>
+          <div className={styles.workspaceHeader} />
 
           <div className={styles.workspaceContent}>
             <div className={styles.content}>
-              {/* 输入区域 */}
               <Card variant="ghost" padding="medium" className={styles.inputCard}>
                 <div className={styles.inputHeader}>
-                  <h2 className={styles.cardTitle}>输入中文文本</h2>
+                  <h2 className={styles.cardTitle}>{INPUT_TITLE}</h2>
                   <div className={styles.versionSection}>
                     <div className={styles.selectionGroup}>
                       <div className={styles.selectionItem}>
                         <div className={styles.selectionLabel}>
-                          <button
-                            className={styles.versionHelp}
-                            title="专业版：允许适当使用伴随状语从句以增强表达专业性&#13;&#10;基础版：严格避免使用AI句式以降低AI率"
-                          >
+                          <button className={styles.versionHelp} title={VERSION_HELP_TITLE}>
                             !
                           </button>
-                          <span>翻译版本</span>
+                          <span>{VERSION_LABEL}</span>
                         </div>
                         <div className={styles.selectionButtons}>
                           <Button
@@ -373,7 +334,7 @@ const TextTranslation: React.FC = () => {
                             onClick={() => setVersion('professional')}
                             disabled={loading}
                           >
-                            专业版
+                            {PROFESSIONAL_LABEL}
                           </Button>
                           <Button
                             variant={version === 'basic' ? 'primary' : 'ghost'}
@@ -381,13 +342,13 @@ const TextTranslation: React.FC = () => {
                             onClick={() => setVersion('basic')}
                             disabled={loading}
                           >
-                            基础版
+                            {BASIC_LABEL}
                           </Button>
                         </div>
                       </div>
                       <div className={styles.selectionItem}>
                         <div className={styles.selectionLabel}>
-                          <span>英语体系</span>
+                          <span>{ENGLISH_TYPE_LABEL}</span>
                         </div>
                         <div className={styles.selectionButtons}>
                           <Button
@@ -396,7 +357,7 @@ const TextTranslation: React.FC = () => {
                             onClick={() => setEnglishType('us')}
                             disabled={loading}
                           >
-                            美式
+                            {US_LABEL}
                           </Button>
                           <Button
                             variant={englishType === 'uk' ? 'primary' : 'ghost'}
@@ -404,7 +365,7 @@ const TextTranslation: React.FC = () => {
                             onClick={() => setEnglishType('uk')}
                             disabled={loading}
                           >
-                            英式
+                            {UK_LABEL}
                           </Button>
                         </div>
                       </div>
@@ -413,7 +374,7 @@ const TextTranslation: React.FC = () => {
                   <div
                     className={styles.aiToggleButton}
                     onClick={() => toggleExpanded(pageKey)}
-                    title={conversation.isExpanded ? '隐藏Otium' : '显示Otium'}
+                    title={aiToggleTitle}
                   >
                     <img src="/google-gemini.svg" alt="Otium" className={styles.aiToggleIcon} />
                   </div>
@@ -423,11 +384,12 @@ const TextTranslation: React.FC = () => {
                   <Textarea
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
-                    placeholder="请输入中文文本..."
-                    rows={19}
+                    placeholder={INPUT_PLACEHOLDER}
+                    rows={25}
                     resize="vertical"
                     fullWidth
                     maxLength={1000}
+                    className={styles.inputTextarea}
                   />
                   <div className={styles.charCount}>{inputText.length} / 1000</div>
                 </div>
@@ -435,30 +397,19 @@ const TextTranslation: React.FC = () => {
                 <div className={styles.inputFooter}>
                   <div className={styles.buttonRow}>
                     <div className={styles.leftButtonGroup}>
-                      {streaming ? (
-                        <Button
-                          variant="danger"
-                          size="small"
-                          onClick={handleCancelStream}
-                          disabled={!cancelStream}
-                        >
-                          取消翻译
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="primary"
-                          size="small"
-                          onClick={handleTranslation}
-                          loading={loading && loadingStep === 'translating'}
-                          disabled={loading || streaming}
-                        >
-                          开始翻译
-                        </Button>
-                      )}
+                      <Button
+                        variant="primary"
+                        size="small"
+                        onClick={handleTranslation}
+                        loading={loading && loadingStep === 'translating'}
+                        disabled={loading}
+                      >
+                        {START_TRANSLATION_LABEL}
+                      </Button>
                     </div>
                     <div className={styles.rightButtonGroup}>
                       <Button variant="ghost" size="small" onClick={handleClear} disabled={loading}>
-                        清空全文
+                        {CLEAR_LABEL}
                       </Button>
                       <Button
                         variant="ghost"
@@ -466,62 +417,60 @@ const TextTranslation: React.FC = () => {
                         onClick={handleCopyInput}
                         disabled={loading || !inputText.trim()}
                       >
-                        复制全文
+                        {COPY_FULL_TEXT_LABEL}
                       </Button>
                     </div>
                   </div>
                 </div>
-
-                {/* 流式翻译实时结果显示 */}
-                {streaming && partialText && (
-                  <div className={styles.partialText}>
-                    <div className={styles.partialTextLabel}>实时翻译进度</div>
-                    <div className={styles.partialTextContent}>{partialText}</div>
-                    <div className={styles.partialTextIndicator}>
-                      <div className={styles.loadingSpinner} />
-                      <span>翻译进行中...</span>
-                    </div>
-                  </div>
-                )}
               </Card>
 
-              {/* 翻译结果显示 */}
               {translatedText && (
                 <Card variant="ghost" padding="medium" className={styles.resultCard}>
                   <div className={styles.resultHeader}>
                     <div className={styles.resultTitleRow}>
-                      <h3 className={styles.resultTitle}>
-                        {englishType === 'us' ? '美式' : '英式'}翻译结果
-                      </h3>
+                      <h3 className={styles.resultTitle}>{resultTitle}</h3>
                       <div className={styles.resultActions}>
                         <div className={styles.formatToggleContainer}>
-                          <span className={styles.formatToggleLabel}>
-                            {showFormatted ? '点击切换编辑模式' : '点击切换预览模式'}
-                          </span>
+                          <span className={styles.formatToggleLabel}>{formatToggleText}</span>
                           <button
                             className={styles.formatToggle}
                             onClick={() => setShowFormatted(!showFormatted)}
-                            title={showFormatted ? '点击切换到编辑模式' : '点击切换到预览模式'}
+                            title={formatToggleText}
                             data-state={showFormatted ? 'off' : 'on'}
-                            aria-label={showFormatted ? '点击切换到编辑模式' : '点击切换到预览模式'}
+                            aria-label={formatToggleText}
                           />
                         </div>
                         <Button variant="ghost" size="small" onClick={handleCopyResult}>
-                          复制结果
+                          {COPY_RESULT_LABEL}
                         </Button>
                       </div>
                     </div>
                   </div>
                   {showFormatted ? (
-                    <div
-                      className={styles.formattedResult}
-                      dangerouslySetInnerHTML={{ __html: renderMarkdownAsHtml(editableText) }}
-                    />
+                    <div className={styles.formattedResult} ref={formattedResultRef}>
+                      {isStreamingTranslation && isWaitingForTranslationContent ? (
+                        <div className={styles.loadingPlaceholder}>
+                          <span>{editableText}</span>
+                          <div className={styles.waveDots}>
+                            <div className={styles.waveDot} />
+                            <div className={styles.waveDot} />
+                            <div className={styles.waveDot} />
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          className={styles.formattedResultContent}
+                          dangerouslySetInnerHTML={{
+                            __html: renderMarkdownAsHtml(editableText),
+                          }}
+                        />
+                      )}
+                    </div>
                   ) : (
                     <Textarea
                       value={editableText}
-                      onChange={(e) => handleEditText(e.target.value)}
-                      placeholder="翻译结果..."
+                      onChange={(e) => setEditableText(e.target.value)}
+                      placeholder={RESULT_PLACEHOLDER}
                       rows={19}
                       resize="vertical"
                       fullWidth
@@ -534,7 +483,6 @@ const TextTranslation: React.FC = () => {
           </div>
         </div>
 
-        {/* AI面板 */}
         {conversation.isExpanded && (
           <div className={styles.aiPanelContainer} style={{ width: '40%' }}>
             <AIChatPanel pageKey={pageKey} />

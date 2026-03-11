@@ -59,6 +59,10 @@ class Settings:
         self.GEMINI_API_KEY: str = os.environ.get("GEMINI_API_KEY", "")
         self.GPTZERO_API_KEY: str = os.environ.get("GPTZERO_API_KEY", "")
         self.MANUS_API_KEY: str = os.environ.get("MANUS_API_KEY", "")
+        self.GEMINI_USE_SYSTEM_PROXY: bool = os.environ.get(
+            "GEMINI_USE_SYSTEM_PROXY", "False"
+        ).lower() in ("true", "1", "yes")
+        self.GEMINI_PROXY_URL: str = os.environ.get("GEMINI_PROXY_URL", "").strip()
 
         # 响应大小限制配置
         self.MAX_RESPONSE_SIZE_BYTES: int = int(os.environ.get("MAX_RESPONSE_SIZE_BYTES", "1048576"))  # 默认1MB
@@ -119,7 +123,10 @@ class Settings:
         elif self.ENVIRONMENT == "production":
             # 如果是在生产环境且没有显式设置，自动启用后台工作器
             self.ENABLE_BACKGROUND_WORKER = True
-            logging.info(f"生产环境检测到，自动启用后台工作器: {self.ENABLE_BACKGROUND_WORKER}")
+            logging.info(
+                "Production environment detected; background worker enabled: %s",
+                self.ENABLE_BACKGROUND_WORKER,
+            )
         else:
             # 其他情况（开发环境）默认禁用
             self.ENABLE_BACKGROUND_WORKER = False
@@ -174,8 +181,6 @@ class Settings:
                     origin = origin[1:-1]
                 if origin:  # 非空字符串
                     origins_list.append(origin)
-            logging.info(f"CORS_ORIGINS从环境变量解析: {origins_list}")
-
         # 如果CORS_ORIGINS为空或未设置，使用默认值
         if not origins_list:
             default_origins = [
@@ -184,7 +189,6 @@ class Settings:
                 "https://otiumtrans.netlify.app",
             ]
             origins_list = default_origins
-            logging.info(f"CORS_ORIGINS使用默认值: {origins_list}")
 
         return origins_list
 
@@ -194,7 +198,10 @@ class Settings:
         self.DEBUG = False
         # 在Render平台上启用后台工作器
         self.ENABLE_BACKGROUND_WORKER = True
-        logging.info(f"Render平台检测到，启用后台工作器: {self.ENABLE_BACKGROUND_WORKER}")
+        logging.info(
+            "Render platform detected; background worker enabled: %s",
+            self.ENABLE_BACKGROUND_WORKER,
+        )
         # Render会自动设置PORT变量
 
     def _check_security(self):
@@ -203,32 +210,40 @@ class Settings:
         DEFAULT_SECRET_KEY = "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92"
         if self.SECRET_KEY == DEFAULT_SECRET_KEY:
             logging.warning(
-                "[警告] SECRET_KEY 使用默认值！在生产环境中请设置 JWT_SECRET_KEY 环境变量。"
+                "SECRET_KEY is using the default value; set JWT_SECRET_KEY in production."
             )
 
         # 检查API密钥
         if not self.GEMINI_API_KEY:
-            logging.warning("[警告] GEMINI_API_KEY 未设置，Gemini相关功能将不可用")
+            logging.warning("GEMINI_API_KEY is not set; Gemini features will be unavailable.")
 
         if not self.GPTZERO_API_KEY:
-            logging.warning("[警告] GPTZERO_API_KEY 未设置，AI检测功能将不可用")
+            logging.warning("GPTZERO_API_KEY is not set; AI detection will be unavailable.")
 
         if not self.MANUS_API_KEY:
-            logging.warning("[警告] MANUS_API_KEY 未设置，文献调研功能将不可用")
+            logging.warning(
+                "MANUS_API_KEY is not set; literature research features will be unavailable."
+            )
 
         # 检查管理员密码
         if self.ADMIN_PASSWORD == "admin123":
-            logging.warning("[警告] 管理员密码使用默认值，请在生产环境中修改")
+            logging.warning(
+                "Admin password is using the default value; change it in production."
+            )
 
         # 检查数据库配置
         if self.DATABASE_TYPE == "postgresql" and not self.DATABASE_URL:
-            logging.warning("[警告] 使用PostgreSQL但未设置DATABASE_URL环境变量")
+            logging.warning(
+                "DATABASE_URL is required when DATABASE_TYPE is set to postgresql."
+            )
 
         # 检查邮件配置（仅支持 Resend API）
         if not self.RESEND_API_KEY:
-            logging.warning("[警告] RESEND_API_KEY 未设置，邮件发送功能将不可用")
+            logging.warning("RESEND_API_KEY is not set; email delivery will be unavailable.")
         if self.RESEND_FROM == "onboarding@resend.dev":
-            logging.warning("[警告] RESEND_FROM 使用默认值，请设置为已验证的发件人邮箱")
+            logging.warning(
+                "RESEND_FROM is still using the default sender; configure a verified sender."
+            )
 
 
 # 全局配置实例
@@ -279,6 +294,9 @@ def setup_logging():
 
     # 文件处理器
     if settings.LOG_FILE:
+        log_dir = os.path.dirname(settings.LOG_FILE)
+        if log_dir:
+            os.makedirs(log_dir, exist_ok=True)
         file_handler = logging.FileHandler(settings.LOG_FILE, encoding="utf-8")
         file_handler.setLevel(log_level)
         file_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -292,9 +310,9 @@ def setup_logging():
         handlers=handlers if handlers else None,
     )
 
-    logging.info(f"日志级别设置为: {log_level_str} ({log_level})")
-    logging.info(f"应用环境: {settings.ENVIRONMENT}")
-    logging.info(f"调试模式: {settings.DEBUG}")
+    logging.info("Log level: %s (%s)", log_level_str, log_level)
+    logging.info("Environment: %s", settings.ENVIRONMENT)
+    logging.info("Debug mode: %s", settings.DEBUG)
 
 
 # ==========================================
@@ -350,13 +368,13 @@ def is_expired(expiry_date_str: str) -> bool:
                 except ValueError:
                     continue
             # 所有格式都失败了
-            logging.error(f"无法识别的日期格式: {expiry_date_str}")
+            logging.error("Unrecognized date format: %s", expiry_date_str)
             return False  # 如果无法解析，默认为未过期
         except Exception as e:
-            logging.error(f"日期处理错误: {expiry_date_str}, 错误: {e}")
+            logging.error("Date parsing error for %s: %s", expiry_date_str, e)
             return False  # 如果出现其他错误，默认为未过期
     except Exception as e:
-        logging.error(f"日期处理异常: {expiry_date_str}, 错误: {e}")
+        logging.error("Unexpected date handling error for %s: %s", expiry_date_str, e)
         return False  # 如果出现其他异常，默认为未过期
 
 

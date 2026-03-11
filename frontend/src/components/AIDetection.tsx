@@ -1,23 +1,46 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Card, Button, Icon } from './ui';
 import { AIDetectionResponse } from '../types';
 import { apiClient } from '../api/client';
 import { cleanTextFromMarkdown, renderMarkdownAsHtml } from '../utils/textCleaner';
+import Card from './ui/Card/Card';
+import Button from './ui/Button/Button';
+import Icon from './ui/Icon/Icon';
 import styles from './AIDetection.module.css';
 
 interface AIDetectionProps {
   text: string;
   onDetectionComplete: (result: AIDetectionResponse) => void;
-  disabled?: boolean; // eslint-disable-line @typescript-eslint/no-unused-vars
+  disabled?: boolean;
   autoDetect?: boolean;
   result?: AIDetectionResponse | null;
   onCopyNotification?: (message: string) => void;
 }
 
+const EMPTY_TEXT_ALERT = '\u8bf7\u5148\u8f93\u5165\u6587\u672c';
+const DETECT_DONE = '\u68c0\u6d4b\u5b8c\u6210';
+const DETECT_FAILED = 'AI \u68c0\u6d4b\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5';
+const COPY_SUCCESS = '\u5df2\u590d\u5236\u5230\u526a\u8d34\u677f';
+const COPY_FAILED = '\u590d\u5236\u5931\u8d25\uff0c\u8bf7\u624b\u52a8\u590d\u5236';
+const SCORE_LABEL = '\u5168\u6587 AI \u751f\u6210\u6982\u7387';
+const HIGH_SCORE_HINT =
+  '\u68c0\u6d4b\u5230\u8f83\u9ad8\u7684 AI \u751f\u6210\u6982\u7387\uff0c\u5efa\u8bae\u8fdb\u884c\u4eba\u5de5\u4fee\u6539';
+const LOW_SCORE_HINT =
+  'AI \u751f\u6210\u6982\u7387\u8f83\u4f4e\uff0c\u6587\u672c\u8d28\u91cf\u826f\u597d';
+const WARM_TIP = '\u6e29\u99a8\u63d0\u793a\uff1a';
+const WARM_TIP_1 =
+  '1. \u672c\u68c0\u6d4b\u7ed3\u679c\u57fa\u4e8e ZeroGPT \u6a21\u578b\uff0c\u4ec5\u4f9b\u53c2\u8003\uff0c\u5982\u7528\u4e8e\u5b66\u672f\u7528\u9014\uff0c\u5efa\u8bae\u5c06\u6700\u7ec8\u7248\u672c\u63d0\u4ea4 Turnitin \u8fdb\u884c\u6743\u5a01\u68c0\u6d4b\u3002';
+const WARM_TIP_2 =
+  '2. \u5982\u679c\u591a\u6b21\u4fee\u6539\u540e AI \u7387\u4ecd\u7136\u8f83\u9ad8\uff0c\u8bf7\u786e\u4fdd\u63d0\u4f9b\u7684\u521d\u59cb\u6587\u672c\u4e3a\u975e AI \u751f\u6210\u5185\u5bb9\u3002';
+const ANALYSIS_TITLE = '\u68c0\u6d4b\u7ed3\u679c\u5206\u6790';
+const COPY_TEXT_LABEL = '\u590d\u5236\u6587\u672c';
+const HIGHLIGHT_HINT =
+  '\u63d0\u793a\uff1aAI \u7279\u5f81\u226515%\u7684\u5355\u4e2a\u53e5\u5b50\u5df2\u88ab\u9ad8\u4eae\u6807\u51fa';
+const DETAILED_TITLE = '\u8be6\u7ec6\u53e5\u5b50\u5206\u6790';
+
 const AIDetection: React.FC<AIDetectionProps> = ({
   text,
   onDetectionComplete,
-  disabled = false, // eslint-disable-line @typescript-eslint/no-unused-vars
+  disabled = false,
   autoDetect = false,
   result: externalResult = null,
   onCopyNotification,
@@ -26,34 +49,31 @@ const AIDetection: React.FC<AIDetectionProps> = ({
   const [internalResult, setInternalResult] = useState<AIDetectionResponse | null>(null);
   const hasAutoDetected = useRef(false);
 
-  // 使用外部传入的结果或内部结果
   const result = externalResult !== undefined ? externalResult : internalResult;
 
   const handleDetect = useCallback(async () => {
     if (!text.trim()) {
-      alert('请先输入文本');
+      alert(EMPTY_TEXT_ALERT);
       return;
     }
 
     setLoading(true);
     try {
       const response = await apiClient.detectAI({ text });
-
-      const result: AIDetectionResponse = {
+      const nextResult: AIDetectionResponse = {
         is_ai_generated: response.ai_score ? response.ai_score > 0.5 : false,
         confidence: response.ai_score ? Math.abs(response.ai_score - 0.5) * 2 : 0.5,
-        details: '检测完成',
+        details: DETECT_DONE,
         ai_score: response.ai_score || 0,
         full_text: response.full_text || text,
         detailed_scores: response.detailed_scores || [],
       };
 
-      setInternalResult(result);
-      onDetectionComplete(result);
-      // 成功时不显示提醒
+      setInternalResult(nextResult);
+      onDetectionComplete(nextResult);
     } catch (error) {
-      console.error('AI检测失败:', error);
-      let errorMessage = 'AI检测失败，请稍后重试';
+      console.error('AI detection failed:', error);
+      let errorMessage = DETECT_FAILED;
 
       if (error instanceof Error) {
         errorMessage = error.message;
@@ -62,7 +82,6 @@ const AIDetection: React.FC<AIDetectionProps> = ({
         const responseData = axiosError.response?.data;
 
         if (responseData) {
-          // 尝试从统一错误格式提取消息
           if (typeof responseData.message === 'string' && responseData.message) {
             errorMessage = responseData.message;
           } else if (typeof responseData.detail === 'string') {
@@ -81,12 +100,10 @@ const AIDetection: React.FC<AIDetectionProps> = ({
     }
   }, [text, onDetectionComplete]);
 
-  // 当文本变化时重置状态
   useEffect(() => {
     hasAutoDetected.current = false;
   }, [text]);
 
-  // 当autoDetect从false变为true时触发检测
   const prevAutoDetect = useRef(autoDetect);
   useEffect(() => {
     if (autoDetect && !prevAutoDetect.current && text.trim() && !loading) {
@@ -96,56 +113,54 @@ const AIDetection: React.FC<AIDetectionProps> = ({
   }, [autoDetect, text, loading, handleDetect]);
 
   const getHighlightedText = () => {
-    if (!result?.full_text) return { __html: '' };
+    if (!result?.full_text) {
+      return { __html: '' };
+    }
 
-    let text = result.full_text;
-    // 先将markdown符号转换为HTML
-    text = renderMarkdownAsHtml(text);
-
+    let htmlText = renderMarkdownAsHtml(result.full_text);
     if (result.detailed_scores && Array.isArray(result.detailed_scores)) {
       const highAISentences = result.detailed_scores
-        .filter((s) => s.generated_prob * 100 >= 15)
+        .filter((item) => item.generated_prob * 100 >= 15)
         .sort((a, b) => b.generated_prob - a.generated_prob)
-        .map((s) => s.sentence);
+        .map((item) => item.sentence);
 
       highAISentences.forEach((sentence) => {
-        // 将句子也转换为HTML，以便在转换后的文本中匹配
         const htmlSentence = renderMarkdownAsHtml(sentence);
         const escaped = htmlSentence.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        text = text.replace(
+        htmlText = htmlText.replace(
           new RegExp(escaped, 'g'),
           `<mark style="background-color: var(--color-black); color: var(--color-white); padding: 2px 4px; border-radius: 4px;">${htmlSentence}</mark>`
         );
       });
     }
 
-    return { __html: text };
+    return { __html: htmlText };
   };
 
   const handleCopyText = () => {
-    if (!result?.full_text) return;
+    if (!result?.full_text) {
+      return;
+    }
 
-    // 清理markdown符号后复制
     const cleanedText = cleanTextFromMarkdown(result.full_text);
     navigator.clipboard.writeText(cleanedText).then(
       () => {
         if (onCopyNotification) {
-          onCopyNotification('已复制到剪贴板');
+          onCopyNotification(COPY_SUCCESS);
         } else {
-          alert('已复制到剪贴板');
+          alert(COPY_SUCCESS);
         }
       },
       () => {
         if (onCopyNotification) {
-          onCopyNotification('复制失败，请手动复制');
+          onCopyNotification(COPY_FAILED);
         } else {
-          alert('复制失败，请手动复制');
+          alert(COPY_FAILED);
         }
       }
     );
   };
 
-  // 如果没有检测结果，不显示任何内容
   if (!result) {
     return null;
   }
@@ -158,7 +173,7 @@ const AIDetection: React.FC<AIDetectionProps> = ({
     <Card variant="ghost" padding="medium" className={styles.container}>
       <div className={styles.scoreSection}>
         <div className={styles.scoreHeader}>
-          <span className={styles.scoreLabel}>全文AI生成概率</span>
+          <span className={styles.scoreLabel}>{SCORE_LABEL}</span>
           <span className={`${styles.scoreValue} ${isHigh ? styles.highScore : ''}`}>
             {aiScore}%
           </span>
@@ -175,15 +190,16 @@ const AIDetection: React.FC<AIDetectionProps> = ({
           {isHigh ? (
             <div className={styles.warningMessage}>
               <Icon name="warning" size="sm" variant="warning" />
-              <span>检测到较高的AI生成概率，建议进行人工修改</span>
+              <span>{HIGH_SCORE_HINT}</span>
             </div>
           ) : (
             <div className={styles.successMessage}>
               <Icon name="check" size="sm" variant="success" />
-              <span>AI生成概率较低，文本质量良好</span>
+              <span>{LOW_SCORE_HINT}</span>
             </div>
           )}
         </div>
+
         <div
           style={{
             fontSize: 'var(--font-size-xs)',
@@ -192,38 +208,42 @@ const AIDetection: React.FC<AIDetectionProps> = ({
             lineHeight: 'var(--line-height-relaxed)',
           }}
         >
-          温馨提示：
+          {WARM_TIP}
           <br />
-          1.
-          本检测结果基于ZeroGPT模型，仅供参考，如用于学术用途，建议将最终版本提交Turnitin进行权威检测。
+          {WARM_TIP_1}
           <br />
-          2. 如果多次修改后AI率仍然较高，请确保提供的初始文本为非AI生成内容。
+          {WARM_TIP_2}
         </div>
       </div>
 
       <div className={styles.textSection}>
         <div className={styles.textHeader}>
-          <h4 className={styles.textTitle}>检测结果分析</h4>
-          <Button variant="ghost" size="small" onClick={handleCopyText}>
-            复制文本
+          <h4 className={styles.textTitle}>{ANALYSIS_TITLE}</h4>
+          <Button
+            variant="ghost"
+            size="small"
+            onClick={handleCopyText}
+            disabled={disabled || loading}
+          >
+            {COPY_TEXT_LABEL}
           </Button>
         </div>
 
         <div
           style={{
-            fontSize: 'var(--font-size-xs)',
+            fontSize: 'var(--font-size-base)',
             color: 'var(--color-text-secondary)',
             marginBottom: 'var(--spacing-2)',
-            lineHeight: 'var(--line-height-tight)',
+            lineHeight: 'var(--line-height-relaxed)',
           }}
         >
-          提示：AI特征≥15%的单个句子已被高亮标出
+          {HIGHLIGHT_HINT}
         </div>
         <div className={styles.highlightedText} dangerouslySetInnerHTML={getHighlightedText()} />
 
         {result.detailed_scores && result.detailed_scores.length > 0 && (
           <div className={styles.detailedScores}>
-            <h5 className={styles.scoresTitle}>详细句子分析</h5>
+            <h5 className={styles.scoresTitle}>{DETAILED_TITLE}</h5>
             <div className={styles.scoresList}>
               {result.detailed_scores
                 .sort((a, b) => b.generated_prob - a.generated_prob)
@@ -233,7 +253,7 @@ const AIDetection: React.FC<AIDetectionProps> = ({
                     <div className={styles.sentenceScore}>
                       <span className={styles.sentenceText}>
                         {score.sentence.length > 50
-                          ? score.sentence.substring(0, 50) + '...'
+                          ? `${score.sentence.substring(0, 50)}...`
                           : score.sentence}
                       </span>
                       <span className={styles.sentenceProbability}>

@@ -52,6 +52,9 @@ export const useAuthStore = create<AuthState>()(
 
       logout: () => {
         localStorage.removeItem('auth_token');
+        localStorage.removeItem('admin_token');
+        localStorage.removeItem('token');
+        localStorage.removeItem('auth-storage');
 
         // 重置所有模块的store状态
         try {
@@ -74,9 +77,12 @@ export const useAuthStore = create<AuthState>()(
       },
 
       adminLogout: () => {
+        localStorage.removeItem('auth_token');
         localStorage.removeItem('admin_token');
+        localStorage.removeItem('token');
+        localStorage.removeItem('auth-storage');
         resetAIChatState();
-        set({ isAdmin: false, token: null });
+        set({ isAuthenticated: false, isAdmin: false, token: null, userInfo: null });
       },
     }),
     {

@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
 
 ## 项目概述
 
@@ -458,8 +458,7 @@ python scripts/final_system_test.py
 ## 文档引用
 
 **重要文档**：
-- **CLAUDE.md**（本文档）- 开发指南和架构概述
-- **backend/CLAUDE.md** - 后端特定开发指南（包含更详细的后端配置）
+- **AGENTS.md**（本文档）- 开发指南和架构概述
 - **docs/faq.md** - 常见问题解答
 - **docs/deployment.md** - 部署文档
 - **docs/email_service_setup.md** - 邮件服务设置指南

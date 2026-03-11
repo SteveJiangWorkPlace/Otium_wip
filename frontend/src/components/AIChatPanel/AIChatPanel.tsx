@@ -5,7 +5,6 @@ import {
 } from '../../store/useAIChatStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { apiClient } from '../../api/client';
-import { debugLog } from '../../utils/logger';
 import type { AIChatMessage as ApiAIChatMessage } from '../../types';
 import { BackgroundTaskStatus } from '../../types';
 import Button from '../ui/Button/Button';
@@ -18,16 +17,26 @@ interface AIChatPanelProps {
   className?: string;
 }
 
+interface ManusDocumentLink {
+  name?: string;
+  url?: string;
+  source?: string;
+  type?: string;
+}
+
 const LITERATURE_RESEARCH_USER_WHITELIST = new Set(['admin', 'dog', 'cat']);
+const THINKING_PLACEHOLDER = '正在思考…';
 
 const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) => {
   const {
     conversations,
     toggleExpanded,
     addMessage,
+    updateMessage,
     setInputText,
     setLoading,
     setActiveTaskId,
+    clearConversation,
     literatureResearchMode,
     toggleLiteratureResearchMode,
     generateLiteratureReview,
@@ -37,14 +46,13 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
   const canUseLiteratureResearch = LITERATURE_RESEARCH_USER_WHITELIST.has(username.toLowerCase());
   const isLiteratureResearchEnabled = canUseLiteratureResearch && literatureResearchMode;
   const isGenerateLiteratureReviewEnabled = canUseLiteratureResearch && generateLiteratureReview;
-
-  const [processingStep, setProcessingStep] = useState<number>(0);
   const [manusSteps, setManusSteps] = useState<string[]>([]);
   const [currentManusStep, setCurrentManusStep] = useState<number>(0);
   // 进度相关状态已移除，根据简化需求只保留基本轮询机制
   const [pollingAbortController, setPollingAbortController] = useState<AbortController | null>(
     null
   );
+  const [streamAbortController, setStreamAbortController] = useState<AbortController | null>(null);
 
   const conversation = conversations[pageKey] || {
     isExpanded: false,
@@ -59,6 +67,64 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  const formatAssistantContentWithDocuments = useCallback(
+    (text: string, documents?: ManusDocumentLink[]): string => {
+      const baseText = (text || '').trim();
+      const validDocuments = Array.isArray(documents)
+        ? documents.filter((doc): doc is ManusDocumentLink & { url: string } =>
+            Boolean(doc && typeof doc.url === 'string' && doc.url.trim().length > 0)
+          )
+        : [];
+
+      const inferredDocuments: ManusDocumentLink[] = [];
+      const docUrlRegex = /https?:\/\/[^\s<>)"\]]+/g;
+      const markdownDocRegex = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g;
+      const docExtRegex = /\.(pdf|doc|docx|ppt|pptx|xlsx|csv|txt|md|zip)(\?|$)/i;
+
+      let markdownMatch: RegExpExecArray | null = null;
+      while ((markdownMatch = markdownDocRegex.exec(baseText)) !== null) {
+        const name = (markdownMatch[1] || '').trim();
+        const url = (markdownMatch[2] || '').trim();
+        if (docExtRegex.test(url)) {
+          inferredDocuments.push({ name, url, source: 'text_markdown' });
+        }
+      }
+
+      const plainUrls = baseText.match(docUrlRegex) || [];
+      plainUrls.forEach((url) => {
+        const cleanedUrl = url.replace(/[.,;:!?)"']+$/g, '');
+        if (docExtRegex.test(cleanedUrl)) {
+          inferredDocuments.push({ url: cleanedUrl, source: 'text_plain' });
+        }
+      });
+
+      const mergedDocuments = [...validDocuments, ...inferredDocuments];
+      const uniqueByUrl = new Map<string, ManusDocumentLink & { url: string }>();
+      mergedDocuments.forEach((doc) => {
+        if (!doc || typeof doc.url !== 'string') return;
+        const normalizedUrl = doc.url.trim();
+        if (!normalizedUrl) return;
+        if (!uniqueByUrl.has(normalizedUrl)) {
+          uniqueByUrl.set(normalizedUrl, { ...doc, url: normalizedUrl });
+        }
+      });
+      const allDocuments = Array.from(uniqueByUrl.values());
+
+      if (allDocuments.length === 0) {
+        return baseText || '任务完成';
+      }
+
+      const documentLines = allDocuments.map((doc, index) => {
+        const safeName = (doc.name || '').trim() || `文档 ${index + 1}`;
+        return `- [${safeName}](${doc.url})`;
+      });
+
+      const documentsSection = `**可下载文档**\n${documentLines.join('\n')}`;
+      return baseText ? `${baseText}\n\n${documentsSection}` : documentsSection;
+    },
+    []
+  );
 
   // 从localStorage获取最新的文献调研结果（暂时未使用）
   // const getLatestLiteratureResearch = (): string => {
@@ -108,35 +174,6 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
     }
   }, [conversation.loading, conversation.messages.length]);
 
-  // AI处理步骤文本 - 根据文献调研模式动态调整
-  // 文献调研模式：简化显示，只有等待信息
-  // 普通模式：保持原有处理步骤
-  const processingSteps = isLiteratureResearchEnabled
-    ? ['文献调研可能需要较长时间，请耐心等待...'] // 简化版本，只有一个步骤
-    : ['正在处理您的请求...'];
-
-  // 处理AI思考状态的步骤显示
-  useEffect(() => {
-    let stepInterval: NodeJS.Timeout | null = null;
-
-    if (conversation.loading) {
-      // 启动步骤轮换
-      setProcessingStep(0);
-      stepInterval = setInterval(() => {
-        setProcessingStep((prev) => (prev + 1) % processingSteps.length);
-      }, 2000); // 每2秒切换到下一步骤
-    } else {
-      // 停止轮换，重置步骤
-      setProcessingStep(0);
-    }
-
-    return () => {
-      if (stepInterval) {
-        clearInterval(stepInterval);
-      }
-    };
-  }, [conversation.loading, processingSteps.length]);
-
   // 处理Manus步骤进度显示
   useEffect(() => {
     let stepInterval: NodeJS.Timeout | null = null;
@@ -173,8 +210,12 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
         pollingAbortController.abort();
         setPollingAbortController(null);
       }
+      if (streamAbortController) {
+        streamAbortController.abort();
+        setStreamAbortController(null);
+      }
     };
-  }, [pollingAbortController]);
+  }, [pollingAbortController, streamAbortController]);
 
   const pollBackgroundTask = async (taskId: number, abortController: AbortController) => {
     return apiClient.pollTaskResult(taskId, {
@@ -207,7 +248,10 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
 
         const aiMessage: StoreAIChatMessage = {
           role: 'assistant',
-          content: resultData.text || resultData.result || '任务完成',
+          content: formatAssistantContentWithDocuments(
+            resultData.text || resultData.result || '',
+            resultData.documents
+          ),
           timestamp: Date.now(),
         };
         addMessage(pageKey, aiMessage);
@@ -222,7 +266,7 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
         throw new Error(task.error_message || '任务处理失败');
       }
     },
-    [addMessage, currentManusStep, pageKey]
+    [addMessage, currentManusStep, formatAssistantContentWithDocuments, pageKey]
   );
 
   // 续轮询：组件重新挂载后，自动接续未完成的文献调研任务
@@ -277,39 +321,37 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
 
   // 清理markdown符号但保留必要格式 - 统一处理所有模式
   const cleanMarkdown = (html: string): string => {
-    // 辅助函数：计算字符串的视觉长度（将制表符视为4个空格）
-    const visualLength = (str: string): number => {
-      let length = 0;
-      for (let i = 0; i < str.length; i++) {
-        if (str[i] === '\t') {
-          // 制表符：移动到下一个制表位（假设制表符大小为4）
-          length += 4 - (length % 4);
-        } else {
-          length++;
-        }
-      }
-      return length;
-    };
+    const escapeHtml = (value: string): string =>
+      value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 
-    // 辅助函数：将制表符转换为空格（用于对齐）
-    const convertTabsToSpaces = (str: string): string => {
-      let result = '';
-      let column = 0;
-      for (let i = 0; i < str.length; i++) {
-        if (str[i] === '\t') {
-          const spacesNeeded = 4 - (column % 4);
-          result += ' '.repeat(spacesNeeded);
-          column += spacesNeeded;
-        } else {
-          result += str[i];
-          column++;
-        }
+    const sanitizeUrl = (url: string): string => {
+      const trimmed = url.trim();
+      if (trimmed.startsWith('/')) {
+        return trimmed;
       }
-      return result;
-    };
 
+      try {
+        const parsed = new URL(trimmed);
+        if (
+          parsed.protocol === 'http:' ||
+          parsed.protocol === 'https:' ||
+          parsed.protocol === 'mailto:'
+        ) {
+          return parsed.toString();
+        }
+      } catch (error) {
+        return '#';
+      }
+
+      return '#';
+    };
     // 先转换markdown格式为HTML
-    let cleaned = html;
+    let cleaned = escapeHtml(html);
 
     // 第一步：处理代码块（```language\ncode\n```）
     // 使用占位符保存代码块，避免内部内容被其他规则处理
@@ -394,88 +436,81 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
     // 注意：这里不再去除行首的 "* ", "- ", "1. ", "# " 等符号
 
     // 第六步：处理链接：[文本](链接)
-    cleaned = cleaned.replace(
-      /\[([^\]]+?)\]\(([^)]+?)\)/g,
-      '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
-    );
+    cleaned = cleaned.replace(/\[([^\]]+?)\]\(([^)]+?)\)/g, (_match, label, url) => {
+      const safeUrl = sanitizeUrl(url);
+      return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+    });
 
     // 第七步：处理内联代码：`代码`
     cleaned = cleaned.replace(/`([^`\n]+?)`/g, '<code>$1</code>');
 
-    // 第八步：处理markdown列表（不生成HTML列表结构，直接处理每一行）
-    // 用户要求：不采用有序列表编号形式，直接保留原始文本格式
+    // 第八步：处理 markdown 列表，转换为 HTML 列表以修正悬挂缩进
     const linesForList = cleaned.split('\n');
     const processedLines: string[] = [];
+    const unorderedListPattern = /^\s*[*\-+]\s+(.*)$/;
+    const orderedListPattern = /^\s*\d+[.)]\s+(.*)$/;
+    const isListContinuationLine = (line: string): boolean =>
+      /^\s+\S/.test(line) && !unorderedListPattern.test(line) && !orderedListPattern.test(line);
 
     for (let i = 0; i < linesForList.length; i++) {
-      let line = linesForList[i];
+      const line = linesForList[i];
+      const unorderedMatch = line.match(unorderedListPattern);
+      const orderedMatch = line.match(orderedListPattern);
 
-      // 检查是否是列表项
-      // 无序列表：*、-、+开头，后面跟空格 - 转换为•符号
-      // 有序列表：数字.或)开头，如1.、2.、1)、2)等 - 保持原样
-      const unorderedMatch = line.match(/^(\s*)([*\-+])\s+(.*)$/);
-      const orderedMatch = line.match(/^(\s*)(\d+[.)])\s+(.*)$/);
+      if (!unorderedMatch && !orderedMatch) {
+        processedLines.push(line);
+        continue;
+      }
 
-      if (unorderedMatch || orderedMatch) {
-        const match = unorderedMatch || orderedMatch;
-        if (!match) continue;
+      const isOrderedList = Boolean(orderedMatch);
+      const currentPattern = isOrderedList ? orderedListPattern : unorderedListPattern;
+      const listItems: string[] = [];
 
-        const [, indent, marker, content] = match;
-
-        // 收集多行列表项内容
-        let itemContent = content;
-        let j = i + 1;
-        while (j < linesForList.length) {
-          const nextLine = linesForList[j];
-          // 检查下一行是否是同一列表项的延续（以空格开头，但不是新的列表项）
-          if (nextLine.match(/^\s+\S/) && !nextLine.match(/^\s*([*\-+]|\d+[.)])\s+/)) {
-            // 第一行文本起始位置在 indent + marker + ' ' 之后
-            const markerLength = marker.length;
-            const firstLineTextStart = visualLength(indent) + markerLength + 1; // 从0开始的视觉位置
-
-            // 计算第二行的前导空格数（视觉长度）
-            const leadingSpacesMatch = nextLine.match(/^(\s*)/);
-            const nextLineIndentStr = leadingSpacesMatch ? leadingSpacesMatch[1] : '';
-
-            // 获取第二行文本内容（去除前导空格）
-            const nextLineText = nextLine.substring(nextLineIndentStr.length);
-
-            // 悬挂缩进：第二行必须对齐到第一行文本开始位置
-            // 强制对齐到第一行文本起始位置，忽略第二行原有的缩进
-            const targetIndent = firstLineTextStart;
-
-            // 基础缩进已经提供了 visualLength(indent) 的缩进
-            // 需要额外添加的缩进量
-            const additionalSpacesNeeded = targetIndent - visualLength(indent);
-
-            // 构建对齐的行：使用转换后的缩进（制表符转空格）确保精确对齐
-            const baseIndentSpaces = convertTabsToSpaces(indent);
-            const alignedLine =
-              baseIndentSpaces + ' '.repeat(additionalSpacesNeeded) + nextLineText;
-            itemContent += '\n' + alignedLine;
-            j++;
-            i++; // 跳过已处理的行
-          } else {
-            break;
-          }
+      while (i < linesForList.length) {
+        const currentLine = linesForList[i];
+        const currentMatch = currentLine.match(currentPattern);
+        if (!currentMatch) {
+          break;
         }
 
-        // 对于无序列表，将符号替换为•
-        if (unorderedMatch) {
-          // 保持缩进，替换符号为•，统一使用空格缩进
-          const baseIndentSpaces = convertTabsToSpaces(indent);
-          line = baseIndentSpaces + '• ' + itemContent;
-        } else {
-          // 有序列表保持原样，统一使用空格缩进
-          const baseIndentSpaces = convertTabsToSpaces(indent);
-          line = baseIndentSpaces + marker + ' ' + itemContent;
+        let itemContent = currentMatch[1].trim();
+        i++;
+
+        while (i < linesForList.length) {
+          const nextLine = linesForList[i];
+          if (nextLine.trim() === '') {
+            i++;
+            continue;
+          }
+
+          if (isListContinuationLine(nextLine)) {
+            itemContent += `<br />${nextLine.trim()}`;
+            i++;
+            continue;
+          }
+
+          break;
+        }
+
+        listItems.push(`<li>${itemContent}</li>`);
+
+        if (i >= linesForList.length) {
+          break;
+        }
+
+        if (!linesForList[i].match(currentPattern)) {
+          break;
         }
       }
 
-      processedLines.push(line);
+      i--;
+      processedLines.push(
+        isOrderedList
+          ? `<ol class="ai-list ai-ordered-list">${listItems.join('')}</ol>`
+          : `<ul class="ai-list ai-unordered-list">${listItems.join('')}</ul>`
+      );
     }
 
-    // 重新组合行
     cleaned = processedLines.join('\n');
 
     // 第九步：为现有的HTML表格添加样式（如果AI直接返回了HTML表格）
@@ -485,35 +520,23 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
     );
     cleaned = cleaned.replace(/<\/table>/g, '</table></div>');
 
-    // 第十步：处理换行符
-    // 先分割成行，然后处理
+    // 第十步：处理换行符，压缩空行
     const lines = cleaned.split('\n');
     const processedLinesForNewlines: string[] = [];
-    let previousWasEmpty = false;
 
     for (let index = 0; index < lines.length; index++) {
       const line = lines[index];
       const isCodeBlock = line.startsWith('___CODE_BLOCK_') && line.endsWith('___');
 
       if (isCodeBlock) {
-        // 代码块占位符，直接添加
         processedLinesForNewlines.push(line);
-        previousWasEmpty = false;
       } else if (line.trim() === '') {
-        // 空行：如果是第一个空行且不是最后一行，添加换行符\n
-        if (!previousWasEmpty && index < lines.length - 1) {
-          processedLinesForNewlines.push('');
-          previousWasEmpty = true;
-        }
-        // 如果是连续空行，跳过不添加额外的换行符
+        continue;
       } else {
-        // 非空行，添加行内容
         processedLinesForNewlines.push(line);
-        previousWasEmpty = false;
       }
     }
 
-    // 用换行符连接，使用white-space: pre-wrap显示
     cleaned = processedLinesForNewlines.join('\n');
 
     // 第十一步：恢复代码块占位符
@@ -522,28 +545,20 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
       cleaned = cleaned.replace(placeholder, html);
     });
 
-    // 第十二步：规范化段落间距，确保不超过一个空行
+    // 第十二步：进一步压缩段落间距，不保留额外空行
     const linesForSpacing = cleaned.split('\n');
     const normalizedLines: string[] = [];
-    let emptyLineCount = 0;
 
     for (const line of linesForSpacing) {
-      if (line.trim() === '') {
-        emptyLineCount++;
-        if (emptyLineCount <= 1) {
-          normalizedLines.push(line);
-        }
-        // 如果emptyLineCount > 1，跳过这个额外的空行
-      } else {
-        emptyLineCount = 0;
+      if (line.trim() !== '') {
         normalizedLines.push(line);
       }
     }
 
     cleaned = normalizedLines.join('\n');
 
-    // 第十三步：最终清理，确保不超过两个连续换行符（一个空行）
-    cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
+    // 第十三步：最终清理，最多保留单个换行
+    cleaned = cleaned.replace(/\n{2,}/g, '\n');
 
     // 保留HTML标签，其它markdown符号已处理
     return cleaned;
@@ -552,18 +567,20 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
   const handleSendMessage = async () => {
     const text = conversation.inputText.trim();
     if (!text || conversation.loading) return;
-    let keepBackgroundPollingState = false;
 
     // 重置Manus步骤状态
     setManusSteps([]);
     setCurrentManusStep(0);
-    // 进度相关状态已移除，不再需要重置
 
     // 如果之前有轮询，取消它
     if (pollingAbortController) {
       pollingAbortController.abort();
       setPollingAbortController(null);
       setActiveTaskId(pageKey, null);
+    }
+    if (streamAbortController) {
+      streamAbortController.abort();
+      setStreamAbortController(null);
     }
 
     // 添加用户消息
@@ -572,7 +589,17 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
       content: text,
       timestamp: Date.now(),
     };
+    const assistantMessageId = `assistant-${Date.now().toString(36)}-${Math.random()
+      .toString(36)
+      .slice(2, 10)}`;
+    const assistantMessage: StoreAIChatMessage = {
+      id: assistantMessageId,
+      role: 'assistant',
+      content: THINKING_PLACEHOLDER,
+      timestamp: Date.now(),
+    };
     addMessage(pageKey, userMessage);
+    addMessage(pageKey, assistantMessage);
     scrollToBottom();
     setInputText(pageKey, '');
     setLoading(pageKey, true);
@@ -592,88 +619,109 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
         content: userMessage.content,
       });
 
-      // 直接调用聊天API，由后端决定是否使用后台任务
-      const response = await apiClient.chat({
-        messages,
-        session_id: conversation.sessionId || undefined,
-        literature_research_mode: isLiteratureResearchEnabled, // 传递文献调研模式状态
-        generate_literature_review: isGenerateLiteratureReviewEnabled, // 传递生成文献综述选项
-      });
+      const abortController = new AbortController();
+      setStreamAbortController(abortController);
+      let streamCompleted = false;
 
-      // 检查响应是否包含后台任务ID（表示任务已提交到后台处理）
-      if (response.success && response.task_id) {
-        // 这是后台任务响应，需要轮询任务状态
-        // 使用非空断言，因为我们已经检查了response.task_id存在
-        const taskId = response.task_id as number;
-        setActiveTaskId(pageKey, taskId);
-
-        // 创建AbortController用于取消轮询
-        const abortController = new AbortController();
-        setPollingAbortController(abortController);
-
-        // 轮询任务结果
-        try {
-          const task = await pollBackgroundTask(taskId, abortController);
-          applyCompletedTaskResult(task);
-          setActiveTaskId(pageKey, null);
-        } catch (pollingError: any) {
-          if (pollingError.message === '轮询被取消') {
-            debugLog('轮询已取消');
-            keepBackgroundPollingState = true;
-            return;
-          }
-          throw pollingError;
-        } finally {
-          setPollingAbortController(null);
-        }
-      } else if (response.success) {
-        // 这是同步响应，直接显示结果
-        // 如果有Manus步骤信息，更新状态
-        if (response.steps && response.steps.length > 0) {
-          setManusSteps(response.steps);
-          // 如果当前没有步骤进度，设置第一个步骤
-          if (currentManusStep === 0 && response.steps.length > 0) {
-            setCurrentManusStep(1);
-          }
+      for await (const chunk of apiClient.chatStream(
+        {
+          messages,
+          session_id: conversation.sessionId || undefined,
+          literature_research_mode: isLiteratureResearchEnabled, // 传递文献调研模式状态
+          generate_literature_review: isGenerateLiteratureReviewEnabled, // 传递生成文献综述选项
+        },
+        { signal: abortController.signal }
+      )) {
+        if (chunk.type === 'step') {
+          setManusSteps((prev) => {
+            const nextSteps = chunk.steps && chunk.steps.length > 0 ? chunk.steps : prev;
+            if (chunk.step && !nextSteps.includes(chunk.step)) {
+              return [...nextSteps, chunk.step];
+            }
+            return nextSteps;
+          });
+          continue;
         }
 
-        // 添加AI回复
-        const aiMessage: StoreAIChatMessage = {
-          role: 'assistant',
-          content: response.text,
-          timestamp: Date.now(),
-        };
-        addMessage(pageKey, aiMessage);
-        setActiveTaskId(pageKey, null);
-      } else {
-        // 显示错误消息
-        const errorMessage: StoreAIChatMessage = {
-          role: 'assistant',
-          content: `错误: ${response.error || '未知错误'}`,
-          timestamp: Date.now(),
-        };
-        addMessage(pageKey, errorMessage);
-        setActiveTaskId(pageKey, null);
+        if (chunk.type === 'delta' && chunk.text) {
+          updateMessage(pageKey, assistantMessageId, (message) => ({
+            ...message,
+            content:
+              message.content === THINKING_PLACEHOLDER
+                ? chunk.text || ''
+                : `${message.content}${chunk.text || ''}`,
+          }));
+          continue;
+        }
+
+        if (chunk.type === 'replace') {
+          updateMessage(pageKey, assistantMessageId, (message) => ({
+            ...message,
+            content: chunk.text || chunk.full_text || '',
+          }));
+          continue;
+        }
+
+        if (chunk.type === 'complete') {
+          updateMessage(pageKey, assistantMessageId, (message) => ({
+            ...message,
+            content: formatAssistantContentWithDocuments(
+              chunk.text || chunk.full_text || '',
+              chunk.documents
+            ),
+          }));
+          streamCompleted = true;
+          continue;
+        }
+
+        if (chunk.type === 'error') {
+          updateMessage(pageKey, assistantMessageId, (message) => ({
+            ...message,
+            content: `请求失败: ${chunk.error || '网络错误'}`,
+          }));
+          streamCompleted = true;
+        }
+      }
+
+      if (!streamCompleted) {
+        updateMessage(pageKey, assistantMessageId, (message) => ({
+          ...message,
+          content: message.content || '已完成响应，但未返回可显示内容。',
+        }));
       }
     } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        return;
+      }
+
       console.error('聊天请求失败:', error);
-      const errorMessage: StoreAIChatMessage = {
-        role: 'assistant',
+      updateMessage(pageKey, assistantMessageId, (message) => ({
+        ...message,
         content: `请求失败: ${error.message || '网络错误'}`,
-        timestamp: Date.now(),
-      };
-      addMessage(pageKey, errorMessage);
+      }));
       setActiveTaskId(pageKey, null);
     } finally {
-      if (!keepBackgroundPollingState) {
-        setLoading(pageKey, false);
-        setActiveTaskId(pageKey, null);
-        // 重置Manus步骤状态
-        setManusSteps([]);
-        setCurrentManusStep(0);
-        // 进度相关状态已移除，不再需要重置
-      }
+      setStreamAbortController(null);
+      setLoading(pageKey, false);
+      setActiveTaskId(pageKey, null);
+      // 重置Manus步骤状态
+      setManusSteps([]);
+      setCurrentManusStep(0);
     }
+  };
+
+  const handleClearConversation = () => {
+    if (pollingAbortController) {
+      pollingAbortController.abort();
+      setPollingAbortController(null);
+    }
+    if (streamAbortController) {
+      streamAbortController.abort();
+      setStreamAbortController(null);
+    }
+    clearConversation(pageKey);
+    setManusSteps([]);
+    setCurrentManusStep(0);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -705,36 +753,52 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
     <div className={`${styles.panel} ${className}`} ref={containerRef}>
       {/* 面板头部 - 文献调研模式开关 */}
       <div className={styles.header}>
-        {canUseLiteratureResearch && (
-          <div className={styles.modeSwitch}>
-            <span className={styles.modeLabel}>文献调研模式</span>
-            <div
-              onClick={() => toggleLiteratureResearchMode()}
-              className={`${styles.appleSwitch} ${isLiteratureResearchEnabled ? styles.appleSwitchActive : ''}`}
-              title={isLiteratureResearchEnabled ? '关闭文献调研模式' : '开启文献调研模式'}
-              role="switch"
-              aria-checked={isLiteratureResearchEnabled}
-            >
-              <div className={styles.appleSwitchThumb}></div>
+        <div className={styles.headerLeft}>
+          {canUseLiteratureResearch && (
+            <div className={styles.modeSwitch}>
+              <span className={styles.modeLabel}>文献调研模式</span>
+              <div
+                onClick={() => toggleLiteratureResearchMode()}
+                className={`${styles.appleSwitch} ${
+                  isLiteratureResearchEnabled ? styles.appleSwitchActive : ''
+                }`}
+                title={isLiteratureResearchEnabled ? '关闭文献调研模式' : '开启文献调研模式'}
+                role="switch"
+                aria-checked={isLiteratureResearchEnabled}
+              >
+                <div className={styles.appleSwitchThumb}></div>
+              </div>
             </div>
-          </div>
-        )}
-        {isLiteratureResearchEnabled && (
-          <div className={styles.literatureReviewOption}>
-            <span className={styles.modeLabel}>生成文献综述</span>
-            <div
-              onClick={() => toggleGenerateLiteratureReview()}
-              className={`${styles.appleSwitch} ${
-                isGenerateLiteratureReviewEnabled ? styles.appleSwitchActive : ''
-              }`}
-              title={isGenerateLiteratureReviewEnabled ? '关闭生成文献综述' : '开启生成文献综述'}
-              role="switch"
-              aria-checked={isGenerateLiteratureReviewEnabled}
-            >
-              <div className={styles.appleSwitchThumb}></div>
+          )}
+          {isLiteratureResearchEnabled && (
+            <div className={styles.literatureReviewOption}>
+              <span className={styles.modeLabel}>生成文献综述</span>
+              <div
+                onClick={() => toggleGenerateLiteratureReview()}
+                className={`${styles.appleSwitch} ${
+                  isGenerateLiteratureReviewEnabled ? styles.appleSwitchActive : ''
+                }`}
+                title={isGenerateLiteratureReviewEnabled ? '关闭生成文献综述' : '开启生成文献综述'}
+                role="switch"
+                aria-checked={isGenerateLiteratureReviewEnabled}
+              >
+                <div className={styles.appleSwitchThumb}></div>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
+        <div className={styles.headerRight}>
+          <Button
+            variant="ghost"
+            size="small"
+            onClick={handleClearConversation}
+            className={styles.clearButton}
+            disabled={conversation.loading || conversation.messages.length === 0}
+            title="清空当前对话消息"
+          >
+            清空对话
+          </Button>
+        </div>
       </div>
 
       {/* 消息列表 */}
@@ -745,44 +809,39 @@ const AIChatPanel: React.FC<AIChatPanelProps> = ({ pageKey, className = '' }) =>
           </div>
         ) : (
           <div className={styles.messagesList}>
-            {conversation.messages.map((message, index) => (
-              <div
-                key={message.id || `${message.timestamp}-${message.role}-${index}`}
-                className={`${styles.message} ${
-                  message.role === 'user' ? styles.userMessage : styles.assistantMessage
-                }`}
-              >
-                {message.role === 'assistant' && (
-                  <div className={styles.messageHeader}>
-                    <img src="/logopic.svg" alt="Otium" className={styles.messageIcon} />
-                    <span className={styles.messageRole}>Otium</span>
-                  </div>
-                )}
-                {message.role === 'assistant' ? (
+            {conversation.messages.map((message, index) =>
+              (() => {
+                const isStreamingMessage =
+                  conversation.loading &&
+                  message.role === 'assistant' &&
+                  index === conversation.messages.length - 1;
+
+                return (
                   <div
-                    className={styles.messageContent}
-                    dangerouslySetInnerHTML={{ __html: cleanMarkdown(message.content) }}
-                  />
-                ) : (
-                  <div className={styles.messageContent}>{message.content}</div>
-                )}
-              </div>
-            ))}
-            {conversation.loading && (
-              <div className={`${styles.message} ${styles.assistantMessage}`}>
-                <div className={`${styles.messageHeader} ${styles.loadingMessageHeader}`}>
-                  <img src="/logopic.svg" alt="Otium" className={styles.messageIcon} />
-                  <span className={styles.messageRole}>Otium</span>
-                </div>
-                <div className={`${styles.messageContent} ${styles.loadingMessageContent}`}>
-                  {/* 统一使用普通对话的加载动画格式 */}
-                  <div className={styles.processingStepsContainer}>
-                    <div className={`${styles.processingStepContent} ${styles.loadingShimmerText}`}>
-                      {(processingSteps[processingStep] ?? '').replace(/\.{3,}|\u2026+/g, '')}
-                    </div>
+                    key={message.id || `${message.timestamp}-${message.role}-${index}`}
+                    className={`${styles.message} ${
+                      message.role === 'user' ? styles.userMessage : styles.assistantMessage
+                    }`}
+                  >
+                    {message.role === 'assistant' && (
+                      <div className={styles.messageHeader}>
+                        <img src="/logopic.svg" alt="Otium" className={styles.messageIcon} />
+                        <span className={styles.messageRole}>Otium</span>
+                      </div>
+                    )}
+                    {message.role === 'assistant' ? (
+                      <div className={styles.messageContent}>
+                        <span
+                          dangerouslySetInnerHTML={{ __html: cleanMarkdown(message.content) }}
+                        />
+                        {isStreamingMessage && <span className={styles.streamCursor} />}
+                      </div>
+                    ) : (
+                      <div className={styles.messageContent}>{message.content}</div>
+                    )}
                   </div>
-                </div>
-              </div>
+                );
+              })()
             )}
             <div ref={messagesEndRef} />
           </div>

@@ -97,6 +97,11 @@
   margin-bottom: var(--spacing-4);
 }
 
+.inputTextarea {
+  font-size: var(--font-size-base) !important;
+  line-height: var(--line-height-normal) !important;
+}
+
 .charCount {
   position: absolute;
   bottom: 0;
@@ -155,41 +160,6 @@
   }
 }
 
-/* 三个点跳动动画 */
-.loadingDots {
-  display: inline-flex;
-  align-items: center;
-  height: 1em;
-}
-
-.loadingDots span {
-  animation: dotPulse 1.5s infinite ease-in-out;
-  opacity: 0;
-}
-
-.loadingDots span:nth-child(1) {
-  animation-delay: 0s;
-}
-
-.loadingDots span:nth-child(2) {
-  animation-delay: 0.2s;
-}
-
-.loadingDots span:nth-child(3) {
-  animation-delay: 0.4s;
-}
-
-@keyframes dotPulse {
-  0%,
-  60%,
-  100% {
-    opacity: 0;
-  }
-  30% {
-    opacity: 1;
-  }
-}
-
 .resultCard {
   width: 100%;
 }
@@ -211,6 +181,56 @@
 
 .resultTextarea {
   background-color: var(--color-gray-50) !important;
+  border: none !important;
+  box-shadow: none !important;
+  font-size: var(--font-size-base) !important;
+  line-height: var(--line-height-normal) !important;
+}
+
+.loadingPlaceholder {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--spacing-2);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+}
+
+
+.waveDots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 14px;
+  margin-top: 1px;
+}
+
+.waveDot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background-color: var(--color-text-primary);
+  animation: wave 1.2s ease-in-out infinite;
+}
+
+.waveDot:nth-child(1) {
+  animation-delay: -0.24s;
+}
+
+.waveDot:nth-child(2) {
+  animation-delay: -0.12s;
+}
+
+.waveDot:nth-child(3) {
+  animation-delay: 0s;
+}
+
+@keyframes wave {
+  0%, 60%, 100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-6px);
+  }
 }
 
 /* 新添加的AI面板布局样式 */
@@ -605,13 +625,20 @@
 .formattedResult {
   padding: var(--spacing-3);
   background-color: var(--color-gray-50);
-  border: 1px solid var(--color-gray-200);
+  border: none;
   border-radius: var(--radius-md);
   min-height: 300px;
-  max-height: 400px;
-  overflow-y: auto;
   line-height: var(--line-height-relaxed);
   font-size: var(--font-size-base);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.formattedResultContent {
+  display: block;
+  width: 100%;
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
 }
 
 .formattedResult strong {

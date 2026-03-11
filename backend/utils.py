@@ -35,7 +35,9 @@ class UserLimitManager:
     """
 
     def __init__(self):
-        logging.warning("UserLimitManager 已弃用，请使用 services.user_service.UserService 替代")
+        logging.warning(
+            "UserLimitManager is deprecated; use services.user_service.UserService instead"
+        )
 
         # 修复文件存储路径问题
         self.usage_db_path = os.environ.get(
@@ -46,7 +48,7 @@ class UserLimitManager:
         self.load_allowed_users()
         # 线程锁，防止同一进程内的并发访问
         self._lock = threading.RLock()
-        logging.info(f"用户数据存储路径: {self.usage_db_path}")
+        logging.info("Usage data path: %s", self.usage_db_path)
 
     def load_allowed_users(self):
         """从环境变量或配置文件加载允许的用户"""
@@ -69,7 +71,9 @@ class UserLimitManager:
                 except ValueError:
                     # 如果日期格式不正确，记录警告并使用默认值
                     logging.warning(
-                        f"用户 {username} 的过期日期格式不正确: {expiry_date}，设置为默认值"
+                        "Invalid expiry date format for user %s: %s; using default value",
+                        username,
+                        expiry_date,
                     )
                     expiry_date = "2099-12-31"
 
@@ -83,7 +87,7 @@ class UserLimitManager:
                 }
         except Exception as e:
             # 如果解析过程中出现任何错误，记录警告并使用默认配置
-            logging.warning(f"无法加载用户配置，使用默认配置: {e}")
+            logging.warning("Failed to load user configuration; using defaults: %s", e)
             self.allowed_users = {
                 "test": {
                     "expiry_date": "2099-12-31",
@@ -108,13 +112,13 @@ class UserLimitManager:
                 "max_translations": 99999,  # 管理员有非常大的翻译次数限制
                 "password": admin_password,
             }
-            logging.info(f"自动添加管理员用户: {admin_username}")
+            logging.info("Auto-added admin user: %s", admin_username)
         else:
             # 如果已存在，确保密码和配置正确
             self.allowed_users[admin_username]["password"] = admin_password
             self.allowed_users[admin_username]["expiry_date"] = "2099-12-31"
             self.allowed_users[admin_username]["max_translations"] = 99999
-            logging.info(f"更新管理员用户配置: {admin_username}")
+            logging.info("Admin user configuration refreshed: %s", admin_username)
 
     def load_usage_data(self):
         """从JSON文件加载用户使用数据
@@ -142,16 +146,16 @@ class UserLimitManager:
         """
         try:
             if os.path.exists(self.usage_db_path):
-                logging.info(f"从文件加载使用数据: {self.usage_db_path}")
+                logging.info("Loading usage data from file: %s", self.usage_db_path)
                 with open(self.usage_db_path, encoding="utf-8") as f:
                     data = json.load(f)
-                    logging.info(f"成功加载 {len(data)} 个用户的使用数据")
+                    logging.info("Loaded usage data for %s users", len(data))
                     return data
             else:
-                logging.info(f"使用数据文件不存在: {self.usage_db_path}，返回空数据")
+                logging.info("Usage data file not found: %s; returning empty data", self.usage_db_path)
                 return {}
         except Exception as e:
-            logging.error(f"加载使用数据失败: {str(e)}", exc_info=True)
+            logging.error("Failed to load usage data: %s", str(e), exc_info=True)
             return {}
 
     def save_usage_data(self, data):
@@ -161,15 +165,15 @@ class UserLimitManager:
             dir_path = os.path.dirname(self.usage_db_path)
             if dir_path:  # 如果目录路径不为空
                 os.makedirs(dir_path, exist_ok=True)
-                logging.info(f"确保目录存在: {dir_path}")
+                logging.info("Ensured directory exists: %s", dir_path)
 
-            logging.info(f"正在保存使用数据到: {self.usage_db_path}")
+            logging.info("Saving usage data to: %s", self.usage_db_path)
             with open(self.usage_db_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
-            logging.info(f"使用数据保存成功，包含 {len(data)} 个用户的使用记录")
+            logging.info("Usage data saved successfully for %s users", len(data))
             return True
         except Exception as e:
-            logging.error(f"保存使用数据失败: {str(e)}", exc_info=True)
+            logging.error("Failed to save usage data: %s", str(e), exc_info=True)
             return False
 
     def _atomic_save_usage_data(self, data):
@@ -197,7 +201,7 @@ class UserLimitManager:
                     # 原子性重命名（POSIX和Windows都保证原子性）
                     os.replace(temp_file, self.usage_db_path)
 
-                    logging.info(f"原子保存成功，包含 {len(data)} 个用户的使用记录")
+                    logging.info("Atomic usage save succeeded for %s users", len(data))
                     return
                 finally:
                     # 释放锁：关闭文件描述符并删除锁文件
@@ -210,61 +214,63 @@ class UserLimitManager:
             except OSError:
                 # 锁文件已存在，表示其他进程正在操作
                 if attempt < max_retries - 1:
-                    logging.debug(f"等待文件锁，重试 {attempt + 1}/{max_retries}")
+                    logging.debug("Waiting for file lock, retry %s/%s", attempt + 1, max_retries)
                     time.sleep(retry_delay)
                 else:
-                    logging.warning("无法获取文件锁，使用线程锁保护的单进程保存")
+                    logging.warning("Could not acquire file lock; falling back to single-process save")
                     # 降级方案：使用线程锁保护的标准保存
                     with self._lock:
                         self.save_usage_data(data)
                     return
             except Exception as e:
-                logging.error(f"原子保存失败: {str(e)}", exc_info=True)
-                raise RuntimeError(f"原子保存失败: {str(e)}") from e
+                logging.error("Atomic usage save failed: %s", str(e), exc_info=True)
+                raise RuntimeError(f"Atomic usage save failed: {str(e)}") from e
 
     def is_user_allowed(self, username, password=None):
         """检查用户是否被允许使用"""
         # 检查是否是管理员（完全跳过所有限制）
         admin_username = os.environ.get("ADMIN_USERNAME", "admin")
         if username == admin_username:
-            logging.info(f"管理员用户 {username} 跳过所有限制检查")
+            logging.info("Admin user %s bypassed all limit checks", username)
             return True, "管理员验证通过"
 
-        logging.info("=== 登录验证开始 ===")
-        logging.info(f"用户名: {username}")
-        logging.info(f"输入密码: {'*****' if password else 'None'}")
-        logging.info(f"所有用户: {list(self.allowed_users.keys())}")
+        logging.info("Starting legacy login validation for %s", username)
+        logging.debug("Password provided: %s", "yes" if password else "no")
+        logging.debug("Allowed users loaded: %s", list(self.allowed_users.keys()))
 
         if username not in self.allowed_users:
-            logging.error(f"用户不存在: {username}")
+            logging.error("User not found: %s", username)
             return False, "用户不存在"
 
         user_data = self.allowed_users[username]
-        logging.info(f"用户数据: {user_data}")
+        logging.debug("Loaded user config for %s", username)
 
         if password is not None and user_data.get("password", "") != password:
-            logging.error(
-                f"密码不匹配！输入: '{password}', 存储: '{user_data.get('password', '')}'"
-            )
+            logging.error("Password mismatch for %s", username)
             return False, "密码错误"
 
-        logging.info("密码验证通过！")
+        logging.info("Password verification passed for %s", username)
 
         # 检查账户有效期
         expiry_date_str = user_data.get("expiry_date", "2099-12-31")
-        logging.info(f"检查账户有效期: {expiry_date_str}")
+        logging.info("Checking account expiry for %s: %s", username, expiry_date_str)
 
         if is_expired(expiry_date_str):
-            logging.error(f"账户已过期: {expiry_date_str}")
+            logging.error("Account expired for %s: %s", username, expiry_date_str)
             return False, f"账户已于 {expiry_date_str} 过期"
 
-        logging.info("账户有效期检查通过")
+        logging.info("Expiry check passed for %s", username)
 
         usage_data = self.load_usage_data()
         user_usage = usage_data.get(username, {"translations": 0})
         used_translations = user_usage["translations"]
         max_translations = user_data["max_translations"]
-        logging.info(f"用户使用量检查: 已使用 {used_translations}/{max_translations} 次翻译")
+        logging.info(
+            "Usage check for %s: used %s/%s translations",
+            username,
+            used_translations,
+            max_translations,
+        )
         if used_translations >= max_translations:
             return False, f"已达到最大翻译次数限制 ({max_translations})"
 
@@ -280,7 +286,7 @@ class UserLimitManager:
 
         # 检查用户是否存在
         if username not in self.allowed_users:
-            logging.error(f"用户 {username} 不在允许的用户列表中，无法记录翻译使用")
+            logging.error("User %s is not in the allowed user list; cannot record translation usage", username)
             raise ValueError(f"用户 {username} 不存在")
 
         # 使用可重入锁确保原子操作
@@ -295,22 +301,33 @@ class UserLimitManager:
             new_count = usage_data[username]["translations"]
 
             logging.info(
-                f"记录翻译使用: 用户 {username}, 之前次数: {previous_count}, 现在次数: {new_count}"
+                "Recorded translation usage: user=%s previous=%s current=%s",
+                username,
+                previous_count,
+                new_count,
             )
 
             # 保存使用数据，失败时抛出异常
             try:
                 self._atomic_save_usage_data(usage_data)
-                logging.info(f"翻译使用记录保存成功: 用户 {username}, 总使用次数: {new_count}")
+                logging.info("Translation usage saved: user=%s total=%s", username, new_count)
             except Exception as e:
                 logging.error(
-                    f"保存翻译使用记录失败，数据可能丢失！用户: {username}, 次数: {new_count}, 错误: {str(e)}"
+                    "Failed to save translation usage: user=%s count=%s error=%s",
+                    username,
+                    new_count,
+                    str(e),
                 )
-                raise RuntimeError(f"无法保存翻译使用记录: {str(e)}") from e
+                raise RuntimeError(f"Unable to save translation usage: {str(e)}") from e
 
             max_translations = self.allowed_users[username]["max_translations"]
             remaining = max_translations - new_count
-            logging.info(f"用户 {username} 剩余翻译次数: {remaining}/{max_translations}")
+            logging.info(
+                "Remaining translations for %s: %s/%s",
+                username,
+                remaining,
+                max_translations,
+            )
 
             return remaining
 
@@ -359,7 +376,11 @@ class UserLimitManager:
         remaining = max_translations - used_translations
 
         logging.info(
-            f"获取用户信息: {username}, 已使用 {used_translations}/{max_translations} 次翻译, 剩余 {remaining} 次"
+            "User info requested: %s used=%s/%s remaining=%s",
+            username,
+            used_translations,
+            max_translations,
+            remaining,
         )
 
         return {
@@ -859,7 +880,7 @@ def generate_safe_hash(text: str, length: int = 12) -> str:
         # 返回指定长度的十六进制字符串（前length个字符）
         return hash_obj.hexdigest()[:length]
     except Exception as e:
-        logging.error(f"生成哈希失败: {e}")
+        logging.error("Failed to generate hash: %s", e)
         # 回退方案：使用UUID
         return str(uuid.uuid4())[:length]
 
