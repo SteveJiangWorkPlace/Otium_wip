@@ -385,7 +385,7 @@ const TextTranslation: React.FC = () => {
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
                     placeholder={INPUT_PLACEHOLDER}
-                    rows={25}
+                    rows={24}
                     resize="vertical"
                     fullWidth
                     maxLength={1000}

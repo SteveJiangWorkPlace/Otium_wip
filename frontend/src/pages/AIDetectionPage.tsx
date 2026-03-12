@@ -149,7 +149,7 @@ const AIDetectionPage: React.FC = () => {
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
                     placeholder="请输入待检测的文本..."
-                    rows={25}
+                    rows={24}
                     resize="vertical"
                     fullWidth
                     maxLength={5000}

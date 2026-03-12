@@ -1,6 +1,6 @@
 .progressBarSpacer {
   width: 100%;
-  height: 38px;
+  height: 34px;
   flex-shrink: 0;
 }
 
@@ -96,7 +96,7 @@
 /* 响应式设计 */
 @media (max-width: 768px) {
   .progressBarSpacer {
-    height: 32px;
+    height: 28px;
   }
 
   .progressBarContainer {

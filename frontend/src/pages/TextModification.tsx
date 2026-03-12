@@ -328,7 +328,7 @@ const TextModification: React.FC = () => {
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
                     placeholder={INPUT_PLACEHOLDER}
-                    rows={25}
+                    rows={24}
                     resize="vertical"
                     fullWidth
                     maxLength={5000}
@@ -380,56 +380,58 @@ const TextModification: React.FC = () => {
                 </div>
               )}
 
-              <DirectiveSelector
-                selectedDirectives={selectedDirectives}
-                onDirectivesChange={setSelectedDirectives}
-                disabled={loading}
-              />
+              <div className={styles.directiveSection}>
+                <DirectiveSelector
+                  selectedDirectives={selectedDirectives}
+                  onDirectivesChange={setSelectedDirectives}
+                  disabled={loading}
+                />
 
-              {(selectedDirectives.length > 0 || containsAnnotations(inputText)) && (
-                <Card variant="ghost" padding="medium" className={styles.optionsCard}>
-                  <div className={styles.optionsHeader}>
-                    <h3 className={styles.optionsTitle}>{OPTIONS_TITLE}</h3>
-                    <div className={styles.annotationsToggle}>
-                      <label className={styles.toggleLabel}>
-                        <input
-                          type="checkbox"
-                          checked={showAnnotations}
-                          onChange={(e) => setShowAnnotations(e.target.checked)}
-                        />
-                        <span>{SHOW_ANNOTATIONS_LABEL}</span>
-                      </label>
-                    </div>
-                  </div>
-                  <div className={styles.selectedDirectives}>
-                    <div className={styles.directivesHeader}>
-                      <h4 className={styles.directivesTitle}>{directivesTitle}</h4>
-                      <Button
-                        variant="primary"
-                        size="small"
-                        onClick={handleApplyModifications}
-                        disabled={loading || streaming || !inputText.trim()}
-                      >
-                        {APPLY_MODIFICATIONS_LABEL}
-                      </Button>
-                    </div>
-                    {selectedDirectives.length > 0 && (
-                      <div className={styles.directivesList}>
-                        {selectedDirectives.map((directive) => (
-                          <div key={directive} className={styles.directiveItem}>
-                            <span className={styles.directiveName}>{directive}</span>
-                          </div>
-                        ))}
+                {(selectedDirectives.length > 0 || containsAnnotations(inputText)) && (
+                  <Card variant="ghost" padding="medium" className={styles.optionsCard}>
+                    <div className={styles.optionsHeader}>
+                      <h3 className={styles.optionsTitle}>{OPTIONS_TITLE}</h3>
+                      <div className={styles.annotationsToggle}>
+                        <label className={styles.toggleLabel}>
+                          <input
+                            type="checkbox"
+                            checked={showAnnotations}
+                            onChange={(e) => setShowAnnotations(e.target.checked)}
+                          />
+                          <span>{SHOW_ANNOTATIONS_LABEL}</span>
+                        </label>
                       </div>
-                    )}
-                    {containsAnnotations(inputText) && selectedDirectives.length === 0 && (
-                      <div className={styles.annotationsNotice}>
-                        <p>{ANNOTATION_DETECTED_TEXT}</p>
+                    </div>
+                    <div className={styles.selectedDirectives}>
+                      <div className={styles.directivesHeader}>
+                        <h4 className={styles.directivesTitle}>{directivesTitle}</h4>
+                        <Button
+                          variant="primary"
+                          size="small"
+                          onClick={handleApplyModifications}
+                          disabled={loading || streaming || !inputText.trim()}
+                        >
+                          {APPLY_MODIFICATIONS_LABEL}
+                        </Button>
                       </div>
-                    )}
-                  </div>
-                </Card>
-              )}
+                      {selectedDirectives.length > 0 && (
+                        <div className={styles.directivesList}>
+                          {selectedDirectives.map((directive) => (
+                            <div key={directive} className={styles.directiveItem}>
+                              <span className={styles.directiveName}>{directive}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {containsAnnotations(inputText) && selectedDirectives.length === 0 && (
+                        <div className={styles.annotationsNotice}>
+                          <p>{ANNOTATION_DETECTED_TEXT}</p>
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+                )}
+              </div>
 
               {(streaming || modifiedText) && (
                 <Card variant="ghost" padding="medium" className={styles.resultCard}>
