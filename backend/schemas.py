@@ -6,7 +6,7 @@
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 # ==========================================
 # 请求模型
@@ -50,19 +50,35 @@ class AdminLoginRequest(BaseModel):
 class UpdateUserRequest(BaseModel):
     """更新用户请求模型"""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     username: str = Field(min_length=1, description="用户名不能为空")
-    daily_translation_limit: int | None = None
-    daily_ai_detection_limit: int | None = None
+    monthly_translation_limit: int | None = Field(
+        default=None,
+        validation_alias=AliasChoices("monthly_translation_limit", "daily_translation_limit"),
+    )
+    monthly_ai_detection_limit: int | None = Field(
+        default=None,
+        validation_alias=AliasChoices("monthly_ai_detection_limit", "daily_ai_detection_limit"),
+    )
     password: str | None = None
 
 
 class AddUserRequest(BaseModel):
     """添加用户请求模型"""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     username: str = Field(min_length=1, description="用户名不能为空")
     password: str = Field(min_length=1, description="密码不能为空")
-    daily_translation_limit: int = 3
-    daily_ai_detection_limit: int = 3
+    monthly_translation_limit: int = Field(
+        default=5,
+        validation_alias=AliasChoices("monthly_translation_limit", "daily_translation_limit"),
+    )
+    monthly_ai_detection_limit: int = Field(
+        default=5,
+        validation_alias=AliasChoices("monthly_ai_detection_limit", "daily_ai_detection_limit"),
+    )
 
 
 class SendVerificationRequest(BaseModel):
@@ -117,10 +133,10 @@ class UserInfo(BaseModel):
     """用户信息模型"""
 
     username: str
-    daily_translation_limit: int
-    daily_ai_detection_limit: int
-    daily_translation_used: int
-    daily_ai_detection_used: int
+    monthly_translation_limit: int
+    monthly_ai_detection_limit: int
+    monthly_translation_used: int
+    monthly_ai_detection_used: int
     is_admin: bool
     is_active: bool
     created_at: str | None = None
@@ -133,10 +149,10 @@ class UserInfoWithEmail(BaseModel):
     username: str
     email: str | None = None
     email_verified: bool = False
-    daily_translation_limit: int
-    daily_ai_detection_limit: int
-    daily_translation_used: int
-    daily_ai_detection_used: int
+    monthly_translation_limit: int
+    monthly_ai_detection_limit: int
+    monthly_translation_used: int
+    monthly_ai_detection_used: int
     is_admin: bool
     is_active: bool
     created_at: str | None = None

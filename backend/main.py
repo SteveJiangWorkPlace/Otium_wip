@@ -626,6 +626,10 @@ async def login(data: LoginRequest):
                 "max_translations": 99999,  # 管理员有非常大的翻译次数限制
                 "used_translations": 0,
                 "remaining_translations": 99999,
+                "monthly_translation_limit": 999,
+                "monthly_ai_detection_limit": 999,
+                "monthly_translation_used": 0,
+                "monthly_ai_detection_used": 0,
                 "is_admin": True,
                 "is_active": True,
             }
@@ -662,6 +666,10 @@ async def login(data: LoginRequest):
                 "max_translations": 100,
                 "used_translations": 0,
                 "remaining_translations": 100,
+                "monthly_translation_limit": 5,
+                "monthly_ai_detection_limit": 5,
+                "monthly_translation_used": 0,
+                "monthly_ai_detection_used": 0,
                 "is_admin": False,
                 "is_active": True,
             }
@@ -2543,8 +2551,8 @@ async def update_user(
     success, message = user_service.update_user(
         request.username,
         request.password,
-        request.daily_translation_limit,
-        request.daily_ai_detection_limit,
+        request.monthly_translation_limit,
+        request.monthly_ai_detection_limit,
     )
 
     if not success:
@@ -2581,8 +2589,8 @@ async def add_user(
     success, message = user_service.add_user(
         request.username,
         request.password,
-        request.daily_translation_limit,
-        request.daily_ai_detection_limit,
+        request.monthly_translation_limit,
+        request.monthly_ai_detection_limit,
     )
 
     if not success:

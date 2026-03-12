@@ -209,10 +209,10 @@ export interface LoginResponse {
 // 用户信息
 export interface UserInfo {
   username: string;
-  daily_translation_limit: number;
-  daily_ai_detection_limit: number;
-  daily_translation_used: number;
-  daily_ai_detection_used: number;
+  monthly_translation_limit: number;
+  monthly_ai_detection_limit: number;
+  monthly_translation_used: number;
+  monthly_ai_detection_used: number;
   is_admin: boolean;
   is_active: boolean;
   created_at?: string;
@@ -224,10 +224,10 @@ export interface UserInfoWithEmail {
   username: string;
   email?: string;
   email_verified?: boolean;
-  daily_translation_limit: number;
-  daily_ai_detection_limit: number;
-  daily_translation_used: number;
-  daily_ai_detection_used: number;
+  monthly_translation_limit: number;
+  monthly_ai_detection_limit: number;
+  monthly_translation_used: number;
+  monthly_ai_detection_used: number;
   is_admin: boolean;
   is_active: boolean;
   created_at?: string;
@@ -267,11 +267,11 @@ export interface UsageStats {
   total_translations: number;
   total_ai_detections: number;
   user_count: number;
-  daily_stats: DailyStats[];
+  monthly_stats: MonthlyStats[];
 }
 
-// 每日统计
-export interface DailyStats {
+// Monthly stats
+export interface MonthlyStats {
   date: string;
   translations: number;
   ai_detections: number;

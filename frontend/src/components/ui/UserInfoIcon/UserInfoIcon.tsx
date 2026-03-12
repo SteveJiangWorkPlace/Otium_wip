@@ -65,15 +65,15 @@ const UserInfoIcon: React.FC = () => {
               <span className={styles.infoValue}>{userInfo.is_admin ? '管理员' : '普通用户'}</span>
             </div>
             <div className={styles.infoRow}>
-              <span className={styles.infoLabel}>今日翻译次数:</span>
+              <span className={styles.infoLabel}>本月翻译次数:</span>
               <span className={styles.infoValue}>
-                {userInfo.daily_translation_used || 0}/{userInfo.daily_translation_limit || 0}
+                {userInfo.monthly_translation_used || 0}/{userInfo.monthly_translation_limit || 0}
               </span>
             </div>
             <div className={styles.infoRow}>
-              <span className={styles.infoLabel}>今日AI检测次数:</span>
+              <span className={styles.infoLabel}>本月AI检测次数:</span>
               <span className={styles.infoValue}>
-                {userInfo.daily_ai_detection_used || 0}/{userInfo.daily_ai_detection_limit || 0}
+                {userInfo.monthly_ai_detection_used || 0}/{userInfo.monthly_ai_detection_limit || 0}
               </span>
             </div>
           </div>

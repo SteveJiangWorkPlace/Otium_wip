@@ -17,8 +17,8 @@ const Admin: React.FC = () => {
   const [formData, setFormData] = useState({
     username: '',
     password: '',
-    daily_translation_limit: 3,
-    daily_ai_detection_limit: 3,
+    monthly_translation_limit: 5,
+    monthly_ai_detection_limit: 5,
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
@@ -47,8 +47,8 @@ const Admin: React.FC = () => {
     setFormData({
       username: user.username,
       password: '',
-      daily_translation_limit: user.daily_translation_limit,
-      daily_ai_detection_limit: user.daily_ai_detection_limit,
+      monthly_translation_limit: user.monthly_translation_limit,
+      monthly_ai_detection_limit: user.monthly_ai_detection_limit,
     });
     setFormErrors({});
     setModalVisible(true);
@@ -59,8 +59,8 @@ const Admin: React.FC = () => {
     setFormData({
       username: '',
       password: '',
-      daily_translation_limit: 3,
-      daily_ai_detection_limit: 3,
+      monthly_translation_limit: 5,
+      monthly_ai_detection_limit: 5,
     });
     setFormErrors({});
     setModalVisible(true);
@@ -77,13 +77,13 @@ const Admin: React.FC = () => {
       errors.password = '请输入密码';
     }
 
-    // 验证每日限制字段
-    if (formData.daily_translation_limit <= 0) {
-      errors.daily_translation_limit = '每日翻译限制必须大于0';
+    // 验证每月限制字段
+    if (formData.monthly_translation_limit <= 0) {
+      errors.monthly_translation_limit = '每月翻译限制必须大于0';
     }
 
-    if (formData.daily_ai_detection_limit <= 0) {
-      errors.daily_ai_detection_limit = '每日AI检测限制必须大于0';
+    if (formData.monthly_ai_detection_limit <= 0) {
+      errors.monthly_ai_detection_limit = '每月AI检测限制必须大于0';
     }
 
     setFormErrors(errors);
@@ -99,8 +99,8 @@ const Admin: React.FC = () => {
       const data = {
         username: formData.username,
         password: formData.password || undefined,
-        daily_translation_limit: formData.daily_translation_limit,
-        daily_ai_detection_limit: formData.daily_ai_detection_limit,
+        monthly_translation_limit: formData.monthly_translation_limit,
+        monthly_ai_detection_limit: formData.monthly_ai_detection_limit,
       };
 
       if (editingUser) {
@@ -147,20 +147,20 @@ const Admin: React.FC = () => {
       ),
     },
     {
-      title: '今日翻译',
-      key: 'daily_translation',
+      title: '本月翻译',
+      key: 'monthly_translation',
       render: (_: any, record: UserInfo) => (
         <span>
-          {record.daily_translation_used}/{record.daily_translation_limit}
+          {record.monthly_translation_used}/{record.monthly_translation_limit}
         </span>
       ),
     },
     {
-      title: '今日AI检测',
-      key: 'daily_ai_detection',
+      title: '本月AI检测',
+      key: 'monthly_ai_detection',
       render: (_: any, record: UserInfo) => (
         <span>
-          {record.daily_ai_detection_used}/{record.daily_ai_detection_limit}
+          {record.monthly_ai_detection_used}/{record.monthly_ai_detection_limit}
         </span>
       ),
     },
@@ -246,28 +246,28 @@ const Admin: React.FC = () => {
             />
           </FormItem>
 
-          <FormItem label="每日翻译限制" required error={formErrors.daily_translation_limit}>
+          <FormItem label="每月翻译限制" required error={formErrors.monthly_translation_limit}>
             <Input
               type="number"
-              name="daily_translation_limit"
-              value={formData.daily_translation_limit}
+              name="monthly_translation_limit"
+              value={formData.monthly_translation_limit}
               onChange={(e) =>
-                handleFormChange('daily_translation_limit', parseInt(e.target.value) || 0)
+                handleFormChange('monthly_translation_limit', parseInt(e.target.value) || 0)
               }
-              placeholder="请输入每日翻译限制"
+              placeholder="请输入每月翻译限制"
               min="1"
             />
           </FormItem>
 
-          <FormItem label="每日AI检测限制" required error={formErrors.daily_ai_detection_limit}>
+          <FormItem label="每月AI检测限制" required error={formErrors.monthly_ai_detection_limit}>
             <Input
               type="number"
-              name="daily_ai_detection_limit"
-              value={formData.daily_ai_detection_limit}
+              name="monthly_ai_detection_limit"
+              value={formData.monthly_ai_detection_limit}
               onChange={(e) =>
-                handleFormChange('daily_ai_detection_limit', parseInt(e.target.value) || 0)
+                handleFormChange('monthly_ai_detection_limit', parseInt(e.target.value) || 0)
               }
-              placeholder="请输入每日AI检测限制"
+              placeholder="请输入每月AI检测限制"
               min="1"
             />
           </FormItem>

@@ -268,10 +268,10 @@ const Register: React.FC = () => {
       if (response.success) {
         const userInfo = response.user_info || {
           username,
-          daily_translation_limit: 3,
-          daily_ai_detection_limit: 3,
-          daily_translation_used: 0,
-          daily_ai_detection_used: 0,
+          monthly_translation_limit: 5,
+          monthly_ai_detection_limit: 5,
+          monthly_translation_used: 0,
+          monthly_ai_detection_used: 0,
           is_admin: false,
           is_active: true,
         };

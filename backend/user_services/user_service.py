@@ -9,8 +9,8 @@ import logging
 import threading
 from datetime import date, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from config import settings
@@ -20,15 +20,59 @@ from models.database import TranslationRecord, User, UserUsage, hash_password, v
 class UserService:
     """User service backed by database storage."""
 
-    DAILY_LIMIT = 3  # 每个用户每天的翻译使用次数限制
+    BEIJING_TZ = ZoneInfo("Asia/Shanghai")
+    DEFAULT_MONTHLY_LIMIT = 5
 
     def __init__(self):
         """Initialize the user service."""
         self._lock = threading.RLock()  # 线程锁，防止并发访问
         self._ensure_admin_user()
         logging.info("UserService initialized with database storage")
-        logging.info("Daily translation limit: %s", settings.DAILY_TRANSLATION_LIMIT)
-        logging.info("Daily AI detection limit: %s", settings.DAILY_AI_DETECTION_LIMIT)
+        logging.info("Monthly translation limit: %s", settings.DAILY_TRANSLATION_LIMIT)
+        logging.info("Monthly AI detection limit: %s", settings.DAILY_AI_DETECTION_LIMIT)
+
+    def _current_beijing_month_bounds_utc(self) -> tuple[datetime, datetime]:
+        now_beijing = datetime.now(self.BEIJING_TZ)
+        month_start_beijing = now_beijing.replace(
+            day=1,
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
+        if month_start_beijing.month == 12:
+            next_month_start_beijing = month_start_beijing.replace(
+                year=month_start_beijing.year + 1,
+                month=1,
+            )
+        else:
+            next_month_start_beijing = month_start_beijing.replace(
+                month=month_start_beijing.month + 1,
+            )
+
+        month_start_utc = month_start_beijing.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+        next_month_start_utc = next_month_start_beijing.astimezone(ZoneInfo("UTC")).replace(
+            tzinfo=None
+        )
+        return month_start_utc, next_month_start_utc
+
+    def _count_usage_for_current_beijing_month(
+        self,
+        db: Session,
+        user_id: int,
+        operation_types: list[str],
+    ) -> int:
+        month_start_utc, next_month_start_utc = self._current_beijing_month_bounds_utc()
+        return (
+            db.query(TranslationRecord)
+            .filter(
+                TranslationRecord.user_id == user_id,
+                TranslationRecord.created_at >= month_start_utc,
+                TranslationRecord.created_at < next_month_start_utc,
+                TranslationRecord.operation_type.in_(operation_types),
+            )
+            .count()
+        )
 
     def _ensure_admin_user(self):
         """Ensure the admin user exists."""
@@ -105,41 +149,35 @@ class UserService:
                     logging.error("Cannot record usage; user not found: %s", username)
                     raise ValueError(f"User {username} does not exist")
 
-                # 检查每日限制
-                today = datetime.utcnow().date()
-
-                # 根据操作类型确定每日限制（使用用户特定的限制值）
-                daily_limit: int
+                monthly_limit: int
                 if operation_type in ["translate_us", "translate_uk"]:
-                    daily_limit = user.daily_translation_limit  # type: ignore[assignment]
+                    monthly_limit = user.daily_translation_limit  # type: ignore[assignment]
                     limit_type = "translation"
+                    operation_types = ["translate_us", "translate_uk"]
                 elif operation_type == "ai_detection":
-                    daily_limit = user.daily_ai_detection_limit  # type: ignore[assignment]
+                    monthly_limit = user.daily_ai_detection_limit  # type: ignore[assignment]
                     limit_type = "AI detection"
+                    operation_types = ["ai_detection"]
                 else:
-                    daily_limit = 10  # 默认限制
+                    monthly_limit = self.DEFAULT_MONTHLY_LIMIT
                     limit_type = "operation"
+                    operation_types = [operation_type]
 
-                # 查询今日该操作类型的记录数
-                daily_count = (
-                    db.query(TranslationRecord)
-                    .filter(
-                        TranslationRecord.user_id == user.id,
-                        func.date(TranslationRecord.created_at) == today,
-                        TranslationRecord.operation_type == operation_type,
-                    )
-                    .count()
+                monthly_count = self._count_usage_for_current_beijing_month(
+                    db,
+                    user.id,
+                    operation_types,
                 )
 
-                if daily_count >= daily_limit:
+                if monthly_count >= monthly_limit:
                     logging.warning(
-                        "Daily %s limit reached for user %s (%s)",
+                        "Monthly %s limit reached for user %s (%s)",
                         limit_type,
                         username,
-                        daily_limit,
+                        monthly_limit,
                     )
                     raise ValueError(
-                        f"Daily {limit_type} limit reached ({daily_limit}). Please try again tomorrow."
+                        f"Monthly {limit_type} limit reached ({monthly_limit}). Please try again next month."
                     )
 
                 # 获取或创建使用记录
@@ -178,7 +216,7 @@ class UserService:
                 )
                 logging.info("Usage record saved: user=%s total=%s", username, new_count)
 
-                # 不再计算和返回剩余次数，现在只使用每日限制
+                # 不再计算和返回剩余次数，现在只使用每月限制
                 # 返回0表示成功，前端不需要处理剩余次数
                 return 0
 
@@ -198,7 +236,7 @@ class UserService:
         """
         获取指定用户的详细信息
 
-        根据用户名查询用户完整信息，包括基本信息、今日使用统计和账户状态。
+        根据用户名查询用户完整信息，包括基本信息、本月使用统计和账户状态。
         如果用户不存在，返回None。
 
         Args:
@@ -212,10 +250,10 @@ class UserService:
                 - is_admin: 是否为管理员
                 - is_active: 账户是否激活
                 - expiry_date: 账户过期日期
-                - daily_translation_limit: 每日翻译限制
-                - daily_ai_detection_limit: 每日AI检测限制
-                - daily_translation_used: 今日已使用翻译次数
-                - daily_ai_detection_used: 今日已使用AI检测次数
+                - monthly_translation_limit: 每月翻译限制
+                - monthly_ai_detection_limit: 每月AI检测限制
+                - monthly_translation_used: 本月已使用翻译次数
+                - monthly_ai_detection_used: 本月已使用AI检测次数
                 - created_at: 创建时间
                 如果用户不存在，返回None
 
@@ -231,7 +269,7 @@ class UserService:
         Notes:
             - 用户名支持多种类型输入（字符串、整数、用户对象）
             - 自动进行类型转换，确保查询正确性
-            - 只返回今日使用统计，历史统计不再包含
+            - 只返回本月使用统计，历史统计不再包含
             - 数据库连接在函数内部管理，调用者无需担心资源泄漏
         """
         # 添加类型检查和转换
@@ -247,45 +285,33 @@ class UserService:
             if not user:
                 return None
 
-            # 不再需要总使用次数统计，只保留每日限制
-
-            # 获取今日使用统计
-            today = datetime.utcnow().date()
-            daily_translation_used = (
-                db.query(TranslationRecord)
-                .filter(
-                    TranslationRecord.user_id == user.id,
-                    func.date(TranslationRecord.created_at) == today,
-                    TranslationRecord.operation_type.in_(["translate_us", "translate_uk"]),
-                )
-                .count()
+            monthly_translation_used = self._count_usage_for_current_beijing_month(
+                db,
+                user.id,
+                ["translate_us", "translate_uk"],
             )
 
-            daily_ai_detection_used = (
-                db.query(TranslationRecord)
-                .filter(
-                    TranslationRecord.user_id == user.id,
-                    func.date(TranslationRecord.created_at) == today,
-                    TranslationRecord.operation_type == "ai_detection",
-                )
-                .count()
+            monthly_ai_detection_used = self._count_usage_for_current_beijing_month(
+                db,
+                user.id,
+                ["ai_detection"],
             )
 
             logging.info("Fetching user info for %s", username)
             logging.info(
-                "Daily usage: translation %s/%s, ai_detection %s/%s",
-                daily_translation_used,
+                "Monthly usage: translation %s/%s, ai_detection %s/%s",
+                monthly_translation_used,
                 user.daily_translation_limit,
-                daily_ai_detection_used,
+                monthly_ai_detection_used,
                 user.daily_ai_detection_limit,
             )
 
             return {
                 "username": username,
-                "daily_translation_limit": user.daily_translation_limit,
-                "daily_ai_detection_limit": user.daily_ai_detection_limit,
-                "daily_translation_used": daily_translation_used,
-                "daily_ai_detection_used": daily_ai_detection_used,
+                "monthly_translation_limit": user.daily_translation_limit,
+                "monthly_ai_detection_limit": user.daily_ai_detection_limit,
+                "monthly_translation_used": monthly_translation_used,
+                "monthly_ai_detection_used": monthly_ai_detection_used,
                 "is_admin": user.is_admin,
                 "is_active": user.is_active,
                 "created_at": user.created_at.isoformat() if user.created_at else None,
@@ -299,10 +325,10 @@ class UserService:
         self,
         username: str,
         password: str | None = None,
-        daily_translation_limit: int | None = None,
-        daily_ai_detection_limit: int | None = None,
+        monthly_translation_limit: int | None = None,
+        monthly_ai_detection_limit: int | None = None,
     ) -> tuple[bool, str]:
-        """更新用户信息（密码和每日限制）"""
+        """更新用户信息（密码和每月限制）"""
         db = self._get_db_session()
         try:
             user = db.query(User).filter(User.username == username).first()
@@ -313,11 +339,11 @@ class UserService:
             if password:
                 user.password_hash = hash_password(password)  # type: ignore[assignment]
 
-            if daily_translation_limit is not None:
-                user.daily_translation_limit = daily_translation_limit  # type: ignore[assignment]
+            if monthly_translation_limit is not None:
+                user.daily_translation_limit = monthly_translation_limit  # type: ignore[assignment]
 
-            if daily_ai_detection_limit is not None:
-                user.daily_ai_detection_limit = daily_ai_detection_limit  # type: ignore[assignment]
+            if monthly_ai_detection_limit is not None:
+                user.daily_ai_detection_limit = monthly_ai_detection_limit  # type: ignore[assignment]
 
             db.commit()
             return True, ""
@@ -333,20 +359,20 @@ class UserService:
         self,
         username: str,
         password: str,
-        daily_translation_limit: int = 10,
-        daily_ai_detection_limit: int = 10,
+        monthly_translation_limit: int = 10,
+        monthly_ai_detection_limit: int = 10,
     ) -> tuple[bool, str]:
         """
         添加新用户到系统
 
-        创建新的用户账户，设置密码哈希、每日使用限制和账户基本信息。
+        创建新的用户账户，设置密码哈希、每月使用限制和账户基本信息。
         自动创建关联的用户使用记录表，确保账户完整初始化。
 
         Args:
             username: 新用户的用户名，必须唯一
             password: 用户的明文密码，函数内部会进行哈希处理
-            daily_translation_limit: 每日翻译次数限制，默认10次
-            daily_ai_detection_limit: 每日AI检测次数限制，默认10次
+            monthly_translation_limit: 每月翻译次数限制，默认10次
+            monthly_ai_detection_limit: 每月AI检测次数限制，默认10次
 
         Returns:
             tuple[bool, str]: 操作结果元组，包含：
@@ -370,7 +396,7 @@ class UserService:
             - 用户密码使用SHA256哈希算法存储，不保存明文
             - 默认设置账户过期时间为2099-12-31（长期有效）
             - 不再使用总翻译次数限制（max_translations设为0）
-            - 自动创建UserUsage记录表，用于跟踪每日使用统计
+            - 自动创建UserUsage记录表，用于跟踪使用统计
             - 用户默认为非管理员、已激活状态
             - 用户名重复时会返回"用户已存在"错误
         """
@@ -390,8 +416,8 @@ class UserService:
                 password_hash=hash_password(password),
                 expiry_date=expiry_date_obj,
                 max_translations=0,  # 不再使用总次数限制
-                daily_translation_limit=daily_translation_limit,
-                daily_ai_detection_limit=daily_ai_detection_limit,
+                daily_translation_limit=monthly_translation_limit,
+                daily_ai_detection_limit=monthly_ai_detection_limit,
                 is_admin=False,
                 is_active=True,
             )
@@ -430,10 +456,10 @@ class UserService:
                 - is_admin: 是否为管理员
                 - is_active: 账户是否激活
                 - expiry_date: 账户过期日期
-                - daily_translation_limit: 每日翻译限制
-                - daily_ai_detection_limit: 每日AI检测限制
-                - daily_translation_used: 今日已使用翻译次数
-                - daily_ai_detection_used: 今日已使用AI检测次数
+                - monthly_translation_limit: 每月翻译限制
+                - monthly_ai_detection_limit: 每月AI检测限制
+                - monthly_translation_used: 本月已使用翻译次数
+                - monthly_ai_detection_used: 本月已使用AI检测次数
                 - created_at: 创建时间
                 如果系统中没有用户，返回空列表
 
