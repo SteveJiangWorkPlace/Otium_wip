@@ -230,8 +230,8 @@ def _build_text_task_cache_key(text: str, scope: str) -> str:
     return generate_safe_hash_for_cache(text, scope)
 
 
-ERROR_CHECK_PRIMARY_MODEL = "gemini-2.5-flash-lite"
-ERROR_CHECK_FALLBACK_MODEL = "gemini-2.5-flash"
+ERROR_CHECK_PRIMARY_MODEL = "gemini-2.5-flash"
+ERROR_CHECK_FALLBACK_MODEL = "gemini-2.5-pro"
 
 
 async def _synthetic_text_stream(
