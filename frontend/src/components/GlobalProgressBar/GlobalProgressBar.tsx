@@ -365,6 +365,7 @@ const GlobalProgressBar: React.FC = () => {
     return '.'.repeat(dotIndex);
   };
 
+  // 确定当前显示的文本图标（Emoji）
   // 确定当前显示的图标路径
   const getCurrentIconPath = () => {
     // 首先检查错误状态（优先级最高）
@@ -406,32 +407,33 @@ const GlobalProgressBar: React.FC = () => {
   };
 
   return (
-    <div className={styles.progressBarContainer}>
-      {/* 图标容器 */}
-      <div className={styles.iconContainer}>
-        {iconError ? (
-          <div className={styles.fallbackIcon}>
-            <span className={styles.fallbackText}>!</span>
-          </div>
-        ) : (
-          <img
-            src={currentIconPath}
-            alt="状态图标"
-            className={`${styles.statusIcon} ${isErrorState ? styles.error : ''}`}
-            onError={handleIconError}
-            loading="eager"
-          />
-        )}
-      </div>
+    <>
+      <div className={styles.progressBarSpacer} aria-hidden="true" />
+      <div className={styles.progressBarContainer}>
+        <div className={styles.iconContainer}>
+          {iconError ? (
+            <div className={styles.fallbackIcon}>
+              <span className={styles.fallbackText}>!</span>
+            </div>
+          ) : (
+            <img
+              src={currentIconPath}
+              alt="状态图标"
+              className={`${styles.statusIcon} ${isErrorState ? styles.error : ''}`}
+              onError={handleIconError}
+              loading="eager"
+            />
+          )}
+        </div>
 
-      {/* 进度条内容 */}
-      <div className={styles.progressBarContent}>
-        <div className={styles.progressMessage}>
-          {humorousMessage}
-          {showDots && <span className={styles.dots}>{getDots()}</span>}
+        <div className={styles.progressBarContent}>
+          <div className={styles.progressMessage}>
+            {humorousMessage}
+            {showDots && <span className={styles.dots}>{getDots()}</span>}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
