@@ -755,12 +755,14 @@ async def send_verification_code(request: SendVerificationRequest):
     email_sent = email_service.send_verification_code(request.email, verification_code)
 
     if not email_sent:
-        # 邮件发送失败，但仍然返回成功（不暴露内部错误）
-        # 在实际生产环境中，可能需要记录错误并提供更详细的错误信息
         logger.error(f"验证码邮件发送失败: {request.email}")
-        # 仍然返回成功，但提示用户检查邮箱或联系管理员
-        return VerificationResponse(
-            success=True, message="验证码已生成，如果未收到邮件请检查邮箱或联系管理员"
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=_error_detail(
+                "EMAIL_DELIVERY_FAILED",
+                "验证码邮件发送失败，请稍后重试",
+                {"email": request.email},
+            ),
         )
 
     logger.info(f"验证码发送成功: {request.email}")
@@ -966,10 +968,11 @@ async def reset_password(request: ResetPasswordRequest):
     """重置密码（使用重置令牌）"""
     logger.info("重置密码请求")
 
-    # 验证重置令牌
-    email = verification_service.consume_reset_token(request.token)
+    # 先验证令牌，只有在密码成功重置后才真正消费它。
+    # 否则任何后续错误都会把一次性令牌提前烧掉。
+    is_valid, email = verification_service.verify_reset_token(request.token)
 
-    if not email:
+    if not is_valid or not email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=_error_detail(
@@ -1005,6 +1008,8 @@ async def reset_password(request: ResetPasswordRequest):
                 {"username": username},
             ),
         )
+
+    verification_service.consume_reset_token(request.token)
 
     logger.info(f"密码重置成功: {username}")
     return PasswordResetResponse(

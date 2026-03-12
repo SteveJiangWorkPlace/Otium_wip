@@ -138,6 +138,7 @@ axiosInstance.interceptors.response.use(
   async (error: AxiosError<ApiError>) => {
     const { response } = error;
     const status = response?.status;
+    const shouldDisableRetry = Boolean((error.config as any)?._disableRetry);
 
     const extractErrorMessage = (): string => {
       if (!response) return 'Network error, please check your connection.';
@@ -186,7 +187,7 @@ axiosInstance.interceptors.response.use(
       }
     };
 
-    if (status === 429) {
+    if (!shouldDisableRetry && status === 429) {
       const maxRetries = 3;
       const retryCount = (error.config as any)?._retryCount || 0;
 
@@ -208,7 +209,7 @@ axiosInstance.interceptors.response.use(
       }
     }
 
-    if (status === 503 || status === 502 || status === 504) {
+    if (!shouldDisableRetry && (status === 503 || status === 502 || status === 504)) {
       const maxRetries = 4;
       const retryCount = (error.config as any)?._retryCount || 0;
 
@@ -350,7 +351,9 @@ async function* parseSSEStream<T>(
 
 export const apiClient = {
   login: async (data: LoginRequest): Promise<LoginResponse> => {
-    const response = await axiosInstance.post<LoginResponse>('/login', data);
+    const response = await axiosInstance.post<LoginResponse>('/login', data, {
+      _disableRetry: true,
+    } as any);
     return response.data;
   },
 
@@ -419,7 +422,10 @@ export const apiClient = {
       {
         token,
         new_password: newPassword,
-      }
+      },
+      {
+        _disableRetry: true,
+      } as any
     );
     return response.data;
   },

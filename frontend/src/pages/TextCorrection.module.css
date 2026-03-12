@@ -276,14 +276,15 @@
 }
 
 @keyframes wave {
-  0%, 60%, 100% {
+  0%,
+  60%,
+  100% {
     transform: translateY(0);
   }
   30% {
     transform: translateY(-6px);
   }
 }
-
 
 .inlineHighlight {
   background-color: var(--color-black);

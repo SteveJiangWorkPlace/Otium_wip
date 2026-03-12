@@ -25,7 +25,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   onLogout,
 }) => {
   const isAdmin = useAuthStore((state) => state.isAdmin);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const userInfo = useAuthStore((state) => state.userInfo);
 
   // 菜单项定义 - 适配Otium项目
@@ -107,6 +106,34 @@ const Sidebar: React.FC<SidebarProps> = ({
       </nav>
 
       <div className={styles.footer}>
+        {/* 用户使用统计 */}
+        {userInfo && (
+          <div className={styles.usageStats}>
+            <div className={styles.usageStatItem}>
+              <span className={styles.usageStatLabel}>每月翻译次数:</span>
+              <span className={styles.usageStatValue}>
+                {Math.max(
+                  0,
+                  (userInfo.monthly_translation_limit || 0) -
+                    (userInfo.monthly_translation_used || 0)
+                )}
+                /{userInfo.monthly_translation_limit || 0}
+              </span>
+            </div>
+            <div className={styles.usageStatItem}>
+              <span className={styles.usageStatLabel}>每月检测次数:</span>
+              <span className={styles.usageStatValue}>
+                {Math.max(
+                  0,
+                  (userInfo.monthly_ai_detection_limit || 0) -
+                    (userInfo.monthly_ai_detection_used || 0)
+                )}
+                /{userInfo.monthly_ai_detection_limit || 0}
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* 底部按钮：退出登录 */}
         <div className={styles.bottomButtons}>
           <button className={styles.logoutButton} onClick={onLogout} title="退出登录">

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import { useAuthStore } from '../store/useAuthStore';
 import { Card, Input, Button, Icon } from '../components';
@@ -47,73 +47,38 @@ const Login: React.FC = () => {
 
     setLoading(true);
 
-    const maxRetries = 4;
-    let retryCount = 0;
-    let success = false;
+    try {
+      const response = (await apiClient.login({ username, password })) as any;
 
-    // 错误消息提取函数（复用原有逻辑）
-    const extractErrorMessage = (error: unknown): string => {
-      if (error instanceof Error) {
-        return error.message;
+      if (response) {
+        const userInfo = response.user || response.user_info || { username };
+        const token = response.token || response.access_token;
+
+        setAuth(token, userInfo);
+        resetAllStores();
+        navigate('/');
+
+        setTimeout(() => {
+          if (window.location.pathname === '/login') {
+            window.location.href = '/';
+          }
+        }, 1000);
+      }
+    } catch (error) {
+      let errorMessage = '登录失败，请检查用户名和密码';
+
+      if (error instanceof Error && error.message) {
+        errorMessage = error.message;
       } else if (error && typeof error === 'object' && 'response' in error) {
         const axiosError = error as any;
-        return axiosError.response?.data?.detail || '登录失败，请检查用户名和密码';
+        errorMessage = axiosError.response?.data?.detail || errorMessage;
       }
-      return '登录失败，请检查用户名和密码';
-    };
 
-    while (retryCount <= maxRetries && !success) {
-      try {
-        const response = (await apiClient.login({ username, password })) as any;
-
-        if (response) {
-          // 登录成功逻辑（保持不变）
-          const userInfo = response.user || response.user_info || { username };
-          const token = response.token || response.access_token;
-
-          setAuth(token, userInfo);
-          resetAllStores();
-          navigate('/');
-
-          setTimeout(() => {
-            if (window.location.pathname === '/login') {
-              window.location.href = '/';
-            }
-          }, 1000);
-
-          success = true;
-        }
-      } catch (error) {
-        retryCount++;
-
-        if (retryCount > maxRetries) {
-          // 最终失败处理
-          let errorMessage = '登录失败，请检查用户名和密码';
-
-          // 检查是否为服务器错误
-          if (error && typeof error === 'object') {
-            const status = (error as any).response?.status;
-            if (status === 503 || status === 502 || status === 504) {
-              errorMessage = '服务器正在启动中，请稍后重试（已自动重试多次）';
-            } else {
-              errorMessage = extractErrorMessage(error);
-            }
-          }
-
-          setLoginError(errorMessage);
-        } else {
-          // 固定间隔重试：25, 50, 75, 100秒（总等待时间250秒，约4.2分钟）
-          const retryIntervals = [25, 50, 75, 100];
-          const waitTime = retryIntervals[retryCount - 1] * 1000;
-          debugLog(
-            `登录失败，${retryIntervals[retryCount - 1]}秒后重试 (${retryCount}/${maxRetries})`
-          );
-          await new Promise((resolve) => setTimeout(resolve, waitTime));
-        }
-      }
+      debugLog('login request failed without retry');
+      setLoginError(errorMessage);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
@@ -167,15 +132,6 @@ const Login: React.FC = () => {
           >
             {loading ? '登录中...' : '登录'}
           </Button>
-
-          <div className={styles.authLinks}>
-            <Link to="/register" className={styles.authLink}>
-              还没有账户？立即注册
-            </Link>
-            <Link to="/forgot-password" className={styles.authLink}>
-              忘记密码？
-            </Link>
-          </div>
         </form>
       </Card>
     </div>

@@ -176,7 +176,12 @@ code {
 .appRouteSkeletonSidebar {
   width: 240px;
   border-right: 1px solid var(--color-border);
-  background: linear-gradient(90deg, var(--color-gray-100), var(--color-gray-50), var(--color-gray-100));
+  background: linear-gradient(
+    90deg,
+    var(--color-gray-100),
+    var(--color-gray-50),
+    var(--color-gray-100)
+  );
   background-size: 200% 100%;
   animation: appRouteSkeletonSweep 1.6s linear infinite;
 }
@@ -192,7 +197,12 @@ code {
 .appRouteSkeletonLine {
   height: 14px;
   border-radius: var(--radius-full);
-  background: linear-gradient(90deg, var(--color-gray-100), var(--color-gray-50), var(--color-gray-100));
+  background: linear-gradient(
+    90deg,
+    var(--color-gray-100),
+    var(--color-gray-50),
+    var(--color-gray-100)
+  );
   background-size: 220% 100%;
   animation: appRouteSkeletonSweep 1.6s linear infinite;
 }

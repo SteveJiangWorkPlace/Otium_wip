@@ -7,8 +7,6 @@ import { debugLog } from './utils/logger';
 import './App.css';
 
 const Login = lazy(() => import('./pages/Login'));
-const Register = lazy(() => import('./pages/Register'));
-const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const Admin = lazy(() => import('./pages/Admin'));
 const TextCorrection = lazy(() => import('./pages/TextCorrection'));
 const TextTranslation = lazy(() => import('./pages/TextTranslation'));
@@ -65,9 +63,9 @@ const App: React.FC = () => {
         >
           <Routes>
             <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/reset-password/:token" element={<ForgotPassword />} />
+            <Route path="/register" element={<Navigate to="/login" replace />} />
+            <Route path="/forgot-password" element={<Navigate to="/login" replace />} />
+            <Route path="/reset-password/:token" element={<Navigate to="/login" replace />} />
             <Route path="/" element={<Navigate to="/correction" />} />
             <Route
               path="/correction"

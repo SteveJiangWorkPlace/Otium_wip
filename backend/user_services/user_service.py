@@ -22,6 +22,8 @@ class UserService:
 
     BEIJING_TZ = ZoneInfo("Asia/Shanghai")
     DEFAULT_MONTHLY_LIMIT = 5
+    SPECIAL_HIGH_LIMIT_USERS = {"dog", "cat"}
+    SPECIAL_HIGH_LIMIT_VALUE = 999
 
     def __init__(self):
         """Initialize the user service."""
@@ -87,6 +89,15 @@ class UserService:
         SessionLocal = get_session_local()
         return SessionLocal()  # type: ignore[no-any-return]
 
+    def _is_special_high_limit_user(self, username: str) -> bool:
+        return username in self.SPECIAL_HIGH_LIMIT_USERS
+
+    def _resolve_monthly_limits(self, user: User, username: str) -> tuple[int, int]:
+        if self._is_special_high_limit_user(username):
+            return self.SPECIAL_HIGH_LIMIT_VALUE, self.SPECIAL_HIGH_LIMIT_VALUE
+
+        return user.daily_translation_limit, user.daily_ai_detection_limit
+
     def authenticate_user(self, username: str, password: str | None = None) -> tuple[bool, str]:
         """Validate a user, matching the legacy is_user_allowed API."""
         logging.info("Starting user authentication for %s", username)
@@ -149,13 +160,15 @@ class UserService:
                     logging.error("Cannot record usage; user not found: %s", username)
                     raise ValueError(f"User {username} does not exist")
 
+                translation_limit, ai_detection_limit = self._resolve_monthly_limits(user, username)
+
                 monthly_limit: int
                 if operation_type in ["translate_us", "translate_uk"]:
-                    monthly_limit = user.daily_translation_limit  # type: ignore[assignment]
+                    monthly_limit = translation_limit
                     limit_type = "translation"
                     operation_types = ["translate_us", "translate_uk"]
                 elif operation_type == "ai_detection":
-                    monthly_limit = user.daily_ai_detection_limit  # type: ignore[assignment]
+                    monthly_limit = ai_detection_limit
                     limit_type = "AI detection"
                     operation_types = ["ai_detection"]
                 else:
@@ -285,6 +298,10 @@ class UserService:
             if not user:
                 return None
 
+            monthly_translation_limit, monthly_ai_detection_limit = self._resolve_monthly_limits(
+                user, username
+            )
+
             monthly_translation_used = self._count_usage_for_current_beijing_month(
                 db,
                 user.id,
@@ -301,15 +318,15 @@ class UserService:
             logging.info(
                 "Monthly usage: translation %s/%s, ai_detection %s/%s",
                 monthly_translation_used,
-                user.daily_translation_limit,
+                monthly_translation_limit,
                 monthly_ai_detection_used,
-                user.daily_ai_detection_limit,
+                monthly_ai_detection_limit,
             )
 
             return {
                 "username": username,
-                "monthly_translation_limit": user.daily_translation_limit,
-                "monthly_ai_detection_limit": user.daily_ai_detection_limit,
+                "monthly_translation_limit": monthly_translation_limit,
+                "monthly_ai_detection_limit": monthly_ai_detection_limit,
                 "monthly_translation_used": monthly_translation_used,
                 "monthly_ai_detection_used": monthly_ai_detection_used,
                 "is_admin": user.is_admin,

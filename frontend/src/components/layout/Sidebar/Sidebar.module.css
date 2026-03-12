@@ -180,6 +180,35 @@
   gap: var(--spacing-3);
 }
 
+.usageStats {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  margin-bottom: var(--spacing-2);
+  padding: 0;
+  background-color: transparent;
+  border-radius: 0;
+  border: none;
+}
+
+.usageStatItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-tight);
+}
+
+.usageStatLabel {
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-normal);
+}
+
+.usageStatValue {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
 .bottomButtons {
   display: flex;
   justify-content: flex-end;
@@ -290,7 +319,8 @@
 
 .sidebar.collapsed .userInfo,
 .sidebar.collapsed .logoutLabel,
-.sidebar.collapsed .versionInfo {
+.sidebar.collapsed .versionInfo,
+.sidebar.collapsed .usageStats {
   display: none;
 }
 

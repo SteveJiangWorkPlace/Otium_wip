@@ -1,28 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React from 'react';
 import { useAuthStore } from '../../../store/useAuthStore';
 import styles from './UserInfoIcon.module.css';
 
 const UserInfoIcon: React.FC = () => {
   const { userInfo } = useAuthStore();
-  const [isPopupVisible, setIsPopupVisible] = useState(false);
-  const iconRef = useRef<HTMLDivElement>(null);
-
-  // 点击外部关闭弹出框
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (iconRef.current && !iconRef.current.contains(event.target as Node)) {
-        setIsPopupVisible(false);
-      }
-    };
-
-    if (isPopupVisible) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isPopupVisible]);
 
   if (!userInfo) {
     return null;
@@ -35,50 +16,11 @@ const UserInfoIcon: React.FC = () => {
     return initials;
   };
 
-  const handleIconClick = () => {
-    setIsPopupVisible(!isPopupVisible);
-  };
-
   return (
-    <div className={styles.userInfoIconContainer} ref={iconRef}>
-      <button
-        className={styles.userIconButton}
-        onClick={handleIconClick}
-        aria-label="用户信息"
-        title="点击查看用户信息"
-      >
+    <div className={styles.userInfoIconContainer}>
+      <button className={styles.userIconButton} aria-label="用户信息" title="用户信息">
         <span className={styles.userInitials}>{getInitials()}</span>
       </button>
-
-      {isPopupVisible && (
-        <div className={styles.userInfoPopup}>
-          <div className={styles.popupHeader}>
-            <span className={styles.popupTitle}>用户信息</span>
-          </div>
-          <div className={styles.popupContent}>
-            <div className={styles.infoRow}>
-              <span className={styles.infoLabel}>用户名:</span>
-              <span className={styles.infoValue}>{userInfo.username}</span>
-            </div>
-            <div className={styles.infoRow}>
-              <span className={styles.infoLabel}>角色:</span>
-              <span className={styles.infoValue}>{userInfo.is_admin ? '管理员' : '普通用户'}</span>
-            </div>
-            <div className={styles.infoRow}>
-              <span className={styles.infoLabel}>本月翻译次数:</span>
-              <span className={styles.infoValue}>
-                {userInfo.monthly_translation_used || 0}/{userInfo.monthly_translation_limit || 0}
-              </span>
-            </div>
-            <div className={styles.infoRow}>
-              <span className={styles.infoLabel}>本月AI检测次数:</span>
-              <span className={styles.infoValue}>
-                {userInfo.monthly_ai_detection_used || 0}/{userInfo.monthly_ai_detection_limit || 0}
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

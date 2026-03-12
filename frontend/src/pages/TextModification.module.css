@@ -505,7 +505,6 @@
   line-height: var(--line-height-normal);
 }
 
-
 .waveDots {
   display: inline-flex;
   align-items: center;
@@ -535,7 +534,9 @@
 }
 
 @keyframes wave {
-  0%, 60%, 100% {
+  0%,
+  60%,
+  100% {
     transform: translateY(0);
   }
   30% {
