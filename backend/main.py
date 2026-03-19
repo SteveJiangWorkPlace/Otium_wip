@@ -232,6 +232,10 @@ def _build_text_task_cache_key(text: str, scope: str) -> str:
 
 ERROR_CHECK_PRIMARY_MODEL = "gemini-2.5-flash"
 ERROR_CHECK_FALLBACK_MODEL = "gemini-2.5-pro"
+TEXT_TRANSLATE_PRIMARY_MODEL = "gemini-2.5-pro"
+TEXT_TRANSLATE_FALLBACK_MODEL = "gemini-2.5-flash"
+TEXT_REFINE_PRIMARY_MODEL = "gemini-2.5-pro"
+TEXT_REFINE_FALLBACK_MODEL = "gemini-2.5-flash"
 
 
 async def _synthetic_text_stream(
@@ -1121,10 +1125,10 @@ async def check_text(
         api_key=gemini_api_key,
         primary_model=ERROR_CHECK_PRIMARY_MODEL
         if request.operation == "error_check"
-        else "gemini-2.5-flash",
+        else TEXT_TRANSLATE_PRIMARY_MODEL,
         fallback_model=ERROR_CHECK_FALLBACK_MODEL
         if request.operation == "error_check"
-        else "gemini-2.5-pro",
+        else TEXT_TRANSLATE_FALLBACK_MODEL,
     )
 
     if not result["success"]:
@@ -1256,8 +1260,8 @@ async def translate_stream(
                 result = generate_gemini_content_with_fallback(
                     prompt=prompt,
                     api_key=gemini_api_key,
-                    primary_model="gemini-2.5-flash",
-                    fallback_model="gemini-2.5-pro",
+                    primary_model=TEXT_TRANSLATE_PRIMARY_MODEL,
+                    fallback_model=TEXT_TRANSLATE_FALLBACK_MODEL,
                 )
 
                 if not result.get("success"):
@@ -1490,8 +1494,8 @@ async def refine_stream(
                 result = generate_gemini_content_with_fallback(
                     prompt,
                     api_key=gemini_api_key,
-                    primary_model="gemini-2.5-flash",
-                    fallback_model="gemini-2.5-pro",
+                    primary_model=TEXT_REFINE_PRIMARY_MODEL,
+                    fallback_model=TEXT_REFINE_FALLBACK_MODEL,
                 )
                 if not result.get("success"):
                     error_chunk = StreamRefineTextChunk(
@@ -1594,8 +1598,8 @@ async def refine_text(
     result = generate_gemini_content_with_fallback(
         prompt,
         api_key=gemini_api_key,
-        primary_model="gemini-2.5-flash",
-        fallback_model="gemini-2.5-pro",
+        primary_model=TEXT_REFINE_PRIMARY_MODEL,
+        fallback_model=TEXT_REFINE_FALLBACK_MODEL,
     )
 
     if not result["success"]:

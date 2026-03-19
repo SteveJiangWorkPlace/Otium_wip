@@ -24,8 +24,8 @@ export const useTranslationStore = create<TranslationState>()(
   persist(
     (set) => ({
       inputText: '',
-      version: 'professional',
-      englishType: 'us',
+      version: 'basic',
+      englishType: 'uk',
       loading: false,
       loadingStep: null,
       translatedText: '',

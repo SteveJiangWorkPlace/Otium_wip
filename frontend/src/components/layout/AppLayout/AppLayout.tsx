@@ -63,6 +63,19 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     const handleKeyDown = (event: KeyboardEvent) => {
       // 检查是否按下了上下箭头键
       if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+        // 检查焦点是否在可编辑元素内
+        const activeElement = document.activeElement;
+        const isEditableElement =
+          activeElement instanceof HTMLTextAreaElement ||
+          activeElement instanceof HTMLInputElement ||
+          activeElement instanceof HTMLSelectElement ||
+          (activeElement instanceof HTMLElement && activeElement.isContentEditable);
+
+        // 如果焦点在可编辑元素内，不触发侧边栏导航，允许光标移动
+        if (isEditableElement) {
+          return;
+        }
+
         event.preventDefault(); // 防止页面滚动
 
         // 定义菜单项顺序（与Sidebar中的顺序一致）

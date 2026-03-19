@@ -199,8 +199,8 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 14px;
-  margin-top: 1px;
+  height: 16px;
+  margin-top: 3px;
 }
 
 .waveDot {
